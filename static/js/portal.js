@@ -1,4 +1,4 @@
-/* Portal do Cliente — Alana Camilo Assessoria */
+/* Portal do Cliente — Raylook */
 
 // ---------------------------------------------------------------------------
 // Filtros
