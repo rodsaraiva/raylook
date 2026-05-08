@@ -116,19 +116,26 @@
                 // (granularidade fina exigiria coluna por cliente — fora do escopo).
                 let actionsHtml = "<span></span>";
                 const cliAttrs = `data-pkg="${c.pacote_id}" data-cli="${c.cliente_id}"`;
+                const nomeAttrs = `data-cliente-nome="${L.escapeHtml(c.nome || '')}" data-cliente-celular="${L.escapeHtml(c.celular || '')}"`;
+                const cancelBtn = `<button class="row-action danger" data-cli-cancel ${cliAttrs} ${nomeAttrs} title="Cancelar esse cliente do pacote">Cancelar</button>`;
                 if (activeState === "pago") {
                     actionsHtml = `<div class="pkg-row-actions">
                         <button class="row-action warning" data-cli-advance ${cliAttrs} data-to="separado" title="Validar e gerar etiqueta">→ Separar</button>
                         <button class="row-action ghost" data-cli-advance ${cliAttrs} data-to="pendente" title="Validar pagamento">Validar</button>
+                        ${cancelBtn}
                     </div>`;
                 } else if (activeState === "pendente") {
                     actionsHtml = `<div class="pkg-row-actions">
                         <button class="row-action" data-cli-advance ${cliAttrs} data-to="separado" title="Gerar etiqueta de separação">Gerar etiqueta</button>
+                        ${cancelBtn}
                     </div>`;
                 } else if (activeState === "separado") {
                     actionsHtml = `<div class="pkg-row-actions">
                         <button class="row-action" data-cli-advance ${cliAttrs} data-to="enviado" title="Marcar como despachado">Marcar enviado</button>
+                        ${cancelBtn}
                     </div>`;
+                } else if (activeState === "enviado") {
+                    actionsHtml = `<div class="pkg-row-actions">${cancelBtn}</div>`;
                 }
                 return `
                 <div class="pkg-row ${key === selectedId ? "selected" : ""}" data-id="${key}" data-pacote-id="${c.pacote_id}">
@@ -143,9 +150,37 @@
             }).join("");
             wrap.querySelectorAll(".pkg-row").forEach(row =>
                 row.addEventListener("click", (e) => {
-                    if (e.target.closest("[data-cli-advance]")) return;
+                    if (e.target.closest("[data-cli-advance]") || e.target.closest("[data-cli-cancel]")) return;
                     selectedId = row.dataset.id;
                     render();
+                })
+            );
+            wrap.querySelectorAll("[data-cli-cancel]").forEach(btn =>
+                btn.addEventListener("click", async (e) => {
+                    e.stopPropagation();
+                    const pkgId = btn.dataset.pkg;
+                    const cliId = btn.dataset.cli;
+                    const nome = btn.dataset.clienteNome || "esse cliente";
+                    const celular = btn.dataset.clienteCelular || "";
+                    const label = celular ? `${nome} (${celular})` : nome;
+                    if (!await (window.RaylookModal?.confirm(
+                            `Cancelar ${label} do pacote? A venda e o pagamento desse cliente serão apagados.`,
+                            { okLabel: "Cancelar cliente", danger: true }
+                        ) ?? Promise.resolve(window.confirm(`Cancelar ${label}?`)))) return;
+                    btn.disabled = true;
+                    try {
+                        const resp = await fetch(`/api/mockups/packages/${pkgId}/clients/${cliId}`,
+                            { method: "DELETE", credentials: "include" });
+                        if (!resp.ok) {
+                            const err = await resp.json().catch(() => ({ detail: "Falha" }));
+                            throw new Error(err.detail || "Falha");
+                        }
+                        window.RaylookModal?.toast("Cliente removido do pacote", "success");
+                        if (window.RaylookReload) await window.RaylookReload();
+                    } catch (err) {
+                        window.RaylookModal?.toast(`Erro: ${err.message}`, "error");
+                        btn.disabled = false;
+                    }
                 })
             );
             wrap.querySelectorAll("[data-cli-advance]").forEach(btn =>
@@ -216,6 +251,10 @@
                 : `<button class="row-back" data-action="regress" data-id="${p.id}" title="Voltar pra etapa anterior">←</button>`;
             const valueLabel = p.total_value ? L.money(p.total_value)
                 : (meta.valor != null ? `${L.money(meta.valor)} <span class="row-unit">/un</span>` : "—");
+            // "Cancelar pacote" aparece em fechado/confirmado (não em aberto, cancelled).
+            const cancelBtn = (state === "fechado" || state === "confirmado")
+                ? `<button class="row-action danger" data-action="cancel" data-id="${p.id}" title="Cancelar pacote inteiro">Cancelar</button>`
+                : "";
             return `
             <div class="pkg-row ${p.id === selectedId ? "selected" : ""}" data-id="${p.id}">
                 <div class="pkg-thumb">${thumb}</div>
@@ -226,6 +265,7 @@
                 <div class="pkg-row-meta">${valueLabel}<div class="sub">há ${L.age(p.state_since)}</div></div>
                 ${backBtn}
                 ${actionBtn}
+                ${cancelBtn}
             </div>`;
         }).join("");
         wrap.querySelectorAll(".pkg-row").forEach(row =>
@@ -244,9 +284,15 @@
                     return;
                 }
                 btn.disabled = true;
-                const confirmText = btn.dataset.confirm
-                    || (btn.dataset.action === "regress" ? "Voltar esse pacote pra etapa anterior?" : null);
-                await L.doAction(btn.dataset.id, btn.dataset.action, confirmText ? { confirmText } : {});
+                let opts = {};
+                if (btn.dataset.confirm) {
+                    opts = { confirmText: btn.dataset.confirm };
+                } else if (btn.dataset.action === "regress") {
+                    opts = { confirmText: "Voltar esse pacote pra etapa anterior?" };
+                } else if (btn.dataset.action === "cancel") {
+                    opts = { confirmText: "Cancelar esse pacote inteiro? Não pode ser desfeito.", okLabel: "Cancelar pacote", danger: true };
+                }
+                await L.doAction(btn.dataset.id, btn.dataset.action, opts);
             })
         );
     }

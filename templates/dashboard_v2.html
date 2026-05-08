@@ -123,6 +123,11 @@
         background: var(--warning); color: var(--bg-main); border: none;
     }
     .row-action.warning:hover { filter: brightness(1.1); }
+    .row-action.danger {
+        background: transparent; color: var(--danger);
+        border: 1px solid rgba(248, 113, 113, 0.3);
+    }
+    .row-action.danger:hover { background: var(--danger-soft); border-color: var(--danger); }
     .pkg-row-actions { display: flex; gap: 6px; align-items: center; }
     .pkg-row:hover { background: rgba(255,255,255,0.06); }
     .pkg-row.selected {
