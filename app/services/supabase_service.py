@@ -104,12 +104,12 @@ class SupabaseRestClient:
 
     @classmethod
     def from_settings(cls):  # pode retornar SQLiteRestClient quando DATA_BACKEND=sqlite
-        # Lockout: em sandbox forçamos SQLite independente do que o .env diga,
-        # pra que nenhuma chamada acidente conecte no Postgres compartilhado
-        # (alana_staging em prod).
-        sandbox = bool(getattr(settings, "RAYLOOK_SANDBOX", True))
-        backend = getattr(settings, "DATA_BACKEND", "sqlite")
-        if sandbox or backend == "sqlite":
+        # DATA_BACKEND escolhe banco. RAYLOOK_SANDBOX é só pra integrações
+        # (Asaas/Resend/etc) — não força mais SQLite. Assim prod pode usar
+        # Postgres dedicado via PostgREST mantendo integrações em stub enquanto
+        # cada uma é configurada.
+        backend = (getattr(settings, "DATA_BACKEND", "sqlite") or "sqlite").strip().lower()
+        if backend == "sqlite":
             from app.services.sqlite_service import SQLiteRestClient
             return SQLiteRestClient.from_settings()
         url = _required(settings.SUPABASE_URL, "SUPABASE_URL")
