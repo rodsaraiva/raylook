@@ -1,0 +1,151 @@
+# ============================================================
+# Raylook Dashboard — stack Swarm 100% isolado
+# ============================================================
+# 3 services + 2 networks:
+#   raylook-postgres    (postgres dedicado, volume próprio)
+#   raylook-postgrest   (API REST do banco)
+#   raylook-dashboard   (FastAPI + Traefik)
+#
+# Networks:
+#   raylook_internal    — overlay privada (postgres + postgrest + dashboard)
+#   network_swarm_public — só pra dashboard ser alcançado pelo Traefik
+#
+# Postgres NÃO expõe porta no host. PostgREST NÃO expõe porta no host.
+# Só o dashboard fala com a rede pública (via Traefik).
+#
+# Deploy:
+#   docker network create -d overlay raylook_internal  # uma vez
+#   docker stack deploy -c deploy/docker-stack.yml raylook --with-registry-auth
+# ============================================================
+
+services:
+  raylook-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: raylook
+      POSTGRES_USER: raylook_owner
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD obrigatorio}
+      POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=C
+      TZ: America/Sao_Paulo
+    volumes:
+      - raylook_pgdata:/var/lib/postgresql/data
+      - ./postgres/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./postgres/init-roles.sh:/docker-entrypoint-initdb.d/00-roles.sh:ro
+    networks:
+      - raylook_internal
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U raylook_owner -d raylook"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  raylook-postgrest:
+    image: postgrest/postgrest:v14.1
+    environment:
+      PGRST_DB_URI: postgres://raylook_owner:${POSTGRES_PASSWORD}@raylook-postgres:5432/raylook
+      PGRST_DB_SCHEMA: public
+      PGRST_DB_ANON_ROLE: raylook_api
+      PGRST_JWT_SECRET: ${PGRST_JWT_SECRET:?PGRST_JWT_SECRET obrigatorio}
+      PGRST_SERVER_PORT: "3000"
+    networks:
+      - raylook_internal
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+
+  raylook-dashboard:
+    image: ${DOCKER_IMAGE:-ghcr.io/rodsaraiva/raylook:latest}
+    environment:
+      DATA_BACKEND: postgres
+      RAYLOOK_SANDBOX: ${RAYLOOK_SANDBOX:-true}
+
+      SUPABASE_URL: http://raylook-postgrest:3000
+      SUPABASE_SERVICE_ROLE_KEY: ${PGRST_JWT_SECRET}
+      SUPABASE_ANON_KEY: ${PGRST_JWT_SECRET}
+      SUPABASE_SCHEMA: public
+      SUPABASE_REST_PATH: /
+      SUPABASE_DOMAIN_ENABLED: "true"
+
+      DASHBOARD_AUTH_DISABLED: "false"
+      DASHBOARD_AUTH_USER: ${DASHBOARD_AUTH_USER:-admin}
+      DASHBOARD_AUTH_PASS: ${DASHBOARD_AUTH_PASS:?DASHBOARD_AUTH_PASS obrigatorio}
+
+      WHATSAPP_WEBHOOK_ENABLED: "true"
+      WHATSAPP_WEBHOOK_SECRET: ${WHATSAPP_WEBHOOK_SECRET:?WHATSAPP_WEBHOOK_SECRET obrigatorio}
+      WHAPI_TOKEN: ${WHAPI_TOKEN:-}
+      WHAPI_API_URL: ${WHAPI_API_URL:-https://gate.whapi.cloud}
+      OFFICIAL_GROUP_CHAT_ID: ${OFFICIAL_GROUP_CHAT_ID:-}
+      AUTHORIZED_GROUP_1: ${AUTHORIZED_GROUP_1:-}
+      AUTHORIZED_GROUP_2: ${AUTHORIZED_GROUP_2:-}
+
+      WELCOME_NAME: Raylook
+      ALLOWED_ORIGINS: '["https://raylook.v4smc.com"]'
+      COMMISSION_PERCENT: "13"
+      PACKAGE_LIMIT_TOTAL: "24"
+      ADHOC_PACKAGES_ENABLED: "true"
+      LOG_LEVEL: INFO
+      TZ: America/Sao_Paulo
+    volumes:
+      - raylook_data:/app/data
+    networks:
+      - raylook_internal
+      - network_swarm_public
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 5
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=network_swarm_public
+        - traefik.http.routers.raylook-http.rule=Host(`raylook.v4smc.com`)
+        - traefik.http.routers.raylook-http.entrypoints=web
+        - traefik.http.routers.raylook-http.middlewares=raylook-redirect
+        - traefik.http.routers.raylook.rule=Host(`raylook.v4smc.com`)
+        - traefik.http.routers.raylook.entrypoints=websecure
+        - traefik.http.routers.raylook.tls=true
+        - traefik.http.routers.raylook.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.raylook.service=raylook
+        - traefik.http.services.raylook.loadbalancer.server.port=8000
+        - traefik.http.services.raylook.loadbalancer.passHostHeader=true
+        - traefik.http.middlewares.raylook-redirect.redirectscheme.scheme=https
+        - traefik.http.middlewares.raylook-redirect.redirectscheme.permanent=true
+
+volumes:
+  raylook_pgdata:
+    driver: local
+  raylook_data:
+    driver: local
+
+networks:
+  raylook_internal:
+    external: true
+  network_swarm_public:
+    external: true
