@@ -115,10 +115,19 @@
                 // Em "pago", botões de transição. Avanço aplica no pacote inteiro
                 // (granularidade fina exigiria coluna por cliente — fora do escopo).
                 let actionsHtml = "<span></span>";
+                const cliAttrs = `data-pkg="${c.pacote_id}" data-cli="${c.cliente_id}"`;
                 if (activeState === "pago") {
                     actionsHtml = `<div class="pkg-row-actions">
-                        <button class="row-action warning" data-cli-advance data-pkg="${c.pacote_id}" data-cli="${c.cliente_id}" data-to="separado" title="Validar e gerar etiqueta">→ Separar</button>
-                        <button class="row-action ghost" data-cli-advance data-pkg="${c.pacote_id}" data-cli="${c.cliente_id}" data-to="pendente" title="Validar pagamento">Validar</button>
+                        <button class="row-action warning" data-cli-advance ${cliAttrs} data-to="separado" title="Validar e gerar etiqueta">→ Separar</button>
+                        <button class="row-action ghost" data-cli-advance ${cliAttrs} data-to="pendente" title="Validar pagamento">Validar</button>
+                    </div>`;
+                } else if (activeState === "pendente") {
+                    actionsHtml = `<div class="pkg-row-actions">
+                        <button class="row-action" data-cli-advance ${cliAttrs} data-to="separado" title="Gerar etiqueta de separação">Gerar etiqueta</button>
+                    </div>`;
+                } else if (activeState === "separado") {
+                    actionsHtml = `<div class="pkg-row-actions">
+                        <button class="row-action" data-cli-advance ${cliAttrs} data-to="enviado" title="Marcar como despachado">Marcar enviado</button>
                     </div>`;
                 }
                 return `
@@ -145,12 +154,14 @@
                     const pkgId = btn.dataset.pkg;
                     const cliId = btn.dataset.cli;
                     const to = btn.dataset.to;
-                    const confirmText = to === "separado"
-                        ? "Marcar esse cliente como Separado? Valida pagamento e gera etiqueta dele."
-                        : to === "pendente"
-                        ? "Validar pagamento desse cliente? Libera só ele pra estoque."
-                        : "Avançar esse cliente?";
-                    const okLabel = to === "separado" ? "→ Separar" : to === "pendente" ? "Validar" : "Avançar";
+                    const confirms = {
+                        pendente: { msg: "Validar pagamento desse cliente?", ok: "Validar" },
+                        separado: { msg: "Gerar etiqueta de separação desse cliente?", ok: "Gerar etiqueta" },
+                        enviado: { msg: "Marcar esse cliente como despachado?", ok: "Marcar enviado" },
+                    };
+                    const c = confirms[to] || { msg: "Avançar esse cliente?", ok: "Avançar" };
+                    const confirmText = c.msg;
+                    const okLabel = c.ok;
                     if (!await (window.RaylookModal?.confirm(confirmText, { okLabel })
                                 ?? Promise.resolve(window.confirm(confirmText)))) return;
                     btn.disabled = true;
