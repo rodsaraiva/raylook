@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Raylook · 01b · Pills compactos</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="_base.css">
+<link rel="stylesheet" href="_modal.css">
+<style>
+    .pills-row {
+        display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 20px;
+        padding: 6px; background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--card-border); border-radius: 14px;
+        width: fit-content;
+    }
+    .pill {
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 14px; border-radius: 10px;
+        background: transparent; border: 1px solid transparent;
+        cursor: pointer; transition: var(--transition);
+        font-family: inherit; color: var(--text-secondary);
+        font-size: 13px; font-weight: 600;
+    }
+    .pill:hover { background: rgba(255, 255, 255, 0.04); color: var(--text-primary); }
+    .pill.active {
+        background: var(--accent); color: var(--bg-main);
+        box-shadow: 0 4px 14px rgba(212, 175, 55, 0.3);
+    }
+    .pill .count {
+        font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 12px;
+        padding: 1px 8px; border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08); color: var(--text-muted);
+        min-width: 22px; text-align: center;
+    }
+    .pill.active .count { background: rgba(0, 0, 0, 0.2); color: var(--bg-main); }
+    .pill .dot {
+        width: 8px; height: 8px; border-radius: 50%; background: var(--dot-c, var(--accent));
+    }
+    .pill.active .dot { background: var(--bg-main); }
+
+    .grid-head {
+        display: flex; justify-content: space-between; align-items: baseline;
+        margin-bottom: 14px;
+    }
+    .grid-head h2 {
+        font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 700;
+        color: var(--text-primary); letter-spacing: -0.01em;
+    }
+    .grid-head .sum { font-size: 13px; color: var(--text-muted); }
+    .grid-head .sum strong { color: var(--accent); font-family: 'Outfit', sans-serif; }
+
+    .inv-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 12px; min-height: 160px;
+    }
+    .empty-state { grid-column: 1/-1; text-align: center; padding: 40px;
+                   color: var(--text-muted); font-style: italic; }
+
+    .inv-card {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(212, 175, 55, 0.1);
+        border-radius: 12px; overflow: hidden;
+        transition: var(--transition);
+        display: flex; flex-direction: column;
+    }
+    .inv-card:hover { transform: translateY(-2px); border-color: var(--accent-soft); }
+    .inv-card-head {
+        padding: 12px 14px; display: flex; justify-content: space-between;
+        align-items: flex-start; gap: 8px;
+    }
+    .inv-card-title {
+        font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700;
+        color: var(--text-primary); line-height: 1.3;
+    }
+    .inv-card-sub { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+    .inv-card-progress {
+        padding: 0 14px 10px; position: relative;
+    }
+    .bar { height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
+    .bar > span { display: block; height: 100%; background: var(--accent);
+                  box-shadow: 0 0 8px rgba(212,175,55,0.4); }
+    .bar-label {
+        display: flex; justify-content: space-between; font-size: 10px;
+        color: var(--text-muted); margin-top: 6px; font-variant-numeric: tabular-nums;
+    }
+    .inv-card-foot {
+        padding: 10px 14px; border-top: 1px solid rgba(255,255,255,0.05);
+        display: flex; justify-content: space-between; align-items: center;
+        background: rgba(212, 175, 55, 0.03);
+    }
+    .inv-card-foot .price {
+        font-family: 'Outfit', sans-serif; font-weight: 700; color: var(--accent);
+        font-size: 13px;
+    }
+</style>
+</head>
+<body>
+
+<div class="mockup-brief">
+    <span class="tag">Variação 01b · Pills compactos</span>
+    <h1>Steps como pills horizontais enxutas</h1>
+    <p>Sem cards grandes no topo — apenas pills com nome + contagem. Ocupa 48px
+       de altura e deixa toda a tela pro grid, que é mais denso (mais cards visíveis).</p>
+</div>
+
+<div class="glass-card">
+    <div class="pills-row" id="pills"></div>
+    <div class="grid-head">
+        <h2 id="state-name">Carregando…</h2>
+        <div class="sum" id="state-sum"></div>
+    </div>
+    <div class="inv-grid" id="grid"><div class="empty-state">Carregando…</div></div>
+</div>
+
+<script src="_mockups-lib.js"></script>
+<script src="_modal.js"></script>
+<script src="01b-stepper-pills.js"></script>
+</body>
+</html>

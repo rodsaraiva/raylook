@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redefinir Senha — Alana Camilo Assessoria</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/portal.css">
+</head>
+<body>
+    <div class="page">
+        <header>
+            <div class="logo-text">
+                <span class="logo-main">ALANA CAMILO</span>
+                <span class="logo-sub">ASSESSORIA</span>
+            </div>
+        </header>
+
+        <div class="auth-card">
+            <div class="auth-icon">
+                <i class="fas fa-key"></i>
+            </div>
+
+            {% if success %}
+            <h1>Link enviado!</h1>
+            <p class="auth-subtitle">
+                Enviamos um link para redefinir sua senha para o email
+                {% if email_hint %}<strong>{{ email_hint }}</strong>{% else %}cadastrado{% endif %}.
+                O link expira em 30 minutos.
+            </p>
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle"></i>
+                Verifique sua caixa de entrada (e o spam)
+            </div>
+            {% else %}
+            <h1>Esqueceu a senha?</h1>
+            <p class="auth-subtitle">Informe seu numero e enviaremos um link de redefinicao para o email cadastrado</p>
+
+            {% if error %}
+            <div class="alert alert-error">
+                <i class="fas fa-exclamation-circle"></i>
+                {{ error }}
+            </div>
+            {% endif %}
+
+            <form method="POST" action="/portal/reset">
+                <div class="form-group">
+                    <label for="phone">Telefone (WhatsApp)</label>
+                    <div class="input-icon">
+                        <i class="fas fa-phone"></i>
+                        <input type="tel" id="phone" name="phone" class="phone-br"
+                               placeholder="+55 (62) 9 9999-9999" autocomplete="tel"
+                               inputmode="numeric" required autofocus>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-primary">
+                    <i class="fas fa-paper-plane"></i>
+                    <span>Enviar link</span>
+                </button>
+            </form>
+            {% endif %}
+
+            <div class="auth-links">
+                <a href="/portal"><i class="fas fa-arrow-left"></i> Voltar ao login</a>
+            </div>
+        </div>
+
+        <div class="footer-note">
+            <i class="fas fa-shield-halved"></i> Portal seguro — Alana Camilo Assessoria
+        </div>
+    </div>
+
+    <script src="/static/js/portal_form.js"></script>
+</body>
+</html>

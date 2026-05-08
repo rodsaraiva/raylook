@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Preview — Home v2 · Alana Camilo</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ─────────────────────────────────────────────────────────────
+   PREVIEW — HOME V2
+   Redesign preservando paleta marrom/rosa/creme + glass morphism
+   Mudanças-chave:
+   • Hero editorial com data/hora destacada
+   • 1 KPI hero (votos + gráfico integrado) + 3 secundários
+   • Busca global filtrando as 3 colunas de pacotes
+   • Top Clientes Hoje/Semana unificado em tabs
+   • Cards com altura fixa + title clamp
+   • Divider ornamental tipográfico entre seções
+   ───────────────────────────────────────────────────────────── */
+
+:root {
+    /* Preservados do app */
+    --bg-main: #B89494;
+    --bg-deep: #9d7a7a;
+    --bg-warm: #d6b4b4;
+    --primary: #3D2E2E;
+    --primary-soft: rgba(61, 46, 46, 0.65);
+    --secondary: #F5D5D5;
+    --accent: #C17B7B;
+    --accent-deep: #a85f5f;
+    --success: #2D6A4F;
+    --danger: #9B3A3A;
+    --warning: #B45309;
+    --text-primary: #2A1E1E;
+    --text-secondary: #6B5555;
+    --text-muted: #8B7676;
+
+    /* Glass surfaces */
+    --glass-1: rgba(255, 255, 255, 0.22);
+    --glass-2: rgba(255, 255, 255, 0.42);
+    --glass-3: rgba(255, 255, 255, 0.58);
+    --glass-border: rgba(255, 255, 255, 0.38);
+    --glass-border-soft: rgba(255, 255, 255, 0.22);
+
+    /* Spacing */
+    --s1: 0.25rem; --s2: 0.5rem; --s3: 0.75rem;
+    --s4: 1rem;    --s5: 1.5rem; --s6: 2rem;
+    --s7: 2.5rem;  --s8: 3rem;
+
+    --r-sm: 12px;
+    --r-md: 18px;
+    --r-lg: 24px;
+
+    --shadow-soft: 0 4px 20px rgba(80, 40, 40, 0.08);
+    --shadow-med: 0 12px 32px rgba(80, 40, 40, 0.14);
+    --focus-ring: 0 0 0 3px rgba(193, 123, 123, 0.32);
+
+    --sidebar-w: 220px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+    background: var(--bg-main);
+    color: var(--text-primary);
+    font-family: 'Inter', system-ui, sans-serif;
+    min-height: 100vh;
+    font-feature-settings: 'ss01', 'cv11';
+}
+
+/* Atmosfera: gradiente sutil + grão imperceptível */
+body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background:
+        radial-gradient(ellipse 80% 60% at 20% 0%, rgba(245, 213, 213, 0.35), transparent 60%),
+        radial-gradient(ellipse 60% 40% at 100% 100%, rgba(193, 123, 123, 0.22), transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+}
+body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/><feColorMatrix values='0 0 0 0 0.15  0 0 0 0 0.1  0 0 0 0 0.1  0 0 0 0.05 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    opacity: 0.6;
+    pointer-events: none;
+    mix-blend-mode: overlay;
+    z-index: 0;
+}
+
+.layout {
+    display: grid;
+    grid-template-columns: var(--sidebar-w) 1fr;
+    min-height: 100vh;
+    position: relative;
+    z-index: 1;
+}
+
+/* ── SIDEBAR (preservada em estilo) ───────────────────── */
+.sidebar {
+    padding: var(--s6) var(--s5);
+    background: linear-gradient(180deg, var(--bg-warm) 0%, var(--bg-main) 100%);
+    border-right: 1px solid var(--glass-border-soft);
+    display: flex; flex-direction: column; gap: var(--s6);
+}
+.brand { text-align: center; }
+.brand-name {
+    font-family: 'Fraunces', 'Outfit', serif;
+    font-weight: 500;
+    font-style: italic;
+    font-size: 1.35rem;
+    letter-spacing: 0.06em;
+    color: var(--primary);
+    line-height: 1;
+    font-variation-settings: 'opsz' 72;
+}
+.brand-sub {
+    margin-top: var(--s1);
+    font-family: 'Outfit', sans-serif;
+    font-weight: 400;
+    font-size: 0.68rem;
+    letter-spacing: 0.34em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+.nav { display: flex; flex-direction: column; gap: var(--s1); }
+.nav-item {
+    display: flex; align-items: center; gap: var(--s3);
+    padding: var(--s3) var(--s4);
+    border-radius: var(--r-sm);
+    color: var(--text-secondary);
+    font-weight: 500; font-size: 0.92rem;
+    text-decoration: none;
+    transition: all 160ms ease;
+    cursor: pointer;
+}
+.nav-item i { width: 20px; text-align: center; font-size: 0.95rem; }
+.nav-item:hover { background: var(--glass-2); color: var(--text-primary); }
+.nav-item.active {
+    background: var(--primary);
+    color: var(--bg-warm);
+    box-shadow: var(--shadow-soft);
+}
+.nav-logout {
+    margin-top: auto; color: var(--danger);
+    font-size: 0.85rem;
+}
+
+/* ── MAIN ───────────────────────────────────────────── */
+main {
+    padding: var(--s6) var(--s7);
+    display: flex; flex-direction: column; gap: var(--s6);
+    max-width: 1600px;
+}
+
+/* ── HERO HEADER editorial ─────────────────────────── */
+.hero {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+    gap: var(--s4);
+    padding-bottom: var(--s4);
+    border-bottom: 1px solid var(--glass-border-soft);
+}
+.hero-greeting {
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-style: italic;
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    letter-spacing: 0.02em;
+    font-variation-settings: 'opsz' 72;
+}
+.hero-title {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 700;
+    font-size: clamp(2.2rem, 4vw, 3rem);
+    line-height: 1.02;
+    color: var(--primary);
+    letter-spacing: -0.02em;
+    margin-top: 0.15em;
+}
+.hero-title em {
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-style: italic;
+    color: var(--accent-deep);
+    letter-spacing: -0.01em;
+    font-variation-settings: 'opsz' 144;
+}
+.hero-subtitle {
+    margin-top: var(--s3);
+    color: var(--text-secondary);
+    font-size: 0.92rem;
+    letter-spacing: 0.01em;
+}
+.hero-meta {
+    display: flex; flex-direction: column; align-items: flex-end; gap: var(--s2);
+}
+.hero-timestamp {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 500; font-size: 0.88rem;
+    color: var(--text-secondary);
+    display: flex; align-items: center; gap: var(--s2);
+}
+.hero-live-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--success);
+    box-shadow: 0 0 0 0 rgba(45, 106, 79, 0.5);
+    animation: pulse-dot 2.2s infinite;
+}
+@keyframes pulse-dot {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(45, 106, 79, 0.5); }
+    50% { box-shadow: 0 0 0 6px rgba(45, 106, 79, 0); }
+}
+.btn-refresh {
+    background: var(--primary);
+    color: var(--bg-warm);
+    border: none;
+    padding: 0.55rem 0.95rem;
+    border-radius: var(--r-sm);
+    font-family: 'Outfit', sans-serif;
+    font-weight: 500; font-size: 0.82rem;
+    letter-spacing: 0.04em;
+    display: flex; align-items: center; gap: var(--s2);
+    cursor: pointer; transition: all 180ms ease;
+}
+.btn-refresh:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-med);
+}
+.btn-refresh i { font-size: 0.78rem; }
+
+/* ── KPI LAYOUT: 1 hero (grande) + 3 secundários ──── */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: var(--s4);
+}
+.kpi {
+    background: var(--glass-2);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--r-md);
+    padding: var(--s5);
+    transition: transform 320ms cubic-bezier(0.16,1,0.3,1), box-shadow 320ms;
+    position: relative;
+    overflow: hidden;
+}
+.kpi:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-med);
+}
+.kpi-eyebrow {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 500; font-size: 0.7rem;
+    letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--text-muted);
+    display: flex; align-items: center; gap: var(--s2);
+}
+.kpi-eyebrow i { font-size: 0.72rem; color: var(--accent); }
+.kpi-value {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+    font-size: 3.4rem; line-height: 1;
+    color: var(--primary);
+    letter-spacing: -0.035em;
+    margin-top: var(--s2);
+    display: flex; align-items: baseline; gap: var(--s2);
+}
+.kpi-unit {
+    font-family: 'Fraunces', serif;
+    font-weight: 400; font-style: italic;
+    font-size: 1rem; color: var(--text-muted);
+    font-variation-settings: 'opsz' 72;
+}
+.kpi-trend {
+    margin-top: var(--s3);
+    display: flex; gap: var(--s4); flex-wrap: wrap;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
+.trend {
+    display: flex; align-items: center; gap: 0.35rem;
+}
+.trend-val {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 700;
+    color: var(--success);
+}
+.trend.negative .trend-val { color: var(--danger); }
+.trend-label {
+    color: var(--text-muted); font-size: 0.72rem;
+}
+
+/* KPI HERO (com gráfico embutido) */
+.kpi-hero {
+    grid-column: span 1;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: var(--s4);
+}
+.kpi-hero-top { display: flex; justify-content: space-between; align-items: flex-start; }
+.kpi-hero-chart {
+    height: 100px;
+    position: relative;
+}
+.kpi-hero-chart svg { width: 100%; height: 100%; overflow: visible; }
+.kpi-hero-chart .chart-label {
+    position: absolute; bottom: 0; left: 0;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 500; font-size: 0.68rem;
+    color: var(--text-muted);
+    letter-spacing: 0.12em; text-transform: uppercase;
+}
+.kpi-hero-chart .chart-label-right {
+    position: absolute; bottom: 0; right: 0;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 500; font-size: 0.68rem;
+    color: var(--text-muted);
+    letter-spacing: 0.12em; text-transform: uppercase;
+}
+
+/* KPI secundários */
+.kpi-sm {
+    display: flex; flex-direction: column; justify-content: space-between;
+}
+.kpi-sm .kpi-value {
+    font-size: 2.4rem;
+}
+
+/* KPI especial: pacotes confirmados "pelando" */
+.kpi-pelando {
+    position: relative;
+    background: linear-gradient(135deg, rgba(180, 83, 9, 0.22), var(--glass-2));
+    border-color: rgba(180, 83, 9, 0.35);
+}
+.kpi-pelando::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at top right, rgba(235, 140, 50, 0.25), transparent 60%);
+    pointer-events: none;
+}
+.kpi-pelando .kpi-eyebrow i { color: var(--warning); animation: flame-flicker 1.8s ease-in-out infinite; }
+@keyframes flame-flicker {
+    0%, 100% { transform: scale(1) rotate(-2deg); opacity: 1; }
+    50% { transform: scale(1.1) rotate(3deg); opacity: 0.85; }
+}
+.kpi-status-chip {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.3rem 0.7rem;
+    background: rgba(180, 83, 9, 0.18);
+    color: var(--warning);
+    border-radius: 999px;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600; font-size: 0.72rem;
+    letter-spacing: 0.05em;
+    margin-top: var(--s3);
+    width: fit-content;
+}
+
+/* ── DIVIDER ORNAMENTAL ────────────────────────────── */
+.divider {
+    display: flex; align-items: center; gap: var(--s4);
+    color: var(--primary-soft);
+    font-family: 'Fraunces', serif;
+    font-size: 1.1rem;
+    margin: var(--s2) 0;
+}
+.divider::before, .divider::after {
+    content: ''; flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--glass-border), transparent);
+}
+.divider-ornament { opacity: 0.55; letter-spacing: 0.5em; }
+
+/* ── SEARCH GLOBAL + SECTION TITLE ─────────────────── */
+.section-head {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: var(--s5);
+}
+.section-title {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    font-size: 1.35rem;
+    color: var(--primary);
+    letter-spacing: -0.01em;
+    display: flex; align-items: baseline; gap: var(--s3);
+}
+.section-title em {
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-style: italic;
+    color: var(--accent-deep);
+    font-size: 0.95em;
+    font-variation-settings: 'opsz' 144;
+}
+.search-global {
+    position: relative;
+    width: 320px;
+}
+.search-global input {
+    width: 100%;
+    padding: 0.65rem 1rem 0.65rem 2.4rem;
+    border: 1px solid var(--glass-border);
+    border-radius: 999px;
+    background: var(--glass-1);
+    backdrop-filter: blur(8px);
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.88rem;
+    transition: all 180ms ease;
+}
+.search-global input:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: var(--glass-3);
+    box-shadow: var(--focus-ring);
+}
+.search-global input::placeholder { color: var(--text-muted); }
+.search-global i {
+    position: absolute; left: 0.9rem; top: 50%; transform: translateY(-50%);
+    color: var(--text-muted); font-size: 0.85rem;
+}
+
+/* ── GRID 3 COLUNAS ─────────────────────────────────── */
+.columns-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--s4);
+}
+.col {
+    background: var(--glass-2);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--r-md);
+    padding: var(--s5);
+    display: flex; flex-direction: column;
+    min-height: 0;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+}
+.col-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: var(--s4);
+    padding-bottom: var(--s3);
+    border-bottom: 1px solid var(--glass-border-soft);
+}
+.col-head h3 {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600; font-size: 1rem;
+    color: var(--primary);
+    display: flex; align-items: center; gap: var(--s2);
+}
+.col-head h3 i { color: var(--accent); font-size: 0.85rem; }
+.col-count {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-style: italic;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-variation-settings: 'opsz' 72;
+}
+.col-head .btn-add {
+    padding: 0.35rem 0.75rem;
+    background: var(--primary);
+    color: var(--bg-warm);
+    border: none;
+    border-radius: 999px;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 500; font-size: 0.75rem;
+    display: flex; align-items: center; gap: 0.4rem;
+    cursor: pointer; transition: all 180ms;
+}
+.col-head .btn-add:hover { transform: translateY(-1px); box-shadow: var(--shadow-soft); }
+.col-body {
+    display: flex; flex-direction: column; gap: var(--s3);
+    overflow-y: auto; max-height: 620px;
+    padding-right: var(--s2);
+}
+.col-body::-webkit-scrollbar { width: 4px; }
+.col-body::-webkit-scrollbar-thumb { background: rgba(61, 46, 46, 0.15); border-radius: 4px; }
+
+/* ── PACKAGE CARD (unificado) ─────────────────────── */
+.pkg {
+    background: var(--glass-3);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--r-md);
+    padding: var(--s3);
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: var(--s3);
+    transition: all 240ms cubic-bezier(0.16,1,0.3,1);
+    position: relative;
+}
+.pkg:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-soft);
+    background: var(--glass-3);
+}
+.pkg-img {
+    width: 64px; height: 64px;
+    background: var(--secondary);
+    border-radius: 10px;
+    object-fit: cover;
+    overflow: hidden;
+}
+.pkg-img img { width: 100%; height: 100%; object-fit: cover; }
+.pkg-img-ph {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--accent); font-size: 1.2rem;
+    background: linear-gradient(135deg, var(--secondary), #fff 80%);
+}
+.pkg-body {
+    display: flex; flex-direction: column; gap: 0.3rem;
+    min-width: 0;
+}
+.pkg-title {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600; font-size: 0.88rem;
+    color: var(--text-primary);
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.pkg-meta {
+    display: flex; gap: var(--s3); font-size: 0.72rem;
+    color: var(--text-muted);
+    align-items: center;
+}
+.pkg-meta i { font-size: 0.7rem; margin-right: 0.25rem; }
+.pkg-meta .pkg-qty {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    color: var(--primary);
+    background: rgba(61, 46, 46, 0.08);
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+}
+.pkg-actions {
+    display: flex; gap: 0.35rem; margin-top: 0.2rem;
+}
+.pkg-btn {
+    width: 30px; height: 30px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid transparent;
+    background: var(--glass-1);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 180ms;
+}
+.pkg-btn:hover { background: var(--glass-3); border-color: var(--glass-border); color: var(--primary); }
+.pkg-btn.success { color: var(--success); }
+.pkg-btn.success:hover { background: rgba(45, 106, 79, 0.12); border-color: rgba(45, 106, 79, 0.3); }
+.pkg-btn.danger { color: var(--danger); }
+.pkg-btn.danger:hover { background: rgba(155, 58, 58, 0.12); border-color: rgba(155, 58, 58, 0.3); }
+.pkg-btn.warn { color: var(--warning); }
+.pkg-btn.warn:hover { background: rgba(180, 83, 9, 0.12); }
+.pkg-tag {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    padding: 0.2rem 0.6rem;
+    background: var(--secondary);
+    border-radius: 999px;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 500; font-size: 0.68rem;
+    color: var(--accent-deep);
+    letter-spacing: 0.04em;
+    margin-left: auto;
+}
+.pkg-tag.empty { background: transparent; color: var(--text-muted); border: 1px dashed var(--glass-border); }
+
+/* ── RANKINGS ───────────────────────────────────────── */
+.rankings {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: var(--s4);
+}
+.rank-card {
+    background: var(--glass-2);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--r-md);
+    padding: var(--s5);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+}
+.rank-tabs {
+    display: flex; gap: var(--s2);
+    padding: 0.3rem;
+    background: var(--glass-1);
+    border-radius: 999px;
+    width: fit-content;
+}
+.rank-tab {
+    padding: 0.4rem 0.95rem;
+    border: none; background: transparent;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 500; font-size: 0.78rem;
+    color: var(--text-secondary);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 180ms;
+    letter-spacing: 0.03em;
+}
+.rank-tab.active {
+    background: var(--primary);
+    color: var(--bg-warm);
+}
+.rank-list {
+    display: flex; flex-direction: column; gap: var(--s2);
+    margin-top: var(--s4);
+}
+.rank-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: var(--s4);
+    padding: var(--s3) var(--s4);
+    background: var(--glass-3);
+    border-radius: var(--r-sm);
+    transition: all 200ms ease;
+    border: 1px solid transparent;
+}
+.rank-item:hover {
+    transform: translateX(2px);
+    border-color: var(--glass-border);
+}
+.rank-position {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-style: italic;
+    font-size: 1.35rem;
+    color: var(--accent);
+    width: 2ch;
+    font-variation-settings: 'opsz' 144;
+}
+.rank-item:nth-child(1) .rank-position { color: var(--primary); font-weight: 600; }
+.rank-info { min-width: 0; }
+.rank-name {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600; font-size: 0.95rem;
+    color: var(--text-primary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rank-sub {
+    font-size: 0.75rem; color: var(--text-muted);
+    margin-top: 2px;
+}
+.rank-item-img {
+    width: 42px; height: 42px; border-radius: 8px;
+    background: var(--secondary);
+    overflow: hidden;
+    flex-shrink: 0;
+}
+.rank-item-img.grid {
+    grid-column: 1;
+    margin-right: calc(-1 * var(--s2));
+}
+.rank-with-img {
+    grid-template-columns: 42px auto 1fr auto;
+}
+.rank-value {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 700; font-size: 0.9rem;
+    color: var(--primary);
+    padding: 0.3rem 0.7rem;
+    background: var(--glass-1);
+    border-radius: 999px;
+}
+
+/* ── STAGGERED ENTRY ANIMATION ─────────────────────── */
+.fade-up {
+    animation: fadeUp 680ms cubic-bezier(0.16,1,0.3,1) backwards;
+}
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Banner preview */
+.preview-banner {
+    position: fixed;
+    top: 10px; right: 10px;
+    background: var(--primary);
+    color: var(--bg-warm);
+    padding: 0.45rem 0.9rem;
+    border-radius: 999px;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 500; font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    z-index: 100;
+    box-shadow: var(--shadow-med);
+}
+
+@media (max-width: 1300px) {
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+    .columns-3 { grid-template-columns: 1fr; }
+    .rankings { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="preview-banner">
+    <i class="fas fa-flask" style="margin-right: 0.4rem;"></i>PREVIEW — home v2
+</div>
+
+<div class="layout">
+    <!-- Sidebar (preservada) -->
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-name">Alana Camilo</div>
+            <div class="brand-sub">Assessoria</div>
+        </div>
+        <nav class="nav">
+            <a class="nav-item active"><i class="fas fa-chart-pie"></i> Dashboard</a>
+            <a class="nav-item"><i class="fas fa-user-friends"></i> Clientes</a>
+            <a class="nav-item"><i class="fas fa-dollar-sign"></i> Financeiro</a>
+            <a class="nav-item"><i class="fas fa-box-open"></i> Estoque</a>
+            <a class="nav-item"><i class="fas fa-sliders-h"></i> Ajustes</a>
+        </nav>
+        <a class="nav-item nav-logout"><i class="fas fa-sign-out-alt"></i> Sair</a>
+    </aside>
+
+    <main>
+        <!-- HERO editorial -->
+        <header class="hero fade-up" style="animation-delay: 40ms;">
+            <div>
+                <div class="hero-greeting">Boa tarde,</div>
+                <h1 class="hero-title">Alana <em>Camilo</em>.</h1>
+                <p class="hero-subtitle">Relatório de performance em tempo real.</p>
+            </div>
+            <div class="hero-meta">
+                <div class="hero-timestamp">
+                    <span class="hero-live-dot"></span>
+                    Seg · 20 abr · <strong style="color: var(--primary); font-weight: 600;">17:34</strong>
+                </div>
+                <button class="btn-refresh">
+                    <i class="fas fa-sync-alt"></i> Atualizar
+                </button>
+            </div>
+        </header>
+
+        <!-- KPIs: 1 hero com gráfico + 3 secundários -->
+        <section class="kpi-grid">
+            <!-- Hero: Votos Hoje com gráfico -->
+            <div class="kpi kpi-hero fade-up" style="animation-delay: 120ms;">
+                <div class="kpi-hero-top">
+                    <div>
+                        <div class="kpi-eyebrow"><i class="fas fa-bolt"></i> Votos Hoje</div>
+                        <div class="kpi-value">294 <span class="kpi-unit">votos</span></div>
+                        <div class="kpi-trend">
+                            <span class="trend"><span class="trend-val">+16%</span><span class="trend-label">vs ontem</span></span>
+                            <span class="trend"><span class="trend-val">+60%</span><span class="trend-label">vs semana passada</span></span>
+                            <span class="trend"><span class="trend-val">+47%</span><span class="trend-label">vs mensal</span></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="kpi-hero-chart">
+                    <svg viewBox="0 0 600 100" preserveAspectRatio="none">
+                        <defs>
+                            <linearGradient id="g" x1="0" x2="0" y1="0" y2="1">
+                                <stop offset="0%" stop-color="#C17B7B" stop-opacity="0.55"/>
+                                <stop offset="100%" stop-color="#C17B7B" stop-opacity="0"/>
+                            </linearGradient>
+                        </defs>
+                        <path d="M0,60 C30,58 60,40 90,42 C120,44 150,62 180,70 C210,76 240,78 270,76 C300,72 330,62 360,56 C390,52 420,48 450,40 C480,30 510,26 540,20 C570,16 590,12 600,8 L600,100 L0,100 Z" fill="url(#g)"/>
+                        <path d="M0,60 C30,58 60,40 90,42 C120,44 150,62 180,70 C210,76 240,78 270,76 C300,72 330,62 360,56 C390,52 420,48 450,40 C480,30 510,26 540,20 C570,16 590,12 600,8" stroke="#C17B7B" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+                    </svg>
+                    <span class="chart-label">00h</span>
+                    <span class="chart-label-right">17h</span>
+                </div>
+            </div>
+
+            <!-- Secundário: Enquetes Ativas -->
+            <div class="kpi kpi-sm fade-up" style="animation-delay: 180ms;">
+                <div>
+                    <div class="kpi-eyebrow"><i class="fas fa-square-poll-vertical"></i> Enquetes Ativas</div>
+                    <div class="kpi-value">153</div>
+                </div>
+                <div class="kpi-trend" style="flex-direction: column; gap: 0.4rem; margin-top: var(--s4);">
+                    <span class="trend"><span class="trend-val">+7%</span><span class="trend-label">vs ontem</span></span>
+                    <span class="trend"><span class="trend-val">89</span><span class="trend-label">fechados dessas</span></span>
+                </div>
+            </div>
+
+            <!-- Secundário: Pacotes Confirmados com "pelando" -->
+            <div class="kpi kpi-sm kpi-pelando fade-up" style="animation-delay: 240ms;">
+                <div>
+                    <div class="kpi-eyebrow"><i class="fas fa-fire"></i> Confirmados 72h</div>
+                    <div class="kpi-value">97</div>
+                    <div class="kpi-status-chip">
+                        <i class="fas fa-temperature-high"></i> Pelando
+                    </div>
+                </div>
+                <div class="kpi-trend" style="flex-direction: column; gap: 0.4rem; margin-top: var(--s3);">
+                    <span class="trend"><span class="trend-val">52</span><span class="trend-label">média segundas</span></span>
+                </div>
+            </div>
+
+            <!-- Secundário: Ritmo de Fechamento -->
+            <div class="kpi kpi-sm fade-up" style="animation-delay: 300ms;">
+                <div>
+                    <div class="kpi-eyebrow"><i class="fas fa-clock"></i> Último fechamento</div>
+                    <div class="kpi-value" style="font-size: 1.8rem;">há 12 min</div>
+                </div>
+                <div class="kpi-trend" style="flex-direction: column; gap: 0.4rem; margin-top: var(--s4);">
+                    <span class="trend"><span class="trend-val">+47%</span><span class="trend-label">velocidade vs ontem</span></span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Divider -->
+        <div class="divider fade-up" style="animation-delay: 380ms;">
+            <span class="divider-ornament">◈ ◈ ◈</span>
+        </div>
+
+        <!-- Seção: 3 colunas de pacotes -->
+        <div class="section-head fade-up" style="animation-delay: 420ms;">
+            <div class="section-title">
+                Fluxo dos <em>pacotes</em>
+            </div>
+            <div class="search-global">
+                <i class="fas fa-search"></i>
+                <input type="text" placeholder="Buscar em todas as listas…" />
+            </div>
+        </div>
+
+        <section class="columns-3 fade-up" style="animation-delay: 480ms;">
+            <!-- Enquetes em Aberto -->
+            <div class="col">
+                <div class="col-head">
+                    <h3><i class="fas fa-square-poll-vertical"></i> Em Aberto <span class="col-count">· 14</span></h3>
+                    <button class="btn-add"><i class="fas fa-plus"></i> Criar</button>
+                </div>
+                <div class="col-body">
+                    <article class="pkg">
+                        <div class="pkg-img"><div class="pkg-img-ph"><i class="fas fa-image"></i></div></div>
+                        <div class="pkg-body">
+                            <div class="pkg-title">Calça na alfaiataria PMG no precinho $38,00</div>
+                            <div class="pkg-meta">
+                                <span><i class="far fa-clock"></i>Aberto 20/04 16:53</span>
+                                <span class="pkg-qty">15 pç</span>
+                            </div>
+                            <div class="pkg-actions">
+                                <button class="pkg-btn" title="Sincronizar"><i class="fas fa-sync-alt"></i></button>
+                                <span class="pkg-tag"><i class="fas fa-truck"></i> fornecedor</span>
+                            </div>
+                        </div>
+                    </article>
+                    <article class="pkg">
+                        <div class="pkg-img"><div class="pkg-img-ph"><i class="fas fa-image"></i></div></div>
+                        <div class="pkg-body">
+                            <div class="pkg-title">Meninaaaas cuida aproveita blusa no modal BBB baratinhaaaaaa $20,00 😱😱😱</div>
+                            <div class="pkg-meta">
+                                <span><i class="far fa-clock"></i>Aberto 20/04 16:34</span>
+                                <span class="pkg-qty">18 pç</span>
+                            </div>
+                            <div class="pkg-actions">
+                                <button class="pkg-btn" title="Sincronizar"><i class="fas fa-sync-alt"></i></button>
+                                <span class="pkg-tag"><i class="fas fa-truck"></i> fornecedor</span>
+                            </div>
+                        </div>
+                    </article>
+                    <article class="pkg">
+                        <div class="pkg-img"><div class="pkg-img-ph"><i class="fas fa-image"></i></div></div>
+                        <div class="pkg-body">
+                            <div class="pkg-title">Esse conjunto é super elegante para as mamães que merecem o melhor, alta costura PMG</div>
+                            <div class="pkg-meta">
+                                <span><i class="far fa-clock"></i>Aberto 20/04 14:22</span>
+                                <span class="pkg-qty">3 pç</span>
+                            </div>
+                            <div class="pkg-actions">
+                                <button class="pkg-btn" title="Sincronizar"><i class="fas fa-sync-alt"></i></button>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+            </div>
+
+            <!-- Pacotes Fechados -->
+            <div class="col">
+                <div class="col-head">
+                    <h3><i class="fas fa-check-double"></i> Fechados <span class="col-count">· 7</span></h3>
+                </div>
+                <div class="col-body">
+                    <article class="pkg">
+                        <div class="pkg-img"><div class="pkg-img-ph"><i class="fas fa-image"></i></div></div>
+                        <div class="pkg-body">
+                            <div class="pkg-title">Meninaaaas cuida aproveita blusa no modal BBB baratinhaaaaaa super em alta $20,00 😱😱😱</div>
+                            <div class="pkg-meta">
+                                <span><i class="far fa-clock"></i>Fechado 20/04 16:49</span>
+                            </div>
+                            <div class="pkg-actions">
+                                <button class="pkg-btn success" title="Aprovar"><i class="fas fa-check"></i></button>
+                                <button class="pkg-btn" title="Editar"><i class="fas fa-pen"></i></button>
+                                <button class="pkg-btn" title="Editar membros"><i class="fas fa-users"></i></button>
+                                <button class="pkg-btn danger" title="Rejeitar"><i class="fas fa-times"></i></button>
+                                <span class="pkg-tag empty">Sem tag</span>
+                            </div>
+                        </div>
+                    </article>
+                    <article class="pkg">
+                        <div class="pkg-img"><div class="pkg-img-ph"><i class="fas fa-image"></i></div></div>
+                        <div class="pkg-body">
+                            <div class="pkg-title">Conjunto na alfaiataria PMG lindo $50,00 💕</div>
+                            <div class="pkg-meta">
+                                <span><i class="far fa-clock"></i>Fechado 20/04 16:45</span>
+                            </div>
+                            <div class="pkg-actions">
+                                <button class="pkg-btn success" title="Aprovar"><i class="fas fa-check"></i></button>
+                                <button class="pkg-btn" title="Editar"><i class="fas fa-pen"></i></button>
+                                <button class="pkg-btn" title="Editar membros"><i class="fas fa-users"></i></button>
+                                <button class="pkg-btn danger" title="Rejeitar"><i class="fas fa-times"></i></button>
+                                <span class="pkg-tag">Blusas</span>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+            </div>
+
+            <!-- Pacotes Confirmados -->
+            <div class="col">
+                <div class="col-head">
+                    <h3><i class="fas fa-circle-check"></i> Confirmados <span class="col-count">· 12 (72h)</span></h3>
+                </div>
+                <div class="col-body">
+                    <article class="pkg">
+                        <div class="pkg-img"><div class="pkg-img-ph"><i class="fas fa-image"></i></div></div>
+                        <div class="pkg-body">
+                            <div class="pkg-title">Vestido no cetim PMG $48,00 lindooooo</div>
+                            <div class="pkg-meta">
+                                <span><i class="far fa-calendar-check"></i>Confirmado 20/04 15:52</span>
+                            </div>
+                            <div class="pkg-actions">
+                                <button class="pkg-btn" title="Baixar etiqueta"><i class="fas fa-file-pdf"></i></button>
+                                <button class="pkg-btn" title="Editar membros"><i class="fas fa-users"></i></button>
+                                <button class="pkg-btn danger" title="Cancelar"><i class="fas fa-ban"></i></button>
+                                <span class="pkg-tag">Vestidos</span>
+                            </div>
+                        </div>
+                    </article>
+                    <article class="pkg">
+                        <div class="pkg-img"><div class="pkg-img-ph"><i class="fas fa-image"></i></div></div>
+                        <div class="pkg-body">
+                            <div class="pkg-title">Calça perfeita demais sucesso de vendas PMG $42,00 alfaiataria</div>
+                            <div class="pkg-meta">
+                                <span><i class="far fa-calendar-check"></i>Confirmado 20/04 15:24</span>
+                            </div>
+                            <div class="pkg-actions">
+                                <button class="pkg-btn" title="Baixar etiqueta"><i class="fas fa-file-pdf"></i></button>
+                                <button class="pkg-btn" title="Editar membros"><i class="fas fa-users"></i></button>
+                                <button class="pkg-btn danger" title="Cancelar"><i class="fas fa-ban"></i></button>
+                                <span class="pkg-tag">Calças</span>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- Divider -->
+        <div class="divider fade-up" style="animation-delay: 540ms;">
+            <span class="divider-ornament">◈ ◈ ◈</span>
+        </div>
+
+        <!-- Rankings: 2 colunas (Top Enquetes + Top Clientes com tabs) -->
+        <section class="rankings fade-up" style="animation-delay: 600ms;">
+            <!-- Top Enquetes -->
+            <div class="rank-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--s3);">
+                    <h3 class="section-title" style="font-size: 1.1rem;"><i class="fas fa-trophy" style="color: var(--accent); margin-right: var(--s2);"></i>Top <em>enquetes</em></h3>
+                    <span class="col-count">por pacotes fechados</span>
+                </div>
+                <div class="rank-list">
+                    <div class="rank-item rank-with-img">
+                        <div class="rank-item-img"><div class="pkg-img-ph" style="height: 100%;"><i class="fas fa-image"></i></div></div>
+                        <div class="rank-position">01</div>
+                        <div class="rank-info">
+                            <div class="rank-name">Blusa super elegante PMG $35,00 barato</div>
+                            <div class="rank-sub">5 pacotes fechados</div>
+                        </div>
+                        <div class="rank-value">120</div>
+                    </div>
+                    <div class="rank-item rank-with-img">
+                        <div class="rank-item-img"><div class="pkg-img-ph" style="height: 100%;"><i class="fas fa-image"></i></div></div>
+                        <div class="rank-position">02</div>
+                        <div class="rank-info">
+                            <div class="rank-name">Calça na alfaiataria PMG no precinho $38,00</div>
+                            <div class="rank-sub">4 pacotes fechados</div>
+                        </div>
+                        <div class="rank-value">96</div>
+                    </div>
+                    <div class="rank-item rank-with-img">
+                        <div class="rank-item-img"><div class="pkg-img-ph" style="height: 100%;"><i class="fas fa-image"></i></div></div>
+                        <div class="rank-position">03</div>
+                        <div class="rank-info">
+                            <div class="rank-name">Vestido perfeito demais PMG cores lindas $100,00</div>
+                            <div class="rank-sub">4 pacotes fechados</div>
+                        </div>
+                        <div class="rank-value">96</div>
+                    </div>
+                    <div class="rank-item rank-with-img">
+                        <div class="rank-item-img"><div class="pkg-img-ph" style="height: 100%;"><i class="fas fa-image"></i></div></div>
+                        <div class="rank-position">04</div>
+                        <div class="rank-info">
+                            <div class="rank-name">Blusa no modal levinho PMG $35,00</div>
+                            <div class="rank-sub">3 pacotes fechados</div>
+                        </div>
+                        <div class="rank-value">72</div>
+                    </div>
+                    <div class="rank-item rank-with-img">
+                        <div class="rank-item-img"><div class="pkg-img-ph" style="height: 100%;"><i class="fas fa-image"></i></div></div>
+                        <div class="rank-position">05</div>
+                        <div class="rank-info">
+                            <div class="rank-name">Mais um modelo no cetim PMG</div>
+                            <div class="rank-sub">3 pacotes fechados</div>
+                        </div>
+                        <div class="rank-value">68</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Clientes com tabs Hoje/Semana -->
+            <div class="rank-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--s3);">
+                    <h3 class="section-title" style="font-size: 1.1rem;"><i class="fas fa-crown" style="color: var(--accent); margin-right: var(--s2);"></i>Top <em>clientes</em></h3>
+                    <div class="rank-tabs">
+                        <button class="rank-tab active" data-tab="hoje">Hoje</button>
+                        <button class="rank-tab" data-tab="semana">Semana</button>
+                    </div>
+                </div>
+                <div class="rank-list" id="tab-hoje">
+                    <div class="rank-item">
+                        <div class="rank-position">01</div>
+                        <div class="rank-info">
+                            <div class="rank-name">Vanny modas</div>
+                            <div class="rank-sub">559491125481</div>
+                        </div>
+                        <div class="rank-value">27 pç</div>
+                    </div>
+                    <div class="rank-item">
+                        <div class="rank-position">02</div>
+                        <div class="rank-info">
+                            <div class="rank-name">Ana Clecia</div>
+                            <div class="rank-sub">558296870653</div>
+                        </div>
+                        <div class="rank-value">21 pç</div>
+                    </div>
+                    <div class="rank-item">
+                        <div class="rank-position">03</div>
+                        <div class="rank-info">
+                            <div class="rank-name">Carola Costa Acessorios</div>
+                            <div class="rank-sub">558492078311</div>
+                        </div>
+                        <div class="rank-value">18 pç</div>
+                    </div>
+                    <div class="rank-item">
+                        <div class="rank-position">04</div>
+                        <div class="rank-info">
+                            <div class="rank-name">Anny Sayonara</div>
+                            <div class="rank-sub">558491234458</div>
+                        </div>
+                        <div class="rank-value">15 pç</div>
+                    </div>
+                    <div class="rank-item">
+                        <div class="rank-position">05</div>
+                        <div class="rank-info">
+                            <div class="rank-name">Milene Nascimento</div>
+                            <div class="rank-sub">559192130888</div>
+                        </div>
+                        <div class="rank-value">12 pç</div>
+                    </div>
+                </div>
+                <div class="rank-list" id="tab-semana" style="display: none;">
+                    <div class="rank-item">
+                        <div class="rank-position">01</div>
+                        <div class="rank-info">
+                            <div class="rank-name">Vanny modas</div>
+                            <div class="rank-sub">559491125481</div>
+                        </div>
+                        <div class="rank-value">81 pç</div>
+                    </div>
+                    <div class="rank-item">
+                        <div class="rank-position">02</div>
+                        <div class="rank-info">
+                            <div class="rank-name">Fernanda Thais</div>
+                            <div class="rank-sub">558494162131</div>
+                        </div>
+                        <div class="rank-value">78 pç</div>
+                    </div>
+                    <div class="rank-item">
+                        <div class="rank-position">03</div>
+                        <div class="rank-info">
+                            <div class="rank-name">Anny Sayonara</div>
+                            <div class="rank-sub">558491234458</div>
+                        </div>
+                        <div class="rank-value">75 pç</div>
+                    </div>
+                    <div class="rank-item">
+                        <div class="rank-position">04</div>
+                        <div class="rank-info">
+                            <div class="rank-name">Irene Medeiros</div>
+                            <div class="rank-sub">559881175341</div>
+                        </div>
+                        <div class="rank-value">60 pç</div>
+                    </div>
+                    <div class="rank-item">
+                        <div class="rank-position">05</div>
+                        <div class="rank-info">
+                            <div class="rank-name">Angela Viana</div>
+                            <div class="rank-sub">557999897755</div>
+                        </div>
+                        <div class="rank-value">60 pç</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<script>
+// Tab switcher
+document.querySelectorAll('.rank-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.rank-tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const tab = btn.dataset.tab;
+        document.getElementById('tab-hoje').style.display = tab === 'hoje' ? '' : 'none';
+        document.getElementById('tab-semana').style.display = tab === 'semana' ? '' : 'none';
+    });
+});
+</script>
+</body>
+</html>

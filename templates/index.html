@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alana Assessoria Dashboard</title>
+    <link rel="stylesheet" href="/static/css/style.css?v={{ cache_bust }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@2.4.0/dist/purify.min.js"></script>
+</head>
+
+<body
+    data-test-mode="{{ 'true' if settings.TEST_MODE else 'false' }}"
+    data-test-group-chat-id="{{ settings.TEST_GROUP_CHAT_ID or '' }}"
+    data-official-group-chat-id="{{ settings.OFFICIAL_GROUP_CHAT_ID or '' }}"
+    data-auto-refresh-interval-ms="{{ 10000 if settings.TEST_MODE else 20000 }}"
+>
+    <div class="loader-overlay" id="loader">
+        <div class="spinner"></div>
+    </div>
+
+    <div class="dashboard-container">
+        <aside>
+            <div class="logo-area">
+                <div class="logo-text">
+                    <span class="logo-main">ALANA CAMILO</span>
+                    <span class="logo-sub">ASSESSORIA</span>
+                </div>
+            </div>
+            <ul class="nav-links">
+                <li><a href="#" class="nav-item active" data-target="dashboard"><i class="fas fa-chart-pie"></i> <span>Dashboard</span></a></li>
+                <li><a href="#" class="nav-item" data-target="customers"><i class="fas fa-user-friends"></i> <span>Clientes</span></a></li>
+                <li><a href="#" class="nav-item" data-target="finance"><i class="fas fa-dollar-sign"></i> <span>Financeiro</span></a></li>
+                <li><a href="#" class="nav-item" data-target="inventory"><i class="fas fa-box-open"></i> <span>Estoque</span></a></li>
+                <li><a href="#" class="nav-item" data-target="settings"><i class="fas fa-cog"></i> <span>Ajustes</span></a></li>
+            </ul>
+            <div class="sidebar-footer">
+                <a href="/logout" class="nav-item logout-link" title="Sair do dashboard">
+                    <i class="fas fa-right-from-bracket"></i>
+                    <span>Sair</span>
+                </a>
+            </div>
+        </aside>
+
+        <main>
+            <header>
+                <div class="welcome-msg">
+                    <h1 id="currentTime"><span id="greeting">Bom dia</span>, <span id="welcomeName">{{ settings.WELCOME_NAME }}</span></h1>
+                    <p>Relatório de performance em tempo real.</p>
+                </div>
+                <div class="header-actions">
+                </div>
+            </header>
+
+            <div id="section-dashboard">
+                <div class="environment-banner test-mode-banner" id="testModeBanner" hidden>
+                    <i class="fas fa-flask"></i>
+                    <span id="testModeBannerText">MODO TESTE ATIVO — cobranças no sandbox, mensagens para contato de teste</span>
+                </div>
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Votos Hoje</span>
+                        </div>
+                        <div class="kpi-value" id="kpi-votos-hoje">0</div>
+                        <div class="kpi-diffs">
+                            <div class="kpi-diff small" id="kpi-votos-diff-yesterday">
+                                <span class="kpi-diff-value">—</span>
+                                <span class="kpi-diff-label">vs ontem</span>
+                            </div>
+                            <div class="kpi-diff small" id="kpi-votos-diff-lastweek">
+                                <span class="kpi-diff-value">—</span>
+                                <span class="kpi-diff-label">vs semana passada</span>
+                            </div>
+                            <div class="kpi-diff small" id="kpi-votos-diff-monthly">
+                                <span class="kpi-diff-value">—</span>
+                                <span class="kpi-diff-label">vs média mensal</span>
+                            </div>
+                        </div>
+                    </div>
+    
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Enquetes Ativas</span>
+                        </div>
+                        <div class="kpi-value" id="kpi-enquetes-hoje">0</div>
+                        <div class="kpi-diffs">
+                            <div class="kpi-diff small" id="kpi-enquetes-diff-yesterday">
+                                <span class="kpi-diff-value">—</span>
+                                <span class="kpi-diff-label">vs ontem</span>
+                            </div>
+                            <div class="kpi-diff small" id="kpi-enquetes-diff-7days">
+                                <span class="kpi-diff-value">—</span>
+                                <span class="kpi-diff-label">vs média 7 dias</span>
+                            </div>
+                            <div class="kpi-diff small" id="kpi-enquetes-diff-closedpkgs">
+                                <span class="kpi-diff-value">—</span>
+                                <span class="kpi-diff-label">pacotes fechados nelas</span>
+                            </div>
+                        </div>
+                    </div>
+     
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Pacotes Confirmados (72h)</span>
+                        </div>
+                        <div class="kpi-value" id="kpi-pacotes-fechados-hoje">0</div>
+                        <div class="kpi-diffs">
+                            <div class="kpi-diff small" id="kpi-pacotes-fechados-diff-temperature" title="Ritmo de fechamento nas últimas 3 horas comparado à média.">
+                                <span class="kpi-diff-value">—</span>
+                                <span class="kpi-diff-label">ritmo atual de vendas <button type="button" class="temp-refresh-btn" id="btn-refresh-temperature" title="Atualizar agora"><i class="fas fa-sync-alt"></i></button></span>
+                            </div>
+                            <div class="kpi-diff small" id="kpi-pacotes-fechados-diff-avg">
+                                <span class="kpi-diff-value">—</span>
+                                <span class="kpi-diff-label">fechados/dia</span>
+                            </div>
+                        </div>
+                    </div>
+    
+                    <div class="kpi-card chart-kpi">
+                        <div class="card-title" style="margin-bottom: 0.75rem; font-size: 0.9rem;">
+                            <i class="fas fa-chart-line"></i> Votos nas últimas 24horas
+                        </div>
+                        <div class="chart-wrapper" style="height: 120px;">
+                            <canvas id="hourlyChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+    
+                <div class="content-grid">
+                    <!-- Row 1: Pacotes -->
+                    <div class="card-item medium">
+                        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+                            <span><i class="fas fa-square-poll-vertical"></i> Enquetes em Aberto</span>
+                            <button type="button" class="btn-refresh" id="btn-create-package" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
+                                <i class="fas fa-plus"></i> Criar Pacote
+                            </button>
+                        </div>
+                        <div class="rank-list" id="rank-packages-open">
+                            <!-- JS Loaded -->
+                        </div>
+                    </div>
+    
+                    <div class="card-item medium">
+                        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+                            <span><i class="fas fa-check-double"></i> Pacotes Fechados</span>
+                            <div class="search-box">
+                                <input type="text" id="closed-packages-search" placeholder="Buscar..." class="search-input" style="width: 120px; height: 32px; padding: 0.4rem 0.6rem; font-size: 0.8rem;">
+                            </div>
+                        </div>
+                        <div class="rank-list" id="rank-packages-closed-today">
+                            <!-- JS Loaded -->
+                        </div>
+                    </div>
+    
+                    <div class="card-item medium">
+                        <div class="card-title">
+                            <i class="fas fa-check-circle"></i> Pacotes Confirmados (72h)
+                        </div>
+                        <div class="rank-list" id="rank-packages-confirmed-today">
+                            <!-- JS Loaded -->
+                        </div>
+                    </div>
+
+                    <!-- Row 2: Rankings -->
+                    <div class="card-item medium">
+                        <div class="card-title">
+                            <i class="fas fa-trophy"></i> Top Enquetes
+                        </div>
+                        <div class="rank-list" id="rank-polls">
+                            <!-- JS Loaded -->
+                        </div>
+                    </div>
+    
+                    <div class="card-item medium">
+                        <div class="card-title">
+                            <i class="fas fa-star"></i> Top Clientes (Hoje)
+                        </div>
+                        <div class="rank-list" id="rank-customers">
+                            <!-- JS Loaded -->
+                        </div>
+                    </div>
+
+                    <div class="card-item medium">
+                        <div class="card-title">
+                            <i class="fas fa-users-viewfinder"></i> Top Clientes (Semana)
+                        </div>
+                        <div class="rank-list" id="rank-customers-week">
+                            <!-- JS Loaded -->
+                        </div>
+                    </div>
+    
+                    <div class="card-item full" style="margin-top: 1rem;">
+                        <div class="card-title" style="margin-bottom: 1rem;">
+                            <i class="fas fa-fingerprint"></i> Status do Sistema
+                        </div>
+                        <div
+                            style="color: var(--text-secondary); font-size: 0.85rem; display: flex; gap: 2rem; flex-wrap: wrap;">
+                            <p><span style="color: var(--success);">●</span> Online</p>
+                            <p>LIFO: Ativo</p>
+                            <p>{{ 'PostgreSQL: Conectado' if settings.SUPABASE_DOMAIN_ENABLED and (settings.SUPABASE_REST_PATH or '') == '' else ('Supabase: Conectado' if settings.SUPABASE_DOMAIN_ENABLED else 'Banco de dados: Pendente') }}</p>
+                            <p>Refreado às: <span id="genAt">--:--</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Finance Section -->
+            <div id="section-finance" style="display: none;">
+                {% if false %} <!-- removido: banner estático substituído pelo modo teste dinâmico F-053 -->
+                {% endif %}
+                <!-- Finance KPIs -->
+                <div class="kpi-container finance-summary" style="margin-bottom: 2rem;">
+                    <div class="kpi-card">
+                        <div class="kpi-title">Total Pendente</div>
+                        <div class="kpi-value" id="finance-pending-total">R$ 0,00</div>
+                        <div class="kpi-diff" id="finance-pending-count">0 cobranças</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-title">Total Pago (Hoje)</div>
+                        <div class="kpi-value" id="finance-paid-today">R$ 0,00</div>
+                        <div class="kpi-diff" id="finance-paid-count">0 cobranças</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-title" title="Proporção do valor recebido sobre o total ativo (pendente + pago), excluindo cancelados">% do Valor Recebido</div>
+                        <div class="kpi-value" id="finance-conversion-rate">0%</div>
+                        <div class="kpi-diff" id="finance-conversion-amount">R$ 0,00 / R$ 0,00</div>
+                    </div>
+                </div>
+
+                <div class="card-item full">
+                    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span><i class="fas fa-wallet"></i> Controle de Cobranças</span>
+                        <div style="display: flex; gap: 0.75rem; align-items: center;">
+                            <button class="btn-refresh" id="btn-sync-asaas" style="padding: 0.45rem 0.75rem; font-size: 0.8rem;" title="Força verificação de pagamentos no Asaas">
+                                <i class="fas fa-rotate"></i> Sincronizar
+                            </button>
+                            <button class="btn-refresh" id="btn-open-extract-modal" style="padding: 0.45rem 0.75rem; font-size: 0.8rem;">
+                                <i class="fas fa-file-invoice-dollar"></i> Extrato
+                            </button>
+                            <div class="search-box">
+                            <input type="text" id="finance-search" placeholder="Buscar cliente..." class="search-input">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="finance-charts-grid">
+                        <div class="chart-container-full">
+                            <div class="card-title"><i class="fas fa-chart-line"></i> Evolução de Vendas</div>
+                            <canvas id="finance-revenue-chart" height="100"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="finance-filters">
+                        <button class="filter-btn active" data-filter="all">Todos</button>
+                        <button class="filter-btn" data-filter="pending">Pendentes</button>
+                        <button class="filter-btn" data-filter="paid">Pagos</button>
+                        <button class="filter-btn" data-filter="cancelled">Cancelados</button>
+                    </div>
+
+                    <div class="finance-table-container">
+                        <table class="finance-table">
+                            <thead>
+                                <tr>
+                                    <th>Cliente</th>
+                                    <th>Pacote / Enquete</th>
+                                    <th>Valor Total</th>
+                                    <th>Status</th>
+                                    <th>Data de Pagamento</th>
+                                    <th style="text-align: right; width: 60px;">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="finance-table-body">
+                                <!-- JS Loaded -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="pagination-bar">
+                        <div class="pagination-summary" id="finance-pagination-summary">Pagina 1</div>
+                        <div class="pagination-actions">
+                            <div class="page-jump">
+                                <label for="finance-page-jump">Ir para:</label>
+                                <select id="finance-page-jump" class="page-jump-select"></select>
+                            </div>
+                            <button type="button" class="pagination-btn" id="finance-page-prev">Anterior</button>
+                            <button type="button" class="pagination-btn" id="finance-page-next">Próxima</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="section-customers" style="display: none;">
+                <div class="card-item full">
+                    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span><i class="fas fa-user-friends"></i> Gestão de Clientes</span>
+                        <div style="display: flex; gap: 1rem; align-items: center;">
+                            <button class="btn-refresh" id="btn-add-customer" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
+                                <i class="fas fa-plus"></i> Adicionar Cliente
+                            </button>
+                            <div class="search-box">
+                                <input type="text" id="customers-search" placeholder="Buscar cliente..." class="search-input">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="finance-table-container">
+                        <table class="finance-table">
+                            <thead>
+                                <tr>
+                                    <th>Celular</th>
+                                    <th>Nome do Cliente</th>
+                                    <th style="text-align: center;">Peças Pedidas</th>
+                                    <th style="text-align: center;">Em Débito</th>
+                                    <th style="text-align: center;">Total Pago</th>
+                                    <th style="text-align: center;">Último clique em Pagar</th>
+                                    <th style="text-align: right; width: 100px;">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="customers-table-body">
+                                <!-- JS Loaded -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="pagination-bar">
+                        <div class="pagination-summary" id="customers-pagination-summary">Pagina 1</div>
+                        <div class="pagination-actions">
+                            <div class="page-jump">
+                                <label for="customers-page-jump">Ir para:</label>
+                                <select id="customers-page-jump" class="page-jump-select"></select>
+                            </div>
+                            <button type="button" class="pagination-btn" id="customers-page-prev">Anterior</button>
+                            <button type="button" class="pagination-btn" id="customers-page-next">Próxima</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="section-inventory" style="display: none;">
+                <div class="card-item full">
+                    <div class="card-title">
+                        <i class="fas fa-warehouse"></i> Controle de Estoque
+                    </div>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        Histórico de pacotes confirmados e cancelados. Baixe a etiqueta de qualquer pacote, filtre por período, fornecedor ou status.
+                    </p>
+
+                    <!-- Filtros -->
+                    <div class="inv-filters">
+                        <div class="inv-filter-group">
+                            <label>Período</label>
+                            <div class="inv-date-range">
+                                <input type="date" id="inv-from" class="inv-input inv-date" aria-label="Data inicial">
+                                <span class="inv-date-sep">até</span>
+                                <input type="date" id="inv-to" class="inv-input inv-date" aria-label="Data final">
+                            </div>
+                            <div class="inv-presets" id="inv-presets">
+                                <button type="button" class="inv-chip" data-preset="today">Hoje</button>
+                                <button type="button" class="inv-chip" data-preset="week">Esta semana</button>
+                                <button type="button" class="inv-chip active" data-preset="month">Este mês</button>
+                                <button type="button" class="inv-chip" data-preset="last-month">Mês passado</button>
+                                <button type="button" class="inv-chip" data-preset="all">Tudo</button>
+                            </div>
+                        </div>
+
+                        <div class="inv-filter-group">
+                            <label>Status</label>
+                            <div class="inv-chips" id="inv-status-chips">
+                                <button type="button" class="inv-chip active" data-status="all">Todos</button>
+                                <button type="button" class="inv-chip" data-status="approved">Confirmados</button>
+                                <button type="button" class="inv-chip" data-status="cancelled">Cancelados</button>
+                            </div>
+                        </div>
+
+                        <div class="inv-filter-group">
+                            <label><i class="fas fa-truck"></i> Fornecedor</label>
+                            <select id="inv-tag" class="inv-input">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+
+                        <div class="inv-filter-group" style="flex: 1; min-width: 200px;">
+                            <label>Buscar produto</label>
+                            <input type="text" id="inv-search" class="inv-input" placeholder="Ex: blusa, calça...">
+                        </div>
+                    </div>
+
+                    <!-- Resumo -->
+                    <div class="inv-summary" id="inv-summary">
+                        <div class="inv-summary-item">
+                            <div class="inv-summary-label">Confirmados</div>
+                            <div class="inv-summary-value" id="inv-count-approved">0</div>
+                        </div>
+                        <div class="inv-summary-item">
+                            <div class="inv-summary-label">Cancelados</div>
+                            <div class="inv-summary-value cancelled" id="inv-count-cancelled">0</div>
+                        </div>
+                        <div class="inv-summary-item">
+                            <div class="inv-summary-label">Peças totais (confirmados)</div>
+                            <div class="inv-summary-value pieces" id="inv-count-pieces">0</div>
+                        </div>
+                    </div>
+
+                    <!-- Grid de pacotes -->
+                    <div id="inv-loading" class="inv-loading" hidden>
+                        <i class="fas fa-spinner fa-spin"></i> Carregando...
+                    </div>
+                    <div id="inv-empty" class="inv-empty" hidden>
+                        <i class="fas fa-box-open"></i>
+                        <p>Nenhum pacote encontrado para os filtros selecionados.</p>
+                    </div>
+                    <div class="inv-grid" id="inv-grid"></div>
+
+                    <!-- Paginação -->
+                    <div class="pagination-bar" id="inv-pagination" hidden>
+                        <div class="pagination-summary" id="inv-pagination-summary">Página 1</div>
+                        <div class="pagination-actions">
+                            <div class="page-jump">
+                                <label for="inv-page-jump">Ir para:</label>
+                                <select id="inv-page-jump" class="page-jump-select"></select>
+                            </div>
+                            <button type="button" class="pagination-btn" id="inv-page-prev">Anterior</button>
+                            <button type="button" class="pagination-btn" id="inv-page-next">Próxima</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="section-settings" style="display: none;">
+                <div class="card-item full">
+                    <div class="card-title">Configurações do Sistema</div>
+                    <p style="color: var(--text-secondary);">Em breve...</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Confirmation modal for package approve/reject -->
+    <div class="modal-overlay" id="packageConfirmModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalDesc" hidden>
+        <div class="modal-content">
+            <h2 class="modal-title" id="modalTitle">Confirmar ação</h2>
+            <p class="modal-desc" id="modalDesc"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-modal btn-cancel" id="modalCancel">Cancelar</button>
+                <button type="button" class="btn-modal btn-confirm" id="modalConfirm">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Customer Add/Edit -->
+    <div class="modal-overlay" id="customerModal" role="dialog" aria-modal="true" aria-labelledby="customerModalTitle" hidden>
+        <div class="modal-content" style="max-width: 450px;">
+            <h2 class="modal-title" id="customerModalTitle">Cadastrar Cliente</h2>
+            <div class="modal-form" style="margin-bottom: 1.5rem;">
+                <div style="margin-bottom: 1rem;">
+                    <label for="customer-phone" style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.4rem;">📱 Celular / WhatsApp</label>
+                    <input type="tel"
+                           id="customer-phone"
+                           class="search-input"
+                           inputmode="numeric"
+                           autocomplete="tel"
+                           maxlength="22"
+                           style="width: 100%; background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.1); font-family: 'Outfit', monospace; letter-spacing: 0.5px;"
+                           placeholder="(11) 9 6243-2447">
+                    <div id="customer-phone-hint" style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 0.25rem;">DDD + número. O código 55 do Brasil é adicionado automaticamente.</div>
+                </div>
+                <div>
+                    <label for="customer-name" style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.4rem;">👤 Nome Completo</label>
+                    <input type="text"
+                           id="customer-name"
+                           class="search-input"
+                           autocomplete="name"
+                           style="width: 100%; background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.1);"
+                           placeholder="Ex: Maria Oliveira">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn-modal btn-cancel" id="customerModalCancel">Cancelar</button>
+                <button type="button" class="btn-modal btn-confirm" id="customerModalConfirm">Salvar Cliente</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Extrato de Pagamentos -->
+    <div class="modal-overlay" id="extractModal" role="dialog" aria-modal="true" aria-labelledby="extractModalTitle" hidden>
+        <div class="modal-content queue-modal-content">
+            <h2 class="modal-title" id="extractModalTitle">Extrato de Pagamentos</h2>
+            <p class="modal-desc" id="extractModalDesc">Pagamentos confirmados no período selecionado.</p>
+
+            <div class="extract-toolbar" style="display:flex; gap:0.75rem; align-items:flex-end; flex-wrap:wrap; margin-bottom:1rem;">
+                <div class="extract-toggle" style="display:inline-flex; background:rgba(255,255,255,0.5); border:1px solid var(--card-border); border-radius:999px; padding:0.25rem; gap:0.25rem;">
+                    <button type="button" class="extract-tab active" data-kind="paid" style="border:none; background:var(--primary); color:#fff; padding:0.4rem 0.9rem; border-radius:999px; font-size:0.78rem; font-weight:600; cursor:pointer;">
+                        <i class="fas fa-check"></i> Pagos
+                    </button>
+                    <button type="button" class="extract-tab" data-kind="pending" style="border:none; background:transparent; color:var(--text-secondary); padding:0.4rem 0.9rem; border-radius:999px; font-size:0.78rem; font-weight:600; cursor:pointer;">
+                        <i class="fas fa-clock"></i> Em débito
+                    </button>
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.75rem; color:var(--text-secondary); margin-bottom:0.25rem;">De</label>
+                    <input type="date" id="extractDateFrom" class="search-input" style="padding:0.5rem;">
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.75rem; color:var(--text-secondary); margin-bottom:0.25rem;">Até</label>
+                    <input type="date" id="extractDateTo" class="search-input" style="padding:0.5rem;">
+                </div>
+                <button type="button" class="btn-refresh" id="extractApplyBtn" style="padding:0.5rem 0.85rem; font-size:0.8rem;">
+                    <i class="fas fa-filter"></i> Aplicar
+                </button>
+                <div style="margin-left:auto; display:flex; gap:0.5rem;">
+                    <button type="button" class="btn-refresh" id="extractDownloadBtn" style="padding:0.5rem 0.85rem; font-size:0.8rem;">
+                        <i class="fas fa-download"></i> Baixar CSV
+                    </button>
+                </div>
+            </div>
+
+            <div id="extractSummary" style="display:flex; gap:1rem; margin-bottom:0.75rem; font-size:0.85rem; color:var(--text-secondary);">
+                <span>Total: <strong id="extractCount" style="color:var(--text-primary);">0</strong> <span id="extractCountLabel">pagamentos</span></span>
+                <span>Valor: <strong id="extractTotal">R$ 0,00</strong></span>
+            </div>
+
+            <div class="finance-table-container queue-table-wrapper">
+                <table class="finance-table">
+                    <thead>
+                        <tr>
+                            <th id="extractDateColLabel">Data do Pagamento</th>
+                            <th>Cliente</th>
+                            <th>Telefone</th>
+                            <th>Produto</th>
+                            <th>Peças</th>
+                            <th style="text-align:right;">Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody id="extract-table-body">
+                        <tr><td colspan="6" style="text-align:center; padding: 1rem;">Carregando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn-modal btn-cancel" id="extractModalClose">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Criar Pacote (enquetes 72h + votos) -->
+    <div class="modal-overlay" id="createPackageModal" role="dialog" aria-modal="true" aria-labelledby="createPackageModalTitle" hidden>
+        <div class="modal-content create-package-modal-content">
+            <h2 class="modal-title" id="createPackageModalTitle">Criar Pacote</h2>
+
+            <div id="create-package-step-choose" hidden>
+                <p class="modal-desc" style="margin-bottom: 0.75rem;">Como você quer criar esse pacote?</p>
+                <div class="create-package-choice-cards">
+                    <button type="button" class="create-package-choice-card" data-adhoc-mode="poll">
+                        <span class="create-package-choice-icon">📊</span>
+                        <span class="create-package-choice-title">A partir de enquete</span>
+                        <span class="create-package-choice-sub">Usa enquete do WhatsApp das últimas 72h.</span>
+                    </button>
+                    <button type="button" class="create-package-choice-card" data-adhoc-mode="adhoc">
+                        <span class="create-package-choice-icon">✨</span>
+                        <span class="create-package-choice-title">Pacote do zero</span>
+                        <span class="create-package-choice-sub">Produto novo + imagem + clientes manualmente.</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="create-package-step-polls">
+                <p class="modal-desc" style="margin-bottom: 0.75rem;">Selecione uma enquete ativa (últimas 72h ou com pacote aberto recente).</p>
+                <div class="create-package-poll-toolbar">
+                    <input type="text"
+                           id="create-package-poll-search"
+                           class="create-package-poll-search"
+                           placeholder="Buscar por título..."
+                           autocomplete="off" />
+                </div>
+                <div id="create-package-polls-loading" class="create-package-loading">Carregando enquetes…</div>
+                <div id="create-package-polls-empty" class="create-package-empty" hidden>Nenhuma enquete encontrada nas últimas 72 horas.</div>
+                <div id="create-package-poll-list" class="create-package-poll-grid"></div>
+                <div class="create-package-pagination" id="create-package-pagination" hidden>
+                    <button type="button" class="btn-modal btn-cancel create-package-page-btn" id="create-package-prev" disabled>← Anterior</button>
+                    <span class="create-package-page-info" id="create-package-page-info">Página 1</span>
+                    <button type="button" class="btn-modal btn-cancel create-package-page-btn" id="create-package-next" disabled>Próxima →</button>
+                </div>
+            </div>
+
+            <div id="create-package-step-votes" hidden>
+                <div id="create-package-selected-header" class="create-package-selected-header"></div>
+                <div id="create-package-vote-rows" class="create-package-vote-rows"></div>
+                <button type="button" class="btn-modal btn-cancel" id="createPackageAddRow" style="margin-top: 0.75rem; width: auto;">+ Adicionar voto</button>
+                <p class="create-package-pieces-total"><span id="create-package-piece-count">0</span> / 24 peças</p>
+                <p id="create-package-validation-msg" class="create-package-validation-msg" hidden></p>
+            </div>
+
+            <div id="create-package-step-preview" hidden>
+                <p class="modal-desc" style="margin-bottom: 0.75rem;">Confira o pacote antes de confirmar. Os nomes vêm do cadastro de clientes (por celular).</p>
+                <div id="create-package-preview-body" class="create-package-preview-body"></div>
+            </div>
+
+            <div id="adhoc-step-product" class="adhoc-step" hidden></div>
+            <div id="adhoc-step-votes" class="adhoc-step" hidden></div>
+            <div id="adhoc-step-preview" class="adhoc-step" hidden></div>
+
+            <div class="modal-actions" id="create-package-modal-actions">
+                <button type="button" class="btn-modal btn-cancel" id="createPackageCancel">Cancelar</button>
+                <button type="button" class="btn-modal btn-cancel" id="createPackageBack" hidden>Voltar</button>
+                <button type="button" class="btn-modal btn-confirm" id="createPackageSave" disabled>Revisar</button>
+                <button type="button" class="btn-modal btn-confirm" id="createPackageConfirm" hidden>Confirmar pacote</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Confirmed Package Edit -->
+    <div class="modal-overlay" id="confirmedPackageEditModal" role="dialog" aria-modal="true" aria-labelledby="confirmedPackageEditTitle" hidden>
+        <div class="modal-content confirmed-edit-modal-content">
+            <h2 class="modal-title" id="confirmedPackageEditTitle">Editar Pacote Confirmado</h2>
+            <p class="modal-desc" id="confirmedPackageEditDesc">Arraste os votos entre as colunas. O pacote precisa fechar em 24 peças.</p>
+
+            <div class="confirmed-edit-grid">
+                <div class="confirmed-edit-col">
+                    <div class="confirmed-edit-col-title">Votos Disponíveis</div>
+                    <div class="confirmed-edit-list dropzone" id="confirmed-edit-available"></div>
+                </div>
+                <div class="confirmed-edit-col">
+                    <div class="confirmed-edit-col-title" id="confirmed-edit-selected-title">Votos do Pacote (0/24)</div>
+                    <div class="confirmed-edit-list dropzone" id="confirmed-edit-selected"></div>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn-modal btn-cancel" id="confirmedEditCancel">Cancelar</button>
+                <button type="button" class="btn-modal btn-confirm" id="confirmedEditSave">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/dashboard.js?v={{ cache_bust }}"></script>
+    <script src="/static/js/adhoc_package.js"></script>
+</body>
+
+</html>

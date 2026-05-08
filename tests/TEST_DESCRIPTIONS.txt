@@ -1,0 +1,181 @@
+Resumo dos 145 testes e o que cada um valida.
+
+tests/unit/test_analyze_votos_removals.py
+- test_removal_counted_today — Verifica que uma remoção ocorrida hoje é contabilizada em removed_today.
+- test_removal_counted_yesterday — Verifica que uma remoção ocorrida ontem é contabilizada em removed_yesterday.
+- test_ignored_removal_also_counted — Confirma que remoções que são ignoradas (sem voto prévio) também são contabilizadas.
+- test_positive_diff_yesterday — Calcula diff e percentuais quando hoje > ontem.
+- test_negative_diff — Calcula diff quando hoje < ontem.
+- test_pct_removed_zero_division — Garante que pct_removed não causa divisão por zero.
+- test_field_158_used_for_poll_id — Verifica fallback para field_158 como pollId.
+- test_field_160_for_voter_phone — Verifica fallback para field_160 como phone do votante.
+- test_field_166_for_timestamp — Verifica fallback para field_166 como timestamp.
+
+tests/unit/test_date_range.py
+- test_today_start_is_midnight — Assegura que today_start é meia-noite do dia atual.
+- test_yesterday_start_is_one_day_before_today — yesterday_start é um dia antes de today_start.
+- test_yesterday_end_equals_today_start — yesterday_end coincide com today_start.
+- test_week_start_is_7_days_before_today — week_start está 7 dias antes da data de hoje.
+- test_day24h_start_is_24h_before_now — day24h_start é now - 24 horas.
+- test_now_is_stored — A chave now contém o datetime passado.
+- test_midnight_exact — Verifica comportamento quando now é exatamente à meia-noite.
+- test_one_second_after_midnight — Verifica cálculo com now um segundo após meia-noite.
+- test_last_second_of_day — Verifica today_start no último segundo do dia.
+- test_new_year_boundary — Verifica transição de ano para yesterday_start.
+- test_leap_year_boundary — Verifica boundary de ano bissexto (29 de fev).
+- test_defaults_to_real_now — Sem parâmetro, get_date_range usa datetime.now().
+
+tests/unit/test_analyze_votos_packages.py
+- test_single_package_closed_today — Cria pacote fechado de 24 hoje e valida conteúdo.
+- test_two_packages_closed_today — Verifica formação de dois pacotes fechados no mesmo dia.
+- test_package_closed_yesterday_appears_in_week — Pacote fechado ontem aparece em closed_today e closed_week.
+- test_package_closed_today_appears_in_both — Pacote fechado hoje aparece em closed_today e closed_week.
+- test_leftover_goes_to_open — Sobras não fechadas vão para packages.open.
+- test_no_votes_means_no_packages — Sem votos, não há pacotes.
+- test_package_vote_entries_contain_name_phone_qty — Cada voto em pacote tem name/phone/qty corretos.
+- test_removed_vote_not_in_open_package — Votos removidos não aparecem como abertos.
+
+tests/unit/test_clients_advanced.py
+- test_three_pages — Paginação com três páginas retorna todas as linhas.
+- test_duplicate_ids_are_deduplicated — IDs duplicados são sobrescritos pela última ocorrência.
+- test_404_raises_runtime_error — Código HTTP 404 gera RuntimeError.
+- test_500_raises_runtime_error — Código HTTP 500 gera RuntimeError.
+- test_network_error_propagates — Erros de conexão são propagados (ConnectionError).
+- test_token_present_sends_auth_header — Envia header Authorization quando TOKEN presente.
+- test_no_token_sends_empty_headers — Não envia headers quando TOKEN é None.
+- test_empty_string_token_sends_empty_headers — Token vazio não produz header.
+- test_url_includes_table_id — URL de requisição contém o table_id e API_URL.
+- test_empty_results_returns_empty_list — results vazio retorna lista vazia.
+
+tests/unit/test_enquetes_boundaries.py
+- test_exactly_at_today_start — Enquete timestamp exatamente no início do dia conta como today.
+- test_one_second_before_today_start — Um segundo antes do início do dia conta como yesterday.
+- test_exactly_at_yesterday_start — Timestamp exatamente em yesterday_start conta como yesterday.
+- test_one_second_before_yesterday_start — Um segundo antes de yesterday_start cai na semana.
+- test_one_enquete_per_day_for_7_days — Distribuição em 7 dias resulta em avg_7_days > 0 e yesterday >=1.
+- test_field_171_used_when_createdAtTs_missing — Usa field_171 quando createdAtTs ausente.
+- test_no_timestamp_at_all_is_skipped — Enquetes sem timestamp são ignoradas.
+- test_pct_yesterday_positive — Calcula diff e pct_yesterday positivo corretamente.
+- test_pct_yesterday_zero_division — Evita divisão por zero em pct_yesterday.
+- test_pct_avg_when_all_zero — avg_7_days e pct_avg são zero quando não há dados.
+- test_thousand_enquetes_all_today — Stress test: 1000 enquetes todas hoje.
+
+tests/unit/test_services_edge_cases.py
+- test_enquetes_map_uses_field_169_fallback — Quando pollId ausente, usa field_169 para chave.
+- test_enquetes_without_poll_id_are_skipped — Linhas sem pollId/field_169 são ignoradas no map.
+- test_enquetes_map_prefers_pollId_over_field_169 — PollId tem precedência sobre field_169.
+- test_client_error_propagates — Erro do client (fetch_all_rows) propaga exceção.
+- test_env_vars_for_table_ids — generate_metrics respeita BASEROW_TABLE_* do ambiente.
+- test_return_payload_structure — Estrutura retornada contém generated_at, enquetes e votos.
+
+tests/unit/test_main_api_metrics.py
+- test_api_metrics_returns_saved_data — GET /api/metrics retorna JSON salvo no arquivo.
+- test_api_metrics_handles_corrupt_json — GET /api/metrics com JSON corrompido produz 500.
+- test_api_refresh_writes_file_that_api_metrics_can_read — POST /api/refresh grava arquivo lido por /api/metrics.
+- test_api_root_returns_html — GET / retorna HTML (template).
+
+tests/unit/test_analyze_votos_rankings.py
+- test_votes_counted_in_correct_hour_buckets — Votos são agrupados por hora corretamente (by_hour).
+- test_same_customer_accumulates_qty_across_polls — Mesmo cliente soma qty entre polls.
+- test_top_customer_by_week_includes_yesterday — Ranking semanal inclui votos de ontem.
+- test_multiple_voters_same_poll_accumulate — Múltiplos votantes do mesmo poll acumulam qty.
+- test_vote_exactly_at_midnight_counts_as_today — Voto exatamente à meia-noite conta como hoje.
+- test_vote_one_second_before_midnight_counts_as_yesterday — Um segundo antes da meia-noite conta como ontem.
+- test_empty_votos_returns_zeroed_metrics — Inputs vazios retornam métricas zeradas.
+
+tests/unit/test_vote_processor_overwrite.py
+- test_overwrite_replaces_previous_vote — Um novo voto do mesmo phone substitui o anterior.
+- test_overwrite_then_remove — Sobrescrita seguida de remoção retorna o voto removido.
+- test_different_polls_are_isolated — Votos de polls distintos não interferem.
+- test_remove_from_wrong_poll_is_ignored — Remover em poll diferente é ignorado.
+- test_multiple_voters_same_poll — Soma total por vários votantes no mesmo poll.
+- test_double_remove_yields_removed_then_ignored — Remover duas vezes: primeiro removed, depois ignored.
+
+tests/unit/test_rawjson_title_extraction.py
+- test_path1_poll_at_root — Extrai título quando rawJson.poll.title está no root.
+- test_path2_body_poll — Extrai título quando rawJson.body.poll.title existe.
+- test_path3_body_messages_updates — Extrai título quando rawJson.body.messages_updates[0].poll.title existe.
+- test_no_rawjson_field_leaves_map_unchanged — Sem rawJson não altera enquetes_map.
+- test_malformed_rawjson_does_not_crash — RawJson inválido não causa exceção.
+- test_rawjson_with_empty_body_dict — body vazio não adiciona título.
+- test_existing_title_in_map_is_not_overwritten — Título já existente não é sobrescrito por novo rawJson.
+- test_rawjson_is_a_list_not_dict — rawJson sendo lista é ignorado graciosamente.
+
+tests/unit/test_subset_sum_edge_cases.py
+- test_empty_list_returns_none — Lista vazia não encontra subset.
+- test_single_element_exact_match — Um elemento igual ao target retorna subset.
+- test_single_element_no_match — Elemento único diferente do target retorna None.
+- test_all_elements_needed — Soma de todos os elementos pode formar o target.
+- test_target_zero_returns_none_due_to_empty_list_falsy — Target 0 resulta em None (comportamento atual).
+- test_all_elements_exceed_target — Todos os elementos maiores que target não produzem subset.
+- test_duplicate_quantities — Quantidades duplicadas podem formar o target.
+- test_greedy_trap_requires_skipping — Backtracking resolve casos que enganam algoritmo guloso.
+- test_many_small_items — Muitos itens pequenos podem formar o target.
+- test_remaining_preserves_order — Remaining mantém a ordem relativa dos itens não escolhidos.
+- test_two_full_packages — calculate_packages forma dois pacotes completos quando possível.
+- test_package_with_leftover — calculate_packages fecha pacote e deixa sobra na waitlist.
+- test_custom_limit — Suporta limite customizado diferente de 24.
+- test_impossible_package_all_goes_to_waitlist — Quando impossível formar pacote, tudo vai para waitlist.
+- test_multiple_polls_independent — Pacotes são calculados separadamente por poll.
+
+tests/unit/test_parse_timestamp_extended.py
+- test_falsy_inputs_return_none — Valores falsy retornam None.
+- test_negative_timestamp_is_handled — Timestamps negativos não causam exceção.
+- test_zero_string_returns_none — \"0\" como string é tratado (aceita epoch ou None).
+- test_very_large_millisecond_timestamp — Milliseconds grandes são convertidos corretamente.
+- test_float_string_seconds — Strings float em segundos são parseadas.
+- test_scientific_notation_string — Notação científica é aceita.
+- test_iso_with_positive_offset — ISO com offset positivo parseia corretamente.
+- test_iso_with_negative_offset — ISO com offset negativo parseia corretamente.
+- test_iso_with_microseconds — ISO com microssegundos parseia corretamente.
+- test_iso_date_only — Datas ISO sem hora parseiam para dia correto.
+- test_garbage_strings_return_none — Strings inválidas retornam None.
+- test_integer_input — Inteiros são convertidos para datetime.
+- test_float_input — Floats são convertidos para datetime.
+- test_datetime_object_passthrough — Passar datetime retorna um datetime sem erro.
+
+tests/unit/test_main_api_refresh.py
+- test_api_metrics_returns_error_when_file_missing — GET /api/metrics retorna mensagem quando arquivo ausente.
+- test_api_refresh_success_persists_file — POST /api/refresh persiste arquivo no disco.
+- test_api_refresh_returns_error_when_locked — Requisição concorrente de refresh retorna erro de lock.
+- test_api_refresh_returns_error_payload_on_exception — Erro na geração retorna payload com mensagem/traceback.
+
+tests/unit/test_clients_fetch_all_rows.py
+- test_fetch_all_rows_deduplicates_by_id — fetch_all_rows deduplica por id ao agregar páginas.
+- test_fetch_all_rows_raises_runtime_error_on_non_200 — Resposta não-200 gera RuntimeError.
+- test_fetch_all_rows_sends_empty_headers_when_no_token — Sem token, headers vazios são usados.
+
+tests/unit/test_services_generate_metrics.py
+- test_generate_metrics_uses_env_table_ids_and_builds_payload — generate_metrics usa variáveis de ambiente e retorna payload com chaves esperadas.
+
+tests/unit/test_analyze_votos.py
+- test_analyze_votos_activity_rankings_and_packages — Teste integrado cobrindo rankings, pacotes e agregações principais.
+- test_analyze_votos_handles_invalid_timestamps_gracefully — Votos com timestamps inválidos são ignorados sem crash.
+
+tests/unit/test_vote_processor_extended.py
+- test_process_vote_uses_fallback_fields_and_invalid_qty_behaviour — process_vote usa campos fallback e trata qty inválida.
+- test_calculate_packages_creates_closed_and_waitlist — calculate_packages cria closed_packages e waitlist corretamente.
+- test_subset_sum_no_solution_returns_none_and_original_list — _find_subset_sum retorna None e lista original quando sem solução.
+
+tests/unit/test_processors_enquetes.py
+- test_get_date_range_boundaries — get_date_range devolve chaves/valores consistentes.
+- test_analyze_enquetes_counts_today_yesterday_and_last_7_days — analyze_enquetes conta enquetes em today/yesterday/last_7_days.
+- test_analyze_enquetes_zero_division_guards — Proteções contra divisão por zero em porcentagens.
+
+tests/unit/test_baserow_client_unit.py
+- test_fetch_all_rows_pagination — Verifica paginação e deduplicação básica do cliente Baserow.
+
+tests/unit/test_vote_processor.py
+- test_process_add_and_remove — process_vote adiciona e remove votos corretamente.
+- test_find_subset_sum_simple — _find_subset_sum resolve casos simples de combinação.
+
+tests/unit/test_parse_timestamp.py
+- test_parse_seconds_timestamp — Parser aceita timestamps em segundos.
+- test_parse_milliseconds_timestamp — Parser aceita timestamps em milissegundos.
+- test_parse_iso_z — Parser aceita ISO com Z (UTC).
+- test_parse_invalid_returns_none — Strings inválidas retornam None.
+
+Observações:
+- As descrições são concisas; para detalhes de implementação consulte os arquivos de teste correspondentes.
+- Gerado automaticamente com base nos nomes e conteúdo dos testes presentes em tests/unit/.
+

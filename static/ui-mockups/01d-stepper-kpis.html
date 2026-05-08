@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Raylook · 01d · Stepper + KPIs</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="_base.css">
+<link rel="stylesheet" href="_modal.css">
+<style>
+    .kpi-row {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+        margin-bottom: 22px;
+    }
+    .kpi {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(212, 175, 55, 0.12);
+        border-radius: 14px; padding: 14px 18px;
+        display: flex; flex-direction: column; gap: 4px;
+        position: relative; overflow: hidden;
+    }
+    .kpi::after {
+        content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+        width: 3px; background: var(--kpi-color, var(--accent));
+    }
+    .kpi-label { font-size: 10px; text-transform: uppercase;
+                 letter-spacing: 0.08em; color: var(--text-muted); font-weight: 700; }
+    .kpi-value { font-family: 'Outfit', sans-serif; font-size: 28px; font-weight: 700;
+                 color: var(--text-primary); letter-spacing: -0.01em; line-height: 1; }
+    .kpi-value .unit { font-size: 14px; color: var(--text-muted); margin-left: 4px; font-weight: 500; }
+    .kpi-extra { font-size: 11px; color: var(--accent); margin-top: 4px; font-weight: 600; }
+    .kpi-extra.neutral { color: var(--text-muted); }
+
+    .stepper {
+        display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 20px;
+    }
+    .step {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--card-border);
+        border-radius: 12px; padding: 12px 14px; cursor: pointer;
+        transition: var(--transition); position: relative;
+    }
+    .step:hover { background: rgba(255, 255, 255, 0.06); }
+    .step.active {
+        background: rgba(212, 175, 55, 0.1); border-color: var(--accent);
+    }
+    .step-label { font-size: 10px; text-transform: uppercase;
+                  letter-spacing: 0.07em; color: var(--text-muted); font-weight: 700; }
+    .step-count { font-family: 'Outfit', sans-serif; font-size: 22px;
+                  font-weight: 700; color: var(--text-primary); margin-top: 2px; }
+    .step.active .step-count { color: var(--accent); }
+    .step-dot { width: 6px; height: 6px; border-radius: 50%;
+                background: var(--step-c, var(--accent)); display: inline-block;
+                margin-right: 6px; }
+
+    .inv-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 12px; min-height: 150px;
+    }
+    .empty-state { grid-column: 1/-1; text-align: center; padding: 40px;
+                   color: var(--text-muted); font-style: italic; }
+
+    .inv-card {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(212, 175, 55, 0.1);
+        border-radius: 12px; overflow: hidden;
+        transition: var(--transition); display: flex; flex-direction: column;
+    }
+    .inv-card:hover { transform: translateY(-2px); border-color: var(--accent-soft); }
+    .inv-card-head {
+        padding: 12px 14px 8px;
+        display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;
+    }
+    .inv-card-title {
+        font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700;
+        color: var(--text-primary);
+    }
+    .inv-card-sub { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+    .progress { height: 3px; background: rgba(255,255,255,0.08); margin: 0 14px;
+                border-radius: 2px; overflow: hidden; }
+    .progress > span { display: block; height: 100%; background: var(--accent); }
+    .inv-card-foot {
+        padding: 10px 14px; display: flex; justify-content: space-between; align-items: center;
+        border-top: 1px solid rgba(255,255,255,0.05); margin-top: 10px;
+        background: rgba(212,175,55,0.03);
+    }
+    .price { font-family: 'Outfit', sans-serif; font-weight: 700; color: var(--accent);
+             font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="mockup-brief">
+    <span class="tag">Variação 01d · KPIs + stepper</span>
+    <h1>Linha de KPIs acima do stepper</h1>
+    <p>Traz números de alto nível (faturamento, ticket médio, taxa de conversão,
+       pacotes no fluxo) antes dos filtros. Útil pra dashboards executivos onde o
+       primeiro golpe de vista precisa dar o quadro geral.</p>
+</div>
+
+<div class="glass-card">
+    <div class="kpi-row" id="kpis"></div>
+    <div class="stepper" id="stepper"></div>
+    <div class="section-title" id="state-title">—</div>
+    <div class="inv-grid" id="grid"><div class="empty-state">Carregando…</div></div>
+</div>
+
+<script src="_mockups-lib.js"></script>
+<script src="_modal.js"></script>
+<script src="01d-stepper-kpis.js"></script>
+</body>
+</html>

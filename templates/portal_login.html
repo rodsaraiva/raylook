@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal do Cliente — Alana Camilo Assessoria</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/portal.css">
+</head>
+<body>
+    <div class="page">
+        <header>
+            <div class="logo-text">
+                <span class="logo-main">ALANA CAMILO</span>
+                <span class="logo-sub">ASSESSORIA</span>
+            </div>
+        </header>
+
+        <div class="auth-card">
+            <div class="auth-icon">
+                <i class="fas fa-bag-shopping"></i>
+            </div>
+            <h1>Meus Pedidos</h1>
+            <p class="auth-subtitle">Acesse com o número do seu WhatsApp</p>
+
+            {% if error %}
+            <div class="alert alert-error">
+                <i class="fas fa-exclamation-circle"></i>
+                {{ error }}
+            </div>
+            {% endif %}
+
+            <form method="POST" action="/portal/login" id="loginForm">
+                <div class="form-group">
+                    <label for="phone">Telefone (WhatsApp)</label>
+                    <div class="input-icon">
+                        <i class="fas fa-phone"></i>
+                        <input type="tel" id="phone" name="phone" class="phone-br"
+                               placeholder="+55 (62) 9 9999-9999" autocomplete="tel"
+                               inputmode="numeric"
+                               value="{{ phone | default('', true) }}" required autofocus>
+                    </div>
+                </div>
+
+                <div class="form-group" id="passwordGroup" style="display: {{ 'block' if error and phone else 'none' }};">
+                    <label for="password">Senha</label>
+                    <div class="input-icon">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="password" name="password" placeholder="Sua senha" minlength="6">
+                        <button type="button" class="pwd-toggle" data-target="password" tabindex="-1" aria-label="Mostrar senha">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-primary" id="btnSubmit">
+                    <i class="fas fa-arrow-right"></i>
+                    <span>Entrar</span>
+                </button>
+            </form>
+
+            <div class="auth-links">
+                <a href="/portal/reset">Esqueci minha senha</a>
+            </div>
+        </div>
+
+        <div class="footer-note">
+            <i class="fas fa-shield-halved"></i> Portal seguro — Alana Camilo Assessoria
+        </div>
+    </div>
+
+    <script src="/static/js/portal_form.js"></script>
+    <script>
+        // Mostrar campo de senha quando telefone está completo (10+ dígitos)
+        const phoneInput = document.getElementById('phone');
+        const passwordGroup = document.getElementById('passwordGroup');
+        const passwordInput = document.getElementById('password');
+        function checkPhoneComplete() {
+            const digits = (phoneInput.value || '').replace(/\D/g, '');
+            if (digits.length >= 10) {
+                passwordGroup.style.display = 'block';
+                passwordInput.setAttribute('required', '');
+            }
+        }
+        phoneInput.addEventListener('input', checkPhoneComplete);
+        // Se já tem telefone preenchido (erro de senha), mostrar campo de senha
+        if (phoneInput.value && phoneInput.value.replace(/\D/g, '').length >= 10) {
+            passwordGroup.style.display = 'block';
+            passwordInput.setAttribute('required', '');
+            passwordInput.focus();
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Primeiro Acesso — Alana Camilo Assessoria</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/portal.css">
+</head>
+<body>
+    <div class="page">
+        <header>
+            <div class="logo-text">
+                <span class="logo-main">ALANA CAMILO</span>
+                <span class="logo-sub">ASSESSORIA</span>
+            </div>
+        </header>
+
+        <div class="auth-card">
+            <div class="auth-icon">
+                <i class="fas fa-user-plus"></i>
+            </div>
+            <h1>Bem-vinda, {{ nome.split()[0] if nome else 'Cliente' }}!</h1>
+            <p class="auth-subtitle">Complete seu cadastro para acessar seus pedidos</p>
+
+            {% if errors %}
+            <div class="alert alert-error">
+                {% for e in errors %}
+                <div><i class="fas fa-exclamation-circle"></i> {{ e }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <form method="POST" action="/portal/setup">
+                <input type="hidden" name="phone" value="{{ phone }}">
+
+                <div class="form-group">
+                    <label for="email">Email <span class="required">*</span></label>
+                    <div class="input-icon">
+                        <i class="fas fa-envelope"></i>
+                        <input type="email" id="email" name="email" placeholder="seu@email.com"
+                               value="{{ email | default('', true) }}" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="cpf_cnpj">CPF ou CNPJ <span class="optional">(opcional)</span></label>
+                    <div class="input-icon">
+                        <i class="fas fa-id-card"></i>
+                        <input type="text" id="cpf_cnpj" name="cpf_cnpj" class="cpf-cnpj"
+                               placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                               inputmode="numeric" autocomplete="off"
+                               value="{{ cpf_cnpj | default('', true) }}">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Criar senha <span class="required">*</span></label>
+                    <div class="input-icon">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="password" name="password"
+                               placeholder="Mínimo 6 caracteres" minlength="6" required>
+                        <button type="button" class="pwd-toggle" data-target="password" tabindex="-1" aria-label="Mostrar senha">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password_confirm">Confirmar senha <span class="required">*</span></label>
+                    <div class="input-icon">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="password_confirm" name="password_confirm"
+                               placeholder="Repita a senha" minlength="6" required>
+                        <button type="button" class="pwd-toggle" data-target="password_confirm" tabindex="-1" aria-label="Mostrar senha">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-primary">
+                    <i class="fas fa-check"></i>
+                    <span>Criar conta e acessar</span>
+                </button>
+            </form>
+            <script src="/static/js/portal_form.js"></script>
+
+            <div class="auth-links">
+                <a href="/portal"><i class="fas fa-arrow-left"></i> Voltar</a>
+            </div>
+        </div>
+
+        <div class="footer-note">
+            <i class="fas fa-shield-halved"></i> Seus dados estão seguros conosco
+        </div>
+    </div>
+</body>
+</html>

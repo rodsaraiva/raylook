@@ -1,0 +1,145 @@
+/* Identidade visual: preto + dourado (ouro).
+   Compartilhada pelos 5 mockups do fluxo 6-estados. */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+    /* Plano de fundo e superfícies (dark glassmorphism) */
+    --bg-main: #0a0a0b;
+    --card-bg: rgba(255, 255, 255, 0.04);
+    --card-hover: rgba(255, 255, 255, 0.08);
+    --card-border: rgba(212, 175, 55, 0.16);
+    --card-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+
+    /* Tipografia — texto claro sobre fundo escuro */
+    --primary: #fafaf9;
+    --text-primary: #fafaf9;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+
+    /* Accent dourado (cor secundária da identidade) */
+    --secondary: #18181b;
+    --accent: #d4af37;
+    --accent-soft: rgba(212, 175, 55, 0.15);
+    --gold-bright: #fbbf24;
+    --gold-deep: #a88a29;
+
+    /* Status contextuais com contraste alto em preto */
+    --success: #4ade80;
+    --success-soft: rgba(74, 222, 128, 0.15);
+    --danger: #f87171;
+    --danger-soft: rgba(248, 113, 113, 0.15);
+    --warning: #fbbf24;
+    --warning-soft: rgba(251, 191, 36, 0.14);
+
+    /* Cores das 6 etapas — todas em harmonia com o dourado */
+    --step-aberto:     #facc15;   /* amarelo limão (pacote iniciando) */
+    --step-fechado:    #d4af37;   /* ouro clássico */
+    --step-confirmado: #4ade80;   /* verde limão */
+    --step-pendente:   #f59e0b;   /* âmbar escuro */
+    --step-separado:   #a1a1aa;   /* prata */
+    --step-enviado:    #fde047;   /* ouro brilhante (final) */
+
+    --radius-sm: 10px;
+    --radius-md: 16px;
+    --radius-lg: 22px;
+    --transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box;
+    font-family: 'Inter', system-ui, sans-serif; }
+
+body {
+    background: var(--bg-main);
+    background-image:
+        radial-gradient(ellipse at 0% 0%, rgba(212, 175, 55, 0.08) 0%, transparent 55%),
+        radial-gradient(ellipse at 100% 100%, rgba(212, 175, 55, 0.06) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 20%, rgba(251, 191, 36, 0.03) 0%, transparent 60%);
+    background-attachment: fixed;
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 28px 40px 60px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Cabeçalho do mockup */
+.mockup-brief {
+    max-width: 820px;
+    margin-bottom: 24px;
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-md);
+    padding: 16px 22px;
+}
+.mockup-brief .tag {
+    display: inline-block; font-size: 10px; letter-spacing: 0.1em;
+    text-transform: uppercase; font-weight: 700;
+    background: var(--accent-soft); color: var(--accent);
+    padding: 3px 10px; border-radius: 999px; margin-bottom: 8px;
+}
+.mockup-brief h1 {
+    font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 700;
+    letter-spacing: -0.01em; color: var(--text-primary);
+}
+.mockup-brief p { color: var(--text-secondary); font-size: 13px; margin-top: 4px; }
+.mockup-brief code { background: rgba(212, 175, 55, 0.08); color: var(--accent);
+                     padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+
+/* Container glassmorphism */
+.glass-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(14px);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--card-shadow);
+    padding: 22px 26px;
+}
+
+.section-title {
+    font-family: 'Outfit', sans-serif; font-size: 17px; font-weight: 700;
+    color: var(--text-primary); margin-bottom: 14px; display: flex;
+    justify-content: space-between; align-items: baseline;
+}
+.section-title .muted { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+
+/* Badges de status */
+.status-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.04em; padding: 3px 10px; border-radius: 999px;
+}
+.status-pill::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+}
+.status-aberto     { color: var(--step-aberto);     background: rgba(250, 204, 21, 0.14); }
+.status-fechado    { color: var(--step-fechado);    background: rgba(212, 175, 55, 0.14); }
+.status-confirmado { color: var(--step-confirmado); background: var(--success-soft); }
+.status-pendente   { color: var(--step-pendente);   background: var(--warning-soft); }
+.status-separado   { color: var(--step-separado);   background: rgba(161, 161, 170, 0.14); }
+.status-enviado    { color: var(--step-enviado);    background: rgba(253, 224, 71, 0.14); }
+.status-cancelled  { color: var(--danger);          background: var(--danger-soft); }
+
+/* Botão flutuante "⏭️" */
+.advance-btn {
+    position: absolute; top: 10px; right: 10px;
+    width: 32px; height: 32px; border-radius: 50%;
+    background: rgba(10, 10, 11, 0.7); color: var(--accent);
+    border: 1px solid var(--accent-soft);
+    font-size: 14px; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(8px);
+    transition: var(--transition);
+}
+.advance-btn:hover { background: var(--accent); color: var(--bg-main); transform: scale(1.08); }
+.advance-btn:disabled { opacity: 0.4; cursor: wait; }
+
+[data-drill] { cursor: pointer; }
+
+/* Scrollbar dourada fina */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--accent-soft); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }

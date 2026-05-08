@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Raylook · 01a · Stepper vertical (rail lateral)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="_base.css">
+<link rel="stylesheet" href="_modal.css">
+<style>
+    .layout { display: grid; grid-template-columns: 240px 1fr; gap: 18px; }
+
+    .rail {
+        background: var(--card-bg);
+        backdrop-filter: blur(14px);
+        border: 1px solid var(--card-border);
+        border-radius: var(--radius-lg);
+        padding: 16px 14px;
+        display: flex; flex-direction: column; gap: 6px;
+        position: sticky; top: 20px; height: fit-content;
+    }
+    .rail-title {
+        font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em;
+        font-weight: 700; color: var(--accent); padding: 8px 10px 4px;
+    }
+    .rail-step {
+        display: grid; grid-template-columns: 28px 1fr auto; gap: 10px;
+        align-items: center; padding: 10px 12px; border-radius: var(--radius-sm);
+        cursor: pointer; transition: var(--transition);
+        border: 1px solid transparent;
+    }
+    .rail-step:hover { background: rgba(255, 255, 255, 0.04); }
+    .rail-step.active {
+        background: var(--accent-soft); border-color: rgba(212, 175, 55, 0.35);
+    }
+    .rail-step .num {
+        width: 26px; height: 26px; border-radius: 50%;
+        background: rgba(255, 255, 255, 0.04); color: var(--text-muted);
+        display: flex; align-items: center; justify-content: center;
+        font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 700;
+    }
+    .rail-step.active .num { background: var(--accent); color: var(--bg-main); }
+    .rail-step .label {
+        font-size: 13px; font-weight: 600; color: var(--text-primary);
+        line-height: 1.2;
+    }
+    .rail-step .sub { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+    .rail-step .count {
+        font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 700;
+        color: var(--text-primary); font-variant-numeric: tabular-nums;
+    }
+    .rail-step.active .count { color: var(--accent); }
+
+    .rail-divider { height: 1px; background: rgba(212, 175, 55, 0.12); margin: 8px 4px; }
+
+    .main .glass-card { padding: 24px 28px; }
+
+    .inv-summary {
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;
+    }
+    .inv-summary-item {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(212, 175, 55, 0.12);
+        border-radius: var(--radius-md); padding: 14px 18px;
+    }
+    .inv-summary-label {
+        font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+        color: var(--text-muted); font-weight: 700;
+    }
+    .inv-summary-value {
+        font-family: 'Outfit', sans-serif; font-size: 26px; font-weight: 700;
+        margin-top: 4px; color: var(--accent);
+    }
+
+    .inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+                gap: 14px; min-height: 200px; }
+    .empty-state { grid-column: 1/-1; text-align: center; padding: 40px;
+                   color: var(--text-muted); font-style: italic; }
+
+    .inv-card {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(212, 175, 55, 0.1);
+        border-radius: var(--radius-md); overflow: hidden;
+        transition: var(--transition); display: flex; flex-direction: column;
+    }
+    .inv-card:hover {
+        transform: translateY(-2px);
+        border-color: var(--accent-soft);
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
+    }
+    .inv-card-img {
+        aspect-ratio: 1.5/1; position: relative;
+        background: linear-gradient(135deg, rgba(212,175,55,0.08), rgba(0,0,0,0.3));
+        display: flex; align-items: center; justify-content: center;
+        font-size: 32px; opacity: 0.85;
+    }
+    .inv-card-badge { position: absolute; top: 10px; left: 10px; }
+    .inv-card-body { padding: 12px 16px; display: flex; flex-direction: column; gap: 6px; }
+    .inv-card-title {
+        font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 700;
+        color: var(--text-primary);
+    }
+    .inv-card-meta { font-size: 11px; color: var(--text-muted); }
+    .progress { height: 3px; background: rgba(255, 255, 255, 0.08); border-radius: 2px; overflow: hidden; }
+    .progress > span { display: block; height: 100%; background: var(--accent); }
+    .inv-card-footer {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 10px 16px; border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .inv-card-footer .price {
+        font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 700; color: var(--accent);
+    }
+    .inv-card-footer .pieces { font-size: 11px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<div class="mockup-brief">
+    <span class="tag">Variação 01a · Stepper vertical</span>
+    <h1>Rail lateral como navegação primária</h1>
+    <p>Stepper migra pra esquerda como sidebar fixa; grid ocupa toda a largura
+       restante. Bom pra telas wide onde a faixa horizontal desperdiça espaço.</p>
+</div>
+
+<div class="layout">
+    <aside class="rail" id="rail"></aside>
+    <main class="main">
+        <div class="glass-card">
+            <div class="section-title" id="section-title">Carregando…<span class="muted" id="section-summary"></span></div>
+            <div class="inv-summary" id="summary"></div>
+            <div class="inv-grid" id="grid"><div class="empty-state">Carregando…</div></div>
+        </div>
+    </main>
+</div>
+
+<script src="_mockups-lib.js"></script>
+<script src="_modal.js"></script>
+<script src="01a-stepper-vertical.js"></script>
+</body>
+</html>

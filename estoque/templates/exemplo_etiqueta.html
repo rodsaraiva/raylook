@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Etiqueta de Estoque - 1 Coluna x 8 Linhas (Corrigido)</title>
+    <style>
+        @page { size: A4; margin: 1cm; }
+        body { font-family: "Courier New", Courier, monospace; color: #000; }
+        
+        .header {
+            text-align: center; border-bottom: 2px solid #000; 
+            padding-bottom: 3px; margin-bottom: 5px; font-family: Helvetica, Arial, sans-serif;
+        }
+        .header h1 { font-size: 20px; margin: 0; text-transform: uppercase; }
+        .header .meta { font-size: 12px; margin-top: 3px; }
+
+        .labels-grid { width: 100%; border-collapse: collapse; }
+        
+        /* Redução do espaço entre as etiquetas */
+        .label-cell { width: 100%; padding-bottom: 4px; }
+        
+        /* Altura exata e segura para não gerar a 2ª página */
+        .label-box { border: 1px solid #000; width: 100%; height: 2.9cm; } 
+        
+        .item-card-table { width: 100%; background-color: transparent; border: none; }
+        
+        /* Ajuste do espaçamento interno para compensar a altura menor */
+        .left-col { width: 55%; padding: 2pt 10pt; border-right: 1px dashed #ccc; }
+        .right-col { width: 45%; padding: 2pt 10pt; text-align: right; }
+
+        .order-num { font-size: 11pt; margin-bottom: 2pt; }
+        .client-name { font-size: 18pt; font-weight: bold; text-transform: uppercase; margin: 2pt 0; }
+        .client-code { font-size: 11pt; }
+        .card-footer { font-weight: bold; font-style: italic; font-size: 10pt; margin-top: 4pt; }
+
+        .details { font-size: 13pt; line-height: 1.4; }
+        .price-line { margin-bottom: 2pt; }
+        .commission { margin-top: 5pt; }
+        .total-bold { font-weight: bold; font-size: 16pt; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>PEDIDO DE ESTOQUE</h1>
+        <div class="meta">Enquete: Enquete de Exemplo R$ 70,00 | Gerado em: 19/02/2026 20:40</div>
+    </div>
+
+    <table class="labels-grid">
+        <tr><td class="label-cell"><table class="label-box"><tr><td valign="middle"><table class="item-card-table" border="0" cellspacing="0" cellpadding="0"><tr><td valign="middle" class="left-col"><div class="order-num">Nº do Pedido: 5</div><div class="client-name">Alana Camilo</div><div class="client-code">Cód. Cliente: 3000</div><div class="card-footer">@alana_assessoria</div></td><td valign="middle" class="right-col details"><div class="price-line">6 conjuntos de R$ 70,00</div><div class="total-line">Total: R$ 420,00</div><div class="commission">+ 13% = <span class="total-bold">R$ 474,60</span></div></td></tr></table></td></tr></table></td></tr>
+        <tr><td class="label-cell"><table class="label-box"><tr><td valign="middle"><table class="item-card-table" border="0" cellspacing="0" cellpadding="0"><tr><td valign="middle" class="left-col"><div class="order-num">Nº do Pedido: 6</div><div class="client-name">Marcos Paulo</div><div class="client-code">Cód. Cliente: 3001</div><div class="card-footer">@alana_assessoria</div></td><td valign="middle" class="right-col details"><div class="price-line">2 conjuntos de R$ 70,00</div><div class="total-line">Total: R$ 140,00</div><div class="commission">+ 13% = <span class="total-bold">R$ 158,20</span></div></td></tr></table></td></tr></table></td></tr>
+        <tr><td class="label-cell"><table class="label-box"><tr><td valign="middle"><table class="item-card-table" border="0" cellspacing="0" cellpadding="0"><tr><td valign="middle" class="left-col"><div class="order-num">Nº do Pedido: 7</div><div class="client-name">Alice Soares</div><div class="client-code">Cód. Cliente: 3002</div><div class="card-footer">@alana_assessoria</div></td><td valign="middle" class="right-col details"><div class="price-line">3 conjuntos de R$ 70,00</div><div class="total-line">Total: R$ 210,00</div><div class="commission">+ 13% = <span class="total-bold">R$ 237,30</span></div></td></tr></table></td></tr></table></td></tr>
+        <tr><td class="label-cell"><table class="label-box"><tr><td valign="middle"><table class="item-card-table" border="0" cellspacing="0" cellpadding="0"><tr><td valign="middle" class="left-col"><div class="order-num">Nº do Pedido: 8</div><div class="client-name">Seaan Adamos</div><div class="client-code">Cód. Cliente: 3003</div><div class="card-footer">@alana_assessoria</div></td><td valign="middle" class="right-col details"><div class="price-line">1 conjunto de R$ 70,00</div><div class="total-line">Total: R$ 70,00</div><div class="commission">+ 13% = <span class="total-bold">R$ 79,10</span></div></td></tr></table></td></tr></table></td></tr>
+        <tr><td class="label-cell"><table class="label-box"><tr><td valign="middle"><table class="item-card-table" border="0" cellspacing="0" cellpadding="0"><tr><td valign="middle" class="left-col"><div class="order-num">Nº do Pedido: 9</div><div class="client-name">Deus É Fiel</div><div class="client-code">Cód. Cliente: 3004</div><div class="card-footer">@alana_assessoria</div></td><td valign="middle" class="right-col details"><div class="price-line">10 conjuntos de R$ 70,00</div><div class="total-line">Total: R$ 700,00</div><div class="commission">+ 13% = <span class="total-bold">R$ 791,00</span></div></td></tr></table></td></tr></table></td></tr>
+        <tr><td class="label-cell"><table class="label-box"><tr><td valign="middle"><table class="item-card-table" border="0" cellspacing="0" cellpadding="0"><tr><td valign="middle" class="left-col"><div class="order-num">Nº do Pedido: 10</div><div class="client-name">Cliente Teste</div><div class="client-code">Cód. Cliente: 3005</div><div class="card-footer">@alana_assessoria</div></td><td valign="middle" class="right-col details"><div class="price-line">4 conjuntos de R$ 70,00</div><div class="total-line">Total: R$ 280,00</div><div class="commission">+ 13% = <span class="total-bold">R$ 316,40</span></div></td></tr></table></td></tr></table></td></tr>
+        <tr><td class="label-cell"><table class="label-box"><tr><td valign="middle"><table class="item-card-table" border="0" cellspacing="0" cellpadding="0"><tr><td valign="middle" class="left-col"><div class="order-num">Nº do Pedido: 11</div><div class="client-name">Maria Silva</div><div class="client-code">Cód. Cliente: 3006</div><div class="card-footer">@alana_assessoria</div></td><td valign="middle" class="right-col details"><div class="price-line">5 conjuntos de R$ 70,00</div><div class="total-line">Total: R$ 350,00</div><div class="commission">+ 13% = <span class="total-bold">R$ 395,50</span></div></td></tr></table></td></tr></table></td></tr>
+        <tr><td class="label-cell"><table class="label-box"><tr><td valign="middle"><table class="item-card-table" border="0" cellspacing="0" cellpadding="0"><tr><td valign="middle" class="left-col"><div class="order-num">Nº do Pedido: 12</div><div class="client-name">João Carlos</div><div class="client-code">Cód. Cliente: 3007</div><div class="card-footer">@alana_assessoria</div></td><td valign="middle" class="right-col details"><div class="price-line">8 conjuntos de R$ 70,00</div><div class="total-line">Total: R$ 560,00</div><div class="commission">+ 13% = <span class="total-bold">R$ 632,80</span></div></td></tr></table></td></tr></table></td></tr>
+    </table>
+</body>
+</html>

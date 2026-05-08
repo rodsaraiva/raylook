@@ -1,0 +1,99 @@
+*.pyc
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+
+# SQLite local DB (gerada do schema em deploy/sqlite/)
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+
+# Cache de métricas regenerado a cada /api/metrics
+data/dashboard_metrics.json
+
+# Environment variables
+.env
+
+# Google credentials
+credentials.json
+token.json
+/secrets/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Distribution
+dist/
+build/
+*.egg-info/
+#
+# Project debug/temp files
+debug_*.py
+*_debug.py
+raw_messages.json
+debug_output*.json
+real_summary.json
+summary_output.txt
+fields_output.txt
+fields.txt
+full_messages.txt
+test_output.txt
+test_results.txt
+MIGRATION_SUMMARY.md
+DASHBOARD_SUMMARY.md
+
+# Ignore image files
+*.jpg
+*.jpeg
+*.png
+*.pdf
+
+# Claude Code
+.claude/
+.aios-core/
+
+# AI Tools (não poluir o repositório)
+.antigravity/
+.codex/
+.cursor/
+.gemini/
+.github/agents/
+nul
+
+# Local docker compose (com credenciais)
+docker-compose-local.yaml
+
+# Environment & Secrets (AIOS)
+.env.local
+.env.*.local
+*.key
+*.pem
+
+# Dependencies (AIOS)
+node_modules/
+node_modules
+
+# Build & Logs (AIOS)
+logs/
+
+# AIOS Local (AIOS)
+.aios-core/local/
+.claude/settings.local.json
+.aios/install-log.txt

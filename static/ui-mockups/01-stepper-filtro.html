@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Raylook · Fluxo 1 · Stepper + filtro</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="_base.css">
+<link rel="stylesheet" href="_modal.css">
+<style>
+    .stepper {
+        display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px;
+        margin-bottom: 20px;
+    }
+    .step {
+        background: rgba(255, 255, 255, 0.04); backdrop-filter: blur(10px);
+        border: 1px solid var(--card-border); border-radius: var(--radius-md);
+        padding: 14px 16px; cursor: pointer;
+        transition: var(--transition); position: relative;
+    }
+    .step:hover { background: rgba(255, 255, 255, 0.06); transform: translateY(-2px); }
+    .step.active {
+        background: rgba(255, 255, 255, 0.1); border-color: var(--accent);
+        box-shadow: 0 8px 24px rgba(212, 175, 55, 0.25);
+    }
+    .step-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .step-num {
+        width: 22px; height: 22px; border-radius: 50%;
+        background: var(--accent-soft); color: var(--accent);
+        display: flex; align-items: center; justify-content: center;
+        font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 700;
+    }
+    .step.active .step-num { background: var(--accent); color: #fff; }
+    .step-label {
+        font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+        font-weight: 700; color: var(--text-secondary);
+    }
+    .step-count {
+        font-family: 'Outfit', sans-serif; font-size: 28px; font-weight: 700;
+        color: var(--primary); line-height: 1;
+    }
+    .step-sub {
+        font-size: 11px; color: var(--text-muted); margin-top: 3px;
+        font-variant-numeric: tabular-nums;
+    }
+    .inv-summary {
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+        margin-bottom: 18px;
+    }
+    .inv-summary-item {
+        background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.065);
+        border-radius: var(--radius-md); padding: 12px 16px;
+    }
+    .inv-summary-label {
+        font-size: 11px; color: var(--text-secondary); font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .inv-summary-value {
+        font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 700;
+        margin-top: 2px; color: var(--accent);
+    }
+    .inv-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 14px; min-height: 100px;
+    }
+    .empty-state {
+        grid-column: 1/-1; text-align: center; padding: 40px;
+        color: var(--text-muted); font-size: 14px; font-style: italic;
+    }
+    .inv-card {
+        background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.04);
+        border-radius: var(--radius-md); overflow: hidden;
+        display: flex; flex-direction: column;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.21); transition: var(--transition);
+    }
+    .inv-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.42); }
+    .inv-card-img {
+        aspect-ratio: 1.4/1;
+        background: linear-gradient(135deg, #1a1a1c, #3a3a3f);
+        position: relative; display: flex; align-items: center; justify-content: center;
+        font-size: 32px; opacity: 0.7;
+    }
+    .inv-card-badge { position: absolute; top: 10px; left: 10px; }
+    .inv-card-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+    .inv-card-title {
+        font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 700; color: var(--primary);
+    }
+    .inv-card-meta { font-size: 11px; color: var(--text-muted); }
+    .inv-card-footer {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 10px 14px; border-top: 1px solid rgba(255, 255, 255, 0.065);
+        background: rgba(255, 255, 255, 0.04);
+    }
+    .inv-card-footer .price {
+        font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 700; color: var(--success);
+    }
+    .inv-card-footer .pieces { font-size: 11px; color: var(--text-secondary); }
+    .progress { height: 3px; background: rgba(255, 255, 255, 0.078); border-radius: 2px; overflow: hidden; }
+    .progress > span { display: block; height: 100%; background: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="mockup-brief">
+    <span class="tag">Fluxo 1 / 5 · Stepper + filtro</span>
+    <h1>Barra de etapas clicável no topo</h1>
+    <p>Faixa com os 6 estados, cada um com contagem. Clicar filtra o grid abaixo.
+       Dados lidos de <code>/api/mockups/packages</code>.</p>
+</div>
+
+<div class="glass-card">
+    <div class="stepper" id="stepper"></div>
+    <div class="section-title" id="section-title">Carregando…<span class="muted" id="section-summary"></span></div>
+    <div class="inv-summary" id="summary"></div>
+    <div class="inv-grid" id="grid"><div class="empty-state">Carregando…</div></div>
+</div>
+
+<script src="_mockups-lib.js"></script>
+<script src="_modal.js"></script>
+<script src="01-stepper-filtro.js"></script>
+</body>
+</html>

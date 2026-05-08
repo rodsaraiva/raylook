@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meus Pedidos — Alana Camilo Assessoria</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/portal.css">
+</head>
+<body>
+    <div class="page">
+        <header>
+            <div class="logo-text">
+                <span class="logo-main">ALANA CAMILO</span>
+                <span class="logo-sub">ASSESSORIA</span>
+            </div>
+            <div class="header-right">
+                <div class="avatar">{{ cliente.nome[0] | upper if cliente.nome else 'C' }}</div>
+                <a href="/portal/logout" class="logout-btn" title="Sair"><i class="fas fa-sign-out-alt"></i></a>
+            </div>
+        </header>
+
+        <div class="welcome">
+            <h1>Ola, {{ cliente.nome.split()[0] if cliente.nome else 'Cliente' }}!</h1>
+            <p>Aqui estao as pecas do seu pedido.</p>
+        </div>
+
+        <!-- KPIs -->
+        <div class="summary">
+            <div class="kpi-card pending">
+                <div class="kpi-title"><i class="fas fa-clock"></i> A pagar</div>
+                <div class="kpi-value">R$ {{ "%.2f" | format(kpis.total_pending) | replace('.', ',') }}</div>
+                <div class="kpi-sub">{{ kpis.pending_count }} pedido{{ 's' if kpis.pending_count != 1 }} pendente{{ 's' if kpis.pending_count != 1 }}</div>
+            </div>
+            <div class="kpi-card paid">
+                <div class="kpi-title"><i class="fas fa-check-circle"></i> Pago</div>
+                <div class="kpi-value">R$ {{ "%.2f" | format(kpis.total_paid) | replace('.', ',') }}</div>
+                <div class="kpi-sub">{{ kpis.paid_count }} pedido{{ 's' if kpis.paid_count != 1 }} confirmado{{ 's' if kpis.paid_count != 1 }}</div>
+            </div>
+        </div>
+
+        <!-- Pagar Todos -->
+        {% if kpis.pending_count > 1 %}
+        <div class="pay-all-section">
+            <button class="btn-pay-all" id="btnPayAll">
+                <i class="fas fa-bolt"></i>
+                Pagar todos (R$ {{ "%.2f" | format(kpis.total_pending) | replace('.', ',') }})
+            </button>
+            <div class="pix-modal" id="pix-all" style="display: none;">
+                <div class="pix-loading"><i class="fas fa-spinner fa-spin"></i> Gerando PIX...</div>
+                <div class="pix-content" style="display: none;">
+                    <div class="pix-qr"></div>
+                    <div class="pix-code-wrapper">
+                        <label>Codigo PIX (copia e cola)</label>
+                        <div class="pix-code-row">
+                            <input type="text" class="pix-code" readonly>
+                            <button class="btn-copy">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <a class="pix-link" href="#" target="_blank" style="display: none;">
+                        <i class="fas fa-external-link-alt"></i> Pagar no site do Asaas
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Section title -->
+        <div class="section-title">
+            <h2><i class="fas fa-bag-shopping"></i> Meus Pedidos</h2>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters">
+            <button class="filter-chip active" data-filter="all">Todos</button>
+            <button class="filter-chip" data-filter="pending">Pendentes</button>
+            <button class="filter-chip" data-filter="paid">Pagos</button>
+        </div>
+
+        <!-- Orders -->
+        <div class="orders" id="ordersList">
+            {% if not orders %}
+            <div class="empty-state">
+                <i class="fas fa-box-open"></i>
+                <p>Nenhum pedido encontrado.</p>
+            </div>
+            {% endif %}
+
+            {% for order in orders %}
+            <div class="order-card" data-status="{{ order.status }}" data-venda-id="{{ order.id }}">
+                <div class="order-top">
+                    {% if order.image_url %}
+                    <div class="order-thumb has-image">
+                        <img src="{{ order.image_url }}" alt="{{ order.produto_nome }}" loading="lazy">
+                    </div>
+                    {% else %}
+                    <div class="order-thumb t{{ loop.index0 % 4 + 1 }}">
+                        {{ order.produto_nome.split()[0] | upper | truncate(8, true, '') }}
+                    </div>
+                    {% endif %}
+                    <div class="order-info">
+                        <div class="order-title">{{ order.enquete_titulo or order.produto_nome }}</div>
+                        <div class="order-meta">
+                            {% if order.created_at and order.created_at|length >= 10 %}
+                            {% set d = order.created_at[:10].split('-') %}
+                            <span><i class="far fa-calendar"></i> {{ d[2] }}/{{ d[1] }}/{{ d[0] }}</span>
+                            {% endif %}
+                            <span><i class="fas fa-cube"></i> {{ order.qty }} peca{{ 's' if order.qty != 1 }}</span>
+                        </div>
+                        {% if order.status == 'paid' %}
+                        <span class="badge paid"><i class="fas fa-check"></i> Pago</span>
+                        {% elif order.status == 'cancelled' %}
+                        <span class="badge cancelled"><i class="fas fa-ban"></i> Cancelado</span>
+                        {% else %}
+                        <span class="badge pending"><i class="fas fa-clock"></i> Aguardando pagamento</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="order-price-row">
+                    <div class="price-block">
+                        <div class="label">{{ 'Total pago' if order.status == 'paid' else 'Total' }}</div>
+                        <div class="value">R$ {{ "%.2f" | format(order.total_amount) | replace('.', ',') }}</div>
+                        <div class="breakdown">{{ order.qty }} x R$ {{ "%.2f" | format(order.unit_price) | replace('.', ',') }}{{ ' + taxa' if order.commission_percent > 0 }}</div>
+                    </div>
+                    {% if order.status == 'cancelled' %}
+                    <div class="cancelled-confirmation">
+                        <i class="fas fa-ban"></i>
+                        <span>Cancelado</span>
+                    </div>
+                    {% elif order.status == 'paid' %}
+                    <div class="paid-confirmation">
+                        <i class="fas fa-check-circle"></i>
+                        {% if order.paid_at and order.paid_at|length >= 10 %}
+                        {% set pd = order.paid_at[:10].split('-') %}
+                        <span>Pago em {{ pd[2] }}/{{ pd[1] }}/{{ pd[0] }}</span>
+                        {% else %}
+                        <span>Pagamento confirmado</span>
+                        {% endif %}
+                    </div>
+                    {% elif order.pagamento_id %}
+                    <button class="btn-pay" data-pagamento="{{ order.pagamento_id }}">
+                        <i class="fas fa-bolt"></i> Pagar
+                    </button>
+                    {% endif %}
+                </div>
+
+                <!-- PIX Modal (hidden by default) -->
+                {% if order.status != 'paid' and order.pagamento_id %}
+                <div class="pix-modal" id="pix-{{ order.pagamento_id }}" style="display: none;">
+                    <div class="pix-loading"><i class="fas fa-spinner fa-spin"></i> Gerando PIX...</div>
+                    <div class="pix-content" style="display: none;">
+                        <div class="pix-qr"></div>
+                        <div class="pix-code-wrapper">
+                            <label>Codigo PIX (copia e cola)</label>
+                            <div class="pix-code-row">
+                                <input type="text" class="pix-code" readonly>
+                                <button class="btn-copy">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <a class="pix-link" href="#" target="_blank" style="display: none;">
+                            <i class="fas fa-external-link-alt"></i> Pagar no site do Asaas
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="footer-note">
+            <i class="fas fa-shield-halved"></i> Pagamentos processados com seguranca via Asaas
+        </div>
+    </div>
+
+    <script src="/static/js/portal.js"></script>
+</body>
+</html>
