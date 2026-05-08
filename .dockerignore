@@ -1,0 +1,38 @@
+.git
+.github
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# Dev/test
+data/
+.env
+.env.*
+!.env.example
+*.db
+*.db-*
+secrets/
+.claude/
+.aios-core/
+
+# Docs e mockups (não vão pra image)
+docs/
+*.md
+!README.md
+
+# Imagens/screenshots de teste
+*.png
+*.jpg
+*.jpeg
+
+# Logs
+*.log
+/tmp/
+.pytest_cache/
+
+# Tools de dev (não rodam em prod)
+tools/
+tests/
