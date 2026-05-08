@@ -236,7 +236,7 @@ _AUTH_PUBLIC_PREFIXES = (
 )
 
 
-_DASH_PASSWORD = os.getenv("DASHBOARD_AUTH_PASS", "BoraVender")
+_DASH_PASSWORD = os.getenv("DASHBOARD_AUTH_PASS", "R@ylook")
 _DASH_COOKIE = "dash_session"
 _DASH_TOKEN = _hmac_auth.new(_DASH_PASSWORD.encode(), b"alana-dash-session", "sha256").hexdigest()
 
