@@ -228,7 +228,7 @@ import hmac as _hmac_auth
 _AUTH_PUBLIC_PREFIXES = (
     "/health",
     "/api/supabase/health",
-    "/webhook/whatsapp",
+    "/webhook",   # cobre /webhook (WHAPI raylook) e /webhook/whatsapp (legado)
     "/static/",
     "/files/",   # LocalImageStorage — espelha "anyone with link" do Drive original
     "/metrics",  # prometheus
@@ -634,6 +634,7 @@ async def supabase_health_check():
         raise HTTPException(status_code=502, detail="Failed to connect to Supabase")
 
 
+@app.api_route("/webhook", methods=["POST", "PATCH"])
 @app.api_route("/webhook/whatsapp", methods=["POST", "PATCH"])
 async def whatsapp_webhook(request: Request):
     if not settings.WHATSAPP_WEBHOOK_ENABLED:
