@@ -6,7 +6,7 @@ const RaylookMockups = (() => {
     const STATE_LABELS = {
         aberto: "Aberto",
         fechado: "Fechado",
-        confirmado: "Confirmado",
+        confirmado: "Aguardando Pagamento",
         pago: "Pago",
         pendente: "Pendente",
         separado: "Separado",
