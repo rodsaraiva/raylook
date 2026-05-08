@@ -87,6 +87,7 @@ services:
       SUPABASE_SCHEMA: public
       SUPABASE_REST_PATH: /
       SUPABASE_DOMAIN_ENABLED: "true"
+      METRICS_SOURCE: supabase
 
       DASHBOARD_AUTH_DISABLED: "false"
       DASHBOARD_AUTH_USER: ${DASHBOARD_AUTH_USER:-admin}
