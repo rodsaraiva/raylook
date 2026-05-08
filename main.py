@@ -140,7 +140,7 @@ logging.getLogger("uvicorn.access").addFilter(LogFilter())
 # Metrics: read from Postgres via Supabase REST (PostgREST)
 # or from cached dashboard_metrics.json
 
-app = FastAPI(title="Alana Dashboard API")
+app = FastAPI(title="Raylook Dashboard API")
 
 # Request ID + timing middleware
 @app.middleware("http")

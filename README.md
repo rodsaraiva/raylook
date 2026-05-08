@@ -1,9 +1,11 @@
 # raylook
 
-Sandbox local derivado do Alana Dashboard. FastAPI + SQLite + integrações em stub.
+Dashboard FastAPI + SQLite (dev) / Postgres (prod). Integrações externas em stub
+até serem configuradas com credenciais próprias.
 
-> ⚠️ Sandbox de dev. Nada aqui pode tocar a prod da Alana (`alana.v4smc.com`).
-> Salvaguardas em `CLAUDE.md`. **Não desfazer sem aprovação.**
+> ⚠️ Em dev local roda 100% offline. Em prod o stack tem postgres dedicado e
+> network privada — não compartilha infra com nenhum outro projeto. Detalhes
+> em `deploy/README.md` e `CLAUDE.md`.
 
 ## Rodar
 

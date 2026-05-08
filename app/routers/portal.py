@@ -225,7 +225,7 @@ async def portal_reset_submit(request: Request, phone: str = Form(...)):
     email = client.get("email")
     if not email:
         return _templates().TemplateResponse(request, "portal_reset.html", {
-            "error": "Nenhum email cadastrado para este numero. Entre em contato com a Alana.",
+            "error": "Nenhum email cadastrado para este numero. Entre em contato com a Raylook.",
         })
 
     # Enviar link de reset por email via Resend
@@ -246,9 +246,9 @@ async def portal_reset_submit(request: Request, phone: str = Form(...)):
             raise RuntimeError("RESEND_API_KEY não configurado")
 
         resend.Emails.send({
-            "from": "Alana Camilo Assessoria <alana@alana.v4smc.com>",
+            "from": "Raylook <noreply@raylook.v4smc.com>",
             "to": [email],
-            "subject": "Redefinir sua senha — Alana Camilo Assessoria",
+            "subject": "Redefinir sua senha — Raylook",
             "html": f"""
                 <div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
                     <div style="text-align: center; margin-bottom: 24px;">

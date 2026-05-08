@@ -7,7 +7,7 @@ from app.config import settings
 templates = Jinja2Templates(directory="templates")
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Alana Dashboard API")
+    app = FastAPI(title="Raylook Dashboard API")
 
     # mount static and templates
     app.mount("/static", StaticFiles(directory="static"), name="static")
