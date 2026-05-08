@@ -662,8 +662,15 @@ async def whatsapp_webhook(request: Request):
             "WHATSAPP_WEBHOOK_SECRET_REQUIRED=true para fail-closed."
         )
     else:
+        # Aceita o secret em vários formatos pra ser compatível com diferentes
+        # provedores de webhook (WHAPI envia Authorization: Bearer; Evolution
+        # envia x-webhook-secret; configs antigas usam ?secret=).
+        auth_header = (request.headers.get("authorization") or "").strip()
+        if auth_header.lower().startswith("bearer "):
+            auth_header = auth_header[7:].strip()
         candidate = (
-            request.headers.get("x-webhook-secret")
+            auth_header
+            or request.headers.get("x-webhook-secret")
             or request.headers.get("x-api-key")
             or request.query_params.get("secret")
             or ""
