@@ -244,10 +244,10 @@
             const action = L.primaryActionFor(state);
             const confirmAttr = action.confirmText ? ` data-confirm="${L.escapeHtml(action.confirmText)}"` : "";
             const actionBtn = (state === "aberto" || !action.action)
-                ? `<span></span>`
+                ? ""
                 : `<button class="row-action" data-action="${action.action}" data-id="${p.id}"${confirmAttr}>${L.escapeHtml(action.label)}</button>`;
             const backBtn = (state === "aberto" || state === "fechado" || state === "cancelled")
-                ? `<span></span>`
+                ? ""
                 : `<button class="row-back" data-action="regress" data-id="${p.id}" title="Voltar pra etapa anterior">←</button>`;
             const valueLabel = p.total_value ? L.money(p.total_value)
                 : (meta.valor != null ? `${L.money(meta.valor)} <span class="row-unit">/un</span>` : "—");
@@ -267,10 +267,7 @@
                     <div class="sub">${L.escapeHtml(subBits || L.clientesShort(p.clientes, 2))} · ${p.total_qty}/${p.capacidade_total}</div>
                 </div>
                 <div class="pkg-row-meta">${valueLabel}<div class="sub">há ${L.age(p.state_since)}</div></div>
-                ${backBtn}
-                ${actionBtn}
-                ${cancelBtn}
-                ${restoreBtn}
+                <div class="pkg-row-actions">${backBtn}${actionBtn}${cancelBtn}${restoreBtn}</div>
             </div>`;
         }).join("");
         wrap.querySelectorAll(".pkg-row").forEach(row =>
