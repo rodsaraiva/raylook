@@ -1,0 +1,23 @@
+[run]
+source = app,main,integrations,metrics
+branch = True
+omit =
+    .venv/*
+    tests/*
+    tools/*
+    **/__pycache__/*
+    **/__init__.py
+    finance/*
+    estoque/*
+    deploy/*
+
+[report]
+precision = 1
+show_missing = True
+skip_covered = False
+exclude_lines =
+    pragma: no cover
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    \.\.\.$

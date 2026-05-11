@@ -18,6 +18,15 @@ data/*.db-shm
 # Cache de métricas regenerado a cada /api/metrics
 data/dashboard_metrics.json
 
+# Coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Local data dir (sqlite + payments + imagens locais)
+data/
+
 # Environment variables
 .env
 
