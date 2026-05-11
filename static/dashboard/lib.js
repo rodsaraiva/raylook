@@ -1,5 +1,5 @@
 // Lib compartilhada do dashboard v2.
-// Busca /api/mockups/packages (URL legada) e expõe helpers de formatação.
+// Busca /api/dashboard/packages (URL legada) e expõe helpers de formatação.
 
 const RaylookDashboard = (() => {
     const STATES = ["aberto", "fechado", "confirmado", "pago", "pendente", "separado", "enviado"];
@@ -27,12 +27,12 @@ const RaylookDashboard = (() => {
     }
 
     async function fetchData() {
-        const resp = await fetch("/api/mockups/packages", {
+        const resp = await fetch("/api/dashboard/packages", {
             credentials: "include",
             headers: { "Accept": "application/json" },
         });
         if (!resp.ok) {
-            throw new Error(`/api/mockups/packages → ${resp.status}`);
+            throw new Error(`/api/dashboard/packages → ${resp.status}`);
         }
         return resp.json();
     }
@@ -145,7 +145,7 @@ const RaylookDashboard = (() => {
             if (!await ask) return false;
         }
         try {
-            const resp = await fetch(`/api/mockups/packages/${pacoteId}/${action}`,
+            const resp = await fetch(`/api/dashboard/packages/${pacoteId}/${action}`,
                 { method: "POST", credentials: "include" });
             if (!resp.ok) {
                 const e = await resp.json().catch(() => ({ detail: `HTTP ${resp.status}` }));

@@ -1,5 +1,5 @@
 // Dashboard V2 — rail vertical + lista/detalhe.
-// Usa /api/mockups/packages e helpers de static/dashboard/lib.js.
+// Usa /api/dashboard/packages e helpers de static/dashboard/lib.js.
 (async () => {
     const L = window.RaylookDashboard;
     let data = null;
@@ -169,7 +169,7 @@
                         ) ?? Promise.resolve(window.confirm(`Cancelar ${label}?`)))) return;
                     btn.disabled = true;
                     try {
-                        const resp = await fetch(`/api/mockups/packages/${pkgId}/clients/${cliId}`,
+                        const resp = await fetch(`/api/dashboard/packages/${pkgId}/clients/${cliId}`,
                             { method: "DELETE", credentials: "include" });
                         if (!resp.ok) {
                             const err = await resp.json().catch(() => ({ detail: "Falha" }));
@@ -202,7 +202,7 @@
                     btn.disabled = true;
                     try {
                         const path = `clients/${cliId}/advance${to ? `?to=${encodeURIComponent(to)}` : ""}`;
-                        const resp = await fetch(`/api/mockups/packages/${pkgId}/${path}`,
+                        const resp = await fetch(`/api/dashboard/packages/${pkgId}/${path}`,
                             { method: "POST", credentials: "include" });
                         if (!resp.ok) {
                             const err = await resp.json().catch(() => ({ detail: "Falha" }));

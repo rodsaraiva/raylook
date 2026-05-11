@@ -33,7 +33,7 @@ const RaylookModal = (() => {
         const body = overlay.querySelector(".rl-modal");
         body.innerHTML = `<div class="rl-modal-loading">Carregando detalhes…</div>`;
         try {
-            const resp = await fetch(`/api/mockups/packages/${pacoteId}`, { credentials: "include" });
+            const resp = await fetch(`/api/dashboard/packages/${pacoteId}`, { credentials: "include" });
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const data = await resp.json();
             body.innerHTML = render(data);
@@ -238,7 +238,7 @@ const RaylookModal = (() => {
                 const old = btn.textContent;
                 btn.textContent = "…";
                 try {
-                    const resp = await fetch(`/api/mockups/packages/${pacoteId}/${action}`,
+                    const resp = await fetch(`/api/dashboard/packages/${pacoteId}/${action}`,
                         { method: "POST", credentials: "include" });
                     if (!resp.ok) {
                         const err = await resp.json().catch(() => ({ detail: `HTTP ${resp.status}` }));
@@ -305,7 +305,7 @@ const RaylookModal = (() => {
 
     async function populateClienteSelect(selectEl, pacoteId) {
         try {
-            const resp = await fetch(`/api/mockups/clientes?exclude_pacote=${pacoteId}`,
+            const resp = await fetch(`/api/dashboard/clientes?exclude_pacote=${pacoteId}`,
                 { credentials: "include" });
             const list = await resp.json();
             selectEl.innerHTML = `<option value="">— escolher —</option>` +
@@ -338,7 +338,7 @@ const RaylookModal = (() => {
 
         const list = form.querySelector("[data-swap-list]");
         try {
-            const resp = await fetch(`/api/mockups/packages/${pacoteId}/swap-candidates/${currentClienteId}`,
+            const resp = await fetch(`/api/dashboard/packages/${pacoteId}/swap-candidates/${currentClienteId}`,
                 { credentials: "include" });
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const candidates = await resp.json();
@@ -378,7 +378,7 @@ const RaylookModal = (() => {
         try {
             const opts = { method, credentials: "include", headers: { "Content-Type": "application/json" } };
             if (body) opts.body = JSON.stringify(body);
-            const resp = await fetch(`/api/mockups/packages/${pacoteId}/${path}`, opts);
+            const resp = await fetch(`/api/dashboard/packages/${pacoteId}/${path}`, opts);
             if (!resp.ok) {
                 const e = await resp.json().catch(() => ({ detail: `HTTP ${resp.status}` }));
                 throw new Error(e.detail || "Falha");

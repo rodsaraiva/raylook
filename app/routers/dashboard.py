@@ -14,10 +14,8 @@ Pacotes agrupados em 7 estados do fluxo:
 
 Pacotes cancelled ficam em lista à parte (não entram no fluxo).
 
-Prefixo de URL `/api/mockups/*` mantido por compatibilidade com o frontend
-(origem histórica: era usado por protótipos em static/ui-mockups/, hoje já
-removidos). Migração do prefixo fica para uma janela própria — exige sync
-com o JS.
+Prefixo: `/api/dashboard/*`. URL antiga (`/api/mockups/*`) vinha dos
+protótipos iniciais e foi migrada quando o router virou produção.
 """
 
 from __future__ import annotations
@@ -32,7 +30,7 @@ from fastapi import APIRouter, HTTPException
 from app.services.supabase_service import SupabaseRestClient
 
 
-router = APIRouter(prefix="/api/mockups", tags=["dashboard"])
+router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 
 FLOW_STATES = ["aberto", "fechado", "confirmado", "pago", "pendente", "separado", "enviado"]
