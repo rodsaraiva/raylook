@@ -1,21 +1,22 @@
-"""Endpoint dos mockups UI. Retorna pacotes agrupados em 6 estados do fluxo.
+"""Router principal do dashboard v2 (raylook.v4smc.com).
 
-Os 6 estados são derivados dos campos existentes + pagamentos associados:
+Serve a UI em `templates/dashboard_v2.html` + `static/js/dashboard_v2.js`.
+Pacotes agrupados em 7 estados do fluxo:
 
     aberto      — pacotes.status = 'open'
     fechado     — pacotes.status = 'closed' (aguardando aprovação do gerente)
     confirmado  — pacotes.status = 'approved' com cobranças ainda em aberto
                   (gerente aprovou, aguardando clientes pagarem)
-    pendente    — pacotes.status = 'approved' e TODOS os pagamentos já realizados,
-                  aguardando estoque separar (pdf_sent_at ainda vazio)
-    separado    — pacotes.status = 'approved', todos pagos, pdf_sent_at set,
-                  shipped_at ainda vazio
-    enviado     — pacotes.shipped_at IS NOT NULL
+    pago        — todos pagaram, aguardando validação
+    pendente    — pagamentos validados, aguardando estoque separar
+    separado    — pdf_sent_at set, aguardando envio
+    enviado     — shipped_at IS NOT NULL
 
 Pacotes cancelled ficam em lista à parte (não entram no fluxo).
 
-Esse endpoint serve só a UI-mockups em /static/ui-mockups/*.html — é read-only
-e não altera o comportamento do dashboard principal.
+Prefixo de URL `/api/mockups/*` mantido por compatibilidade com o frontend
+(origem histórica: protótipos em static/ui-mockups/). Migração do prefixo
+fica para uma janela própria — exige sync com o JS.
 """
 
 from __future__ import annotations
@@ -30,7 +31,7 @@ from fastapi import APIRouter, HTTPException
 from app.services.supabase_service import SupabaseRestClient
 
 
-router = APIRouter(prefix="/api/mockups", tags=["mockups"])
+router = APIRouter(prefix="/api/mockups", tags=["dashboard"])
 
 
 FLOW_STATES = ["aberto", "fechado", "confirmado", "pago", "pendente", "separado", "enviado"]
