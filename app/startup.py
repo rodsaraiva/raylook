@@ -3,7 +3,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.config import settings
-from app.locks import refresh_lock, packages_lock
+from app.locks import refresh_lock
 
 logger = logging.getLogger("raylook.startup")
 
@@ -15,7 +15,6 @@ def init_app(app: FastAPI) -> None:
     async def lifespan(app: FastAPI):
         # Startup
         app.state.refresh_lock = refresh_lock
-        app.state.packages_lock = packages_lock
         logger.info("App startup: locks initialized")
 
         from app.services.payment_sync_service import start_payment_sync_scheduler

@@ -22,14 +22,12 @@ def create_app() -> FastAPI:
 
     # import routers lazily to avoid circular imports at package import time
     from .routers import metrics as metrics_router
-    from .routers import packages as packages_router
     from .routers import finance as finance_router
     from .routers import customers as customers_router
     from . import startup
 
     # include routers
     app.include_router(metrics_router.router)
-    app.include_router(packages_router.router)
     app.include_router(finance_router.router)
     app.include_router(customers_router.router)
 

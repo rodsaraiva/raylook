@@ -518,13 +518,11 @@ async def _load_dashboard_data_for_response() -> Dict[str, Any]:
 
 @app.on_event("startup")
 async def startup_backfill_routing_once():
-    # F-035: garantir que o state tem os locks compartilhados (alguns
-    # endpoints em app/routers/packages.py leem request.app.state.packages_lock).
+    # refresh_lock é consumido por app/routers/metrics.py via request.app.state.
     try:
         app.state.refresh_lock = refresh_lock
-        app.state.packages_lock = packages_lock
     except Exception:
-        logger.exception("startup: falha setando app.state locks")
+        logger.exception("startup: falha setando app.state.refresh_lock")
 
     # F-035: worker de fila de cobrança WhatsApp DESATIVADO.
     # Cobrança agora é feita pelo portal do cliente (/portal/pedidos).
