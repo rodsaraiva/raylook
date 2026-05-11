@@ -27,6 +27,49 @@
     }
     .topbar a.logout:hover { color: var(--accent); border-color: var(--accent-soft); }
 
+    .filter-bar {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+        margin-bottom: 18px; padding: 10px 14px;
+        background: rgba(255,255,255,0.03); border: 1px solid var(--card-border);
+        border-radius: var(--radius-md);
+    }
+    .filter-bar .label {
+        font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+        color: var(--text-muted); font-weight: 700; margin-right: 4px;
+    }
+    .filter-pill {
+        padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 600;
+        background: rgba(255,255,255,0.04); color: var(--text-secondary);
+        border: 1px solid rgba(255,255,255,0.08); cursor: pointer;
+        font-family: inherit; transition: var(--transition);
+    }
+    .filter-pill:hover { background: rgba(255,255,255,0.07); color: var(--text-primary); }
+    .filter-pill.active {
+        background: var(--accent-soft); color: var(--accent);
+        border-color: rgba(212, 175, 55, 0.4);
+    }
+    .filter-custom {
+        display: none; align-items: center; gap: 6px; margin-left: 4px;
+    }
+    .filter-custom.visible { display: inline-flex; }
+    .filter-custom input[type="date"] {
+        background: rgba(255,255,255,0.05); color: var(--text-primary);
+        border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
+        padding: 5px 8px; font-size: 12px; font-family: inherit;
+        color-scheme: dark;
+    }
+    .filter-custom .sep { color: var(--text-muted); font-size: 12px; }
+    .filter-custom button {
+        padding: 5px 12px; border-radius: 8px; font-size: 12px; font-weight: 700;
+        background: var(--accent); color: var(--bg-main); border: none;
+        cursor: pointer; font-family: inherit;
+    }
+    .filter-custom button:hover { filter: brightness(1.1); }
+    .filter-summary {
+        margin-left: auto; font-size: 12px; color: var(--text-muted);
+        font-variant-numeric: tabular-nums;
+    }
+
     .layout { display: grid; grid-template-columns: 240px 1fr 420px; gap: 14px; }
 
     /* Rail (de 01a-stepper-vertical.html) */
@@ -305,6 +348,23 @@
     </div>
     <a class="logout" href="/logout">Sair</a>
 </header>
+
+<div class="filter-bar" id="filter-bar">
+    <span class="label">Período</span>
+    <button class="filter-pill active" data-filter="all">Todos</button>
+    <button class="filter-pill" data-filter="today">Hoje</button>
+    <button class="filter-pill" data-filter="yesterday">Ontem</button>
+    <button class="filter-pill" data-filter="7d">7 dias</button>
+    <button class="filter-pill" data-filter="month">Este mês</button>
+    <button class="filter-pill" data-filter="custom">Personalizado</button>
+    <span class="filter-custom" id="filter-custom">
+        <input type="date" id="filter-since">
+        <span class="sep">→</span>
+        <input type="date" id="filter-until">
+        <button id="filter-apply">Aplicar</button>
+    </span>
+    <span class="filter-summary" id="filter-summary"></span>
+</div>
 
 <div class="layout">
     <aside class="rail" id="rail"></aside>

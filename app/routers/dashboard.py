@@ -22,8 +22,8 @@ from __future__ import annotations
 
 import uuid
 from collections import defaultdict
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from fastapi import APIRouter, HTTPException
 
@@ -34,6 +34,35 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 
 FLOW_STATES = ["aberto", "fechado", "confirmado", "pago", "pendente", "separado", "enviado"]
+
+# Brasília é UTC-3 fixo desde 2019 (sem horário de verão). Filtros do dashboard
+# interpretam YYYY-MM-DD vindo do front nesse fuso.
+_BR_TZ = timezone(timedelta(hours=-3))
+
+
+def _parse_date_range(
+    since: Optional[str], until: Optional[str]
+) -> Tuple[Optional[str], Optional[str]]:
+    """Converte YYYY-MM-DD (BRT) em ISO UTC pros limites do filtro."""
+    since_iso: Optional[str] = None
+    until_iso: Optional[str] = None
+    if since:
+        try:
+            d = datetime.strptime(since, "%Y-%m-%d").replace(tzinfo=_BR_TZ)
+        except ValueError:
+            raise HTTPException(400, "since inválido (use YYYY-MM-DD)")
+        since_iso = d.astimezone(timezone.utc).isoformat()
+    if until:
+        try:
+            d = datetime.strptime(until, "%Y-%m-%d").replace(
+                hour=23, minute=59, second=59, microsecond=999000, tzinfo=_BR_TZ
+            )
+        except ValueError:
+            raise HTTPException(400, "until inválido (use YYYY-MM-DD)")
+        until_iso = d.astimezone(timezone.utc).isoformat()
+    if since_iso and until_iso and since_iso > until_iso:
+        raise HTTPException(400, "since não pode ser maior que until")
+    return since_iso, until_iso
 
 
 def _age_str(iso: Optional[str]) -> str:
@@ -110,11 +139,32 @@ def _derive_state(pacote: Dict[str, Any], pagamentos: List[Dict[str, Any]]) -> s
 
 
 @router.get("/packages")
-def list_packages_by_state() -> Dict[str, Any]:
-    client = SupabaseRestClient.from_settings()
+def list_packages_by_state(
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Lista pacotes agrupados por estado.
 
-    # Buscar tudo em uma passada só (DB local, sem preocupação de volume)
-    pacotes = client.select("pacotes", order="updated_at.desc") or []
+    Filtros opcionais: ?since=YYYY-MM-DD&until=YYYY-MM-DD (BRT) — restringem por
+    pacotes.created_at. Inválido devolve 400.
+    """
+    client = SupabaseRestClient.from_settings()
+    since_iso, until_iso = _parse_date_range(since, until)
+
+    pkg_filters: List[Tuple[str, str, Any]] = []
+    if since_iso:
+        pkg_filters.append(("created_at", "gte", since_iso))
+    if until_iso:
+        pkg_filters.append(("created_at", "lte", until_iso))
+
+    # select() usa dict de params (sobrescreve quando há 2 filtros no mesmo
+    # campo); select_all() preserva múltiplos. Por isso o ramo dividido.
+    if pkg_filters:
+        pacotes = client.select_all(
+            "pacotes", order="updated_at.desc", filters=pkg_filters
+        ) or []
+    else:
+        pacotes = client.select("pacotes", order="updated_at.desc") or []
     enquetes = client.select("enquetes") or []
     produtos = client.select("produtos") or []
     pacote_clientes = client.select("pacote_clientes") or []

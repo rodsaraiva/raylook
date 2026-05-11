@@ -26,8 +26,12 @@ const RaylookDashboard = (() => {
         return PAY_LABELS[status] || status || "—";
     }
 
-    async function fetchData() {
-        const resp = await fetch("/api/dashboard/packages", {
+    async function fetchData(params = {}) {
+        const qs = new URLSearchParams();
+        if (params.since) qs.set("since", params.since);
+        if (params.until) qs.set("until", params.until);
+        const url = "/api/dashboard/packages" + (qs.toString() ? `?${qs}` : "");
+        const resp = await fetch(url, {
             credentials: "include",
             headers: { "Accept": "application/json" },
         });

@@ -6,6 +6,7 @@
     let activeState = null;
     let selectedId = null;
     let search = "";
+    let filter = { preset: "all", since: null, until: null };
 
     const DESCS = {
         aberto: "Formando", fechado: "Aguardando gerente",
@@ -24,7 +25,7 @@
 
     async function load() {
         try {
-            data = await L.fetchData();
+            data = await L.fetchData({ since: filter.since, until: filter.until });
         } catch (err) {
             document.getElementById("list").innerHTML =
                 `<div class="empty-state">Erro: ${L.escapeHtml(err.message)}</div>`;
@@ -40,6 +41,84 @@
         render();
     }
     window.RaylookReload = load;
+
+    // ── Filtro de período ──────────────────────────────────────────────────
+    function todayBRT() {
+        const now = new Date();
+        const brt = new Date(now.getTime() - 3 * 3600 * 1000);
+        return brt.toISOString().slice(0, 10);
+    }
+    function isoMinusDays(iso, days) {
+        const d = new Date(iso + "T00:00:00Z");
+        d.setUTCDate(d.getUTCDate() - days);
+        return d.toISOString().slice(0, 10);
+    }
+    function firstDayOfMonthBRT() {
+        return todayBRT().slice(0, 7) + "-01";
+    }
+    function formatBR(iso) {
+        const [y, m, d] = iso.split("-");
+        return `${d}/${m}/${y}`;
+    }
+    function presetRange(preset) {
+        const t = todayBRT();
+        switch (preset) {
+            case "today": return { since: t, until: t };
+            case "yesterday": { const y = isoMinusDays(t, 1); return { since: y, until: y }; }
+            case "7d": return { since: isoMinusDays(t, 6), until: t };
+            case "month": return { since: firstDayOfMonthBRT(), until: t };
+            default: return { since: null, until: null };
+        }
+    }
+    function updateFilterSummary() {
+        const el = document.getElementById("filter-summary");
+        if (!filter.since && !filter.until) { el.textContent = ""; return; }
+        if (filter.since === filter.until) {
+            el.textContent = `Mostrando pacotes criados em ${formatBR(filter.since)}`;
+        } else {
+            el.textContent = `Mostrando pacotes criados entre ${formatBR(filter.since)} e ${formatBR(filter.until)}`;
+        }
+    }
+    function setFilterPreset(preset) {
+        filter.preset = preset;
+        document.querySelectorAll(".filter-pill").forEach(b =>
+            b.classList.toggle("active", b.dataset.filter === preset)
+        );
+        const custom = document.getElementById("filter-custom");
+        if (preset === "custom") {
+            custom.classList.add("visible");
+            // Default dos inputs: hoje. Não aplica até clicar em "Aplicar".
+            const t = todayBRT();
+            if (!document.getElementById("filter-since").value)
+                document.getElementById("filter-since").value = t;
+            if (!document.getElementById("filter-until").value)
+                document.getElementById("filter-until").value = t;
+            return;  // sem reload até clicar em "Aplicar"
+        }
+        custom.classList.remove("visible");
+        const r = presetRange(preset);
+        filter.since = r.since;
+        filter.until = r.until;
+        selectedId = null;
+        activeState = null;
+        updateFilterSummary();
+        load();
+    }
+    document.querySelectorAll(".filter-pill").forEach(btn =>
+        btn.addEventListener("click", () => setFilterPreset(btn.dataset.filter))
+    );
+    document.getElementById("filter-apply").addEventListener("click", () => {
+        const s = document.getElementById("filter-since").value;
+        const u = document.getElementById("filter-until").value;
+        if (!s || !u) { alert("Preencha as duas datas."); return; }
+        if (s > u) { alert("Data inicial não pode ser maior que a final."); return; }
+        filter.since = s;
+        filter.until = u;
+        selectedId = null;
+        activeState = null;
+        updateFilterSummary();
+        load();
+    });
 
     const CLIENT_STATES = new Set(["pago", "pendente", "separado", "enviado"]);
 
