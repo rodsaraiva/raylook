@@ -151,7 +151,7 @@ def test_fetch_package_lists_for_metrics_uses_live_supabase_packages(monkeypatch
 
     assert data["packages"]["open"][0]["id"] == "poll-open_0"
     assert data["packages"]["open"][0]["source_package_id"] == "pkg-open"
-    assert data["packages"]["open"][0]["image"] == "https://lh3.googleusercontent.com/d/drive-open"
+    assert data["packages"]["open"][0]["image"] == "/files/drive-open"
     assert len(data["packages"]["open"][0]["votes"]) == 2
     assert data["packages"]["open"][0]["votes"][0]["name"] == "Eva"
     assert data["packages"]["closed_today"][0]["id"] == "poll-closed_1"

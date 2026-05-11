@@ -75,8 +75,12 @@ def test_api_refresh_returns_error_payload_on_exception(monkeypatch):
     assert "Error generating metrics" in response.json().get("detail", "")
 
 
-def test_startup_starts_payment_queue_worker(monkeypatch):
-    called = {}
+def test_startup_does_not_start_payment_queue_worker(monkeypatch):
+    """F-035: o worker de fila de cobrança foi desativado. A cobrança roda
+    via portal do cliente. Garante que startup_backfill_routing_once NÃO
+    chama start_payment_queue_worker — se alguém reativar sem motivo, o
+    teste quebra e força revisão."""
+    called = {"started": False}
 
     async def _fake_start_payment_queue_worker():
         called["started"] = True
@@ -84,10 +88,13 @@ def test_startup_starts_payment_queue_worker(monkeypatch):
     def _raise_not_found():
         raise HTTPException(status_code=404, detail="Metrics file not found")
 
-    monkeypatch.setattr("app.services.payment_queue_service.start_payment_queue_worker", _fake_start_payment_queue_worker)
+    monkeypatch.setattr(
+        "app.services.payment_queue_service.start_payment_queue_worker",
+        _fake_start_payment_queue_worker,
+    )
     monkeypatch.setattr(main_module, "_load_metrics", _raise_not_found)
     monkeypatch.setattr(main_module, "_is_supabase_metrics_mode", lambda: False)
 
     main_module.asyncio.run(main_module.startup_backfill_routing_once())
 
-    assert called["started"] is True
+    assert called["started"] is False

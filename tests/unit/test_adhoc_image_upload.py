@@ -28,13 +28,13 @@ def test_upload_accepts_png(monkeypatch):
     class FakeDriveClient:
         def __init__(self, *a, **kw):
             pass
-        def upload_file(self, name, content_bytes, parent_folder_id, mime_type="image/jpeg"):
+        def upload_file(self, name, content_bytes, parent_folder_id=None, mime_type="image/jpeg"):
             captured["name"] = name
             captured["mime"] = mime_type
             captured["size"] = len(content_bytes)
             return "FAKE_DRIVE_ID"
         def get_public_url(self, file_id):
-            return f"https://lh3.googleusercontent.com/d/{file_id}"
+            return f"/files/{file_id}"
 
     monkeypatch.setattr("app.api.adhoc_packages.GoogleDriveClient", FakeDriveClient)
 
