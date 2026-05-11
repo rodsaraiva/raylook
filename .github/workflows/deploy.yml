@@ -58,7 +58,7 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             set -e
-            cd /root/projects/raylook-deploy
+            cd /root/rodrigo/raylook/deploy
             export DOCKER_IMAGE="${{ env.IMAGE }}:${{ needs.build.outputs.tag }}"
             export $(grep -v '^#' .env | xargs)
             docker pull "$DOCKER_IMAGE"
