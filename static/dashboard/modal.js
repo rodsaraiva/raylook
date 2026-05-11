@@ -105,7 +105,7 @@ const RaylookModal = (() => {
     }
 
     function render(data) {
-        const L = window.RaylookMockups;
+        const L = window.RaylookDashboard;
         const canEdit = data.state !== "enviado" && data.state !== "cancelled";
         const canAdd = canEdit && data.state === "aberto";
         const canSwap = canEdit && data.state !== "aberto";

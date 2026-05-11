@@ -1,7 +1,7 @@
-// Dashboard V2 — combina rail vertical (01a) + lista/detalhe (05).
-// Usa /api/mockups/packages e helpers de _mockups-lib.js.
+// Dashboard V2 — rail vertical + lista/detalhe.
+// Usa /api/mockups/packages e helpers de static/dashboard/lib.js.
 (async () => {
-    const L = window.RaylookMockups;
+    const L = window.RaylookDashboard;
     let data = null;
     let activeState = null;
     let selectedId = null;

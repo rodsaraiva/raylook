@@ -1,7 +1,7 @@
-// Lib compartilhada pelos 5 mockups UI.
-// Busca /api/mockups/packages e expõe helpers de formatação.
+// Lib compartilhada do dashboard v2.
+// Busca /api/mockups/packages (URL legada) e expõe helpers de formatação.
 
-const RaylookMockups = (() => {
+const RaylookDashboard = (() => {
     const STATES = ["aberto", "fechado", "confirmado", "pago", "pendente", "separado", "enviado"];
     const STATE_LABELS = {
         aberto: "Aberto",
@@ -197,4 +197,4 @@ const RaylookMockups = (() => {
 
 // Expose no window pra ficar acessível por outros scripts via window.*
 // (top-level `const` não atribui ao window automaticamente em script clássico).
-window.RaylookMockups = RaylookMockups;
+window.RaylookDashboard = RaylookDashboard;

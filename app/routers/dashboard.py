@@ -15,8 +15,9 @@ Pacotes agrupados em 7 estados do fluxo:
 Pacotes cancelled ficam em lista à parte (não entram no fluxo).
 
 Prefixo de URL `/api/mockups/*` mantido por compatibilidade com o frontend
-(origem histórica: protótipos em static/ui-mockups/). Migração do prefixo
-fica para uma janela própria — exige sync com o JS.
+(origem histórica: era usado por protótipos em static/ui-mockups/, hoje já
+removidos). Migração do prefixo fica para uma janela própria — exige sync
+com o JS.
 """
 
 from __future__ import annotations
