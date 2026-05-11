@@ -255,6 +255,10 @@
             const cancelBtn = (state === "fechado" || state === "confirmado")
                 ? `<button class="row-action danger" data-action="cancel" data-id="${p.id}" title="Cancelar pacote inteiro">Cancelar</button>`
                 : "";
+            // "Restaurar" aparece apenas em cancelled — volta o pacote pra fechado.
+            const restoreBtn = (state === "cancelled")
+                ? `<button class="row-action" data-action="restore" data-id="${p.id}" title="Voltar pra fechado">Restaurar</button>`
+                : "";
             return `
             <div class="pkg-row ${p.id === selectedId ? "selected" : ""}" data-id="${p.id}">
                 <div class="pkg-thumb">${thumb}</div>
@@ -266,6 +270,7 @@
                 ${backBtn}
                 ${actionBtn}
                 ${cancelBtn}
+                ${restoreBtn}
             </div>`;
         }).join("");
         wrap.querySelectorAll(".pkg-row").forEach(row =>
@@ -291,6 +296,8 @@
                     opts = { confirmText: "Voltar esse pacote pra etapa anterior?" };
                 } else if (btn.dataset.action === "cancel") {
                     opts = { confirmText: "Cancelar esse pacote inteiro? Não pode ser desfeito.", okLabel: "Cancelar pacote", danger: true };
+                } else if (btn.dataset.action === "restore") {
+                    opts = { confirmText: "Restaurar esse pacote pra 'fechado'?", okLabel: "Restaurar" };
                 }
                 await L.doAction(btn.dataset.id, btn.dataset.action, opts);
             })

@@ -702,6 +702,23 @@ def cancel_package(pacote_id: str) -> Dict[str, Any]:
     return {"status": "ok", "new_state": "cancelled"}
 
 
+@router.post("/packages/{pacote_id}/restore")
+def restore_package(pacote_id: str) -> Dict[str, Any]:
+    """Restaura um pacote cancelado para 'fechado' (status=closed)."""
+    client = SupabaseRestClient.from_settings()
+    pkg = client.select("pacotes", filters=[("id", "eq", pacote_id)], single=True)
+    if not pkg:
+        raise HTTPException(404, "Pacote não encontrado")
+    if (pkg.get("status") or "") != "cancelled":
+        raise HTTPException(400, "Pacote não está cancelado")
+    client.update("pacotes", {
+        "status": "closed",
+        "cancelled_at": None,
+        "cancelled_by": None,
+    }, filters=[("id", "eq", pacote_id)])
+    return {"status": "ok", "new_state": "fechado"}
+
+
 _CLIENT_FLOW = ["pago", "pendente", "separado", "enviado"]
 
 

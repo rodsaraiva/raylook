@@ -167,6 +167,7 @@ const RaylookMockups = (() => {
         if (action === "advance") return `Avançou para "${payload.new_state}"`;
         if (action === "regress") return `Voltou para "${payload.new_state}"`;
         if (action === "cancel") return "Pacote cancelado";
+        if (action === "restore") return "Pacote restaurado para fechado";
         return "Ação realizada";
     }
 
