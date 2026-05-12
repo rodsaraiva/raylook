@@ -38,10 +38,17 @@ SCHEMA_PATH = str(Path(__file__).resolve().parent.parent.parent / "deploy" / "sq
 
 @pytest.fixture
 def db(tmp_path):
-    """Retorna SQLiteRestClient com banco em memória (arquivo temporário por teste)."""
+    """SQLiteRestClient com DB temporário. Schema pré-criado com synchronous=OFF
+    para evitar 2s de fsync por teste."""
     db_file = str(tmp_path / "test.db")
-    client = SQLiteRestClient(db_path=db_file, schema_path=SCHEMA_PATH)
-    return client
+    conn = sqlite3.connect(db_file)
+    conn.execute("PRAGMA synchronous=OFF")
+    conn.execute("PRAGMA journal_mode=MEMORY")
+    with open(SCHEMA_PATH, encoding="utf-8") as f:
+        conn.executescript(f.read())
+    conn.commit()
+    conn.close()
+    return SQLiteRestClient(db_path=db_file, schema_path=SCHEMA_PATH)
 
 
 # ---------------------------------------------------------------------------
