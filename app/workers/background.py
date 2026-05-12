@@ -17,7 +17,7 @@ async def pdf_worker(package_snapshot: Dict[str, Any]) -> None:
         from estoque.pdf_builder import build_pdf
         from finance.utils import get_pdf_filename_by_id
 
-        pdf_bytes = await asyncio.to_thread(build_pdf, package_snapshot, settings.COMMISSION_PERCENT)
+        pdf_bytes = await asyncio.to_thread(build_pdf, package_snapshot, settings.COMMISSION_PER_PIECE)
 
         filename = get_pdf_filename_by_id(pkg_id)
 
@@ -115,13 +115,13 @@ async def payments_worker(package_snapshot: Dict[str, Any], concurrency: int = 5
 
                     if snapshot_total > 0:
                         total_with_comm = round(snapshot_total, 2)
-                        subtotal = snapshot_subtotal or round(total_with_comm / (1 + (settings.COMMISSION_PERCENT / 100)), 2)
+                        subtotal = snapshot_subtotal or round(total_with_comm - (qty * settings.COMMISSION_PER_PIECE), 2)
                         unit_price = snapshot_unit or (subtotal / qty if qty > 0 else 0)
                     else:
                         # Fallback: recalcula a partir do título (fluxo antigo)
                         unit_price = resolve_unit_price(poll_title, valor_col)
                         subtotal = qty * unit_price
-                        total_with_comm = round(subtotal * (1 + (settings.COMMISSION_PERCENT / 100)), 2)
+                        total_with_comm = round(subtotal + (qty * settings.COMMISSION_PER_PIECE), 2)
 
                     if total_with_comm <= 0:
                         raise Exception(

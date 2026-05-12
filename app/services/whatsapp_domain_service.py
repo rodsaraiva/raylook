@@ -564,7 +564,7 @@ class PackageService:
 
         pending = available_votes[:]
         closed_count = 0
-        commission_pct = float(settings.COMMISSION_PERCENT)
+        commission_per_piece = float(settings.COMMISSION_PER_PIECE)
 
         while True:
             subset, remaining = self._subset_sum(pending, 24)
@@ -586,7 +586,7 @@ class PackageService:
             for vote in subset:
                 qty = int(vote.get("qty") or 0)
                 subtotal = round(unit_price * qty, 2)
-                commission_amount = round(subtotal * (commission_pct / 100), 2)
+                commission_amount = round(qty * commission_per_piece, 2)
                 total_amount = round(subtotal + commission_amount, 2)
                 votes_payload.append(
                     {
@@ -595,7 +595,7 @@ class PackageService:
                         "qty": qty,
                         "unit_price": unit_price,
                         "subtotal": subtotal,
-                        "commission_percent": commission_pct,
+                        "commission_percent": 0,
                         "commission_amount": commission_amount,
                         "total_amount": total_amount,
                     }
@@ -832,7 +832,7 @@ class SalesService:
                     "qty": int(item["qty"]),
                     "unit_price": float(item["unit_price"]),
                     "subtotal": float(item["subtotal"]),
-                    "commission_percent": 13,
+                    "commission_percent": 0,
                     "commission_amount": float(item["commission_amount"]),
                     "total_amount": float(item["total_amount"]),
                     "status": "approved",

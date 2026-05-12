@@ -27,6 +27,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from fastapi import APIRouter, HTTPException
 
+from app.config import settings
 from app.services.supabase_service import SupabaseRestClient
 
 
@@ -477,7 +478,7 @@ def get_package_detail(pacote_id: str) -> Dict[str, Any]:
             c = voter_map.get(v["cliente_id"], {})
             qty = int(v.get("qty") or 0)
             subtotal = round(unit_price * qty, 2)
-            total = round(subtotal * 1.13, 2)  # 13% comissão (mesma regra do seed)
+            total = round(subtotal + qty * settings.COMMISSION_PER_PIECE, 2)
             clientes_detail.append({
                 "cliente_id": v.get("cliente_id"),
                 "nome": c.get("nome"),

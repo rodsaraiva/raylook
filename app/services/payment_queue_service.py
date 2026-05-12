@@ -264,9 +264,8 @@ async def _process_job(job: Dict[str, Any]) -> None:
             logger.info("Job %s sem pagamento; criando no Asaas agora.", job_id)
 
             subtotal = float(payload.get("subtotal") or 0.0)
-            comm_pct = float(payload.get("commission_pct") or 13.0)
-            total_with_comm = subtotal * (1 + (comm_pct / 100))
-            total_with_comm = round(total_with_comm, 2)
+            qty = int(float(payload.get("qty") or 0))
+            total_with_comm = round(subtotal + qty * settings.COMMISSION_PER_PIECE, 2)
 
             due_date_obj = datetime.utcnow() + timedelta(days=7)
             due = due_date_obj.strftime("%Y-%m-%d")  # Asaas usa yyyy-mm-dd

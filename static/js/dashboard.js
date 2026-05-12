@@ -432,7 +432,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (charge.subtotal && charge.commission_amount) {
                 const sub = formatter.format(charge.subtotal);
                 const comm = formatter.format(charge.commission_amount);
-                titleAttr = `title="Base: ${sub} + Comissao (${charge.commission_percent}%): ${comm}"`;
+                titleAttr = `title="Base: ${sub} + Assessoria (R$5/peça): ${comm}"`;
             }
 
             // Data de Pagamento: só preenche quando status='paid'.

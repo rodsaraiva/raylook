@@ -59,7 +59,7 @@ if _USE_PYDANTIC:
         AS_AASAAS_TOKEN: Optional[str] = None
 
         ESTOQUE_PHONE_NUMBER: str = "5562993353390"
-        COMMISSION_PERCENT: float = 13.0
+        COMMISSION_PER_PIECE: float = 5.0
 
         TEST_MODE: bool = False
         TEST_PHONE_NUMBER: Optional[str] = None
@@ -150,7 +150,7 @@ else:
         AS_AASAAS_TOKEN: Optional[str] = os.getenv("AS_AASAAS_TOKEN")
 
         ESTOQUE_PHONE_NUMBER: str = os.getenv("ESTOQUE_PHONE_NUMBER", "5562993353390")
-        COMMISSION_PERCENT: float = float(os.getenv("COMMISSION_PERCENT", "13"))
+        COMMISSION_PER_PIECE: float = float(os.getenv("COMMISSION_PER_PIECE", "5"))
 
         TEST_MODE: bool = os.getenv("TEST_MODE", "").lower() == "true"
         TEST_PHONE_NUMBER: Optional[str] = os.getenv("TEST_PHONE_NUMBER")

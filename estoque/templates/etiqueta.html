@@ -52,13 +52,13 @@
                                         <div class="order-num">Nº do Pedido: {{ vote.order_num }}</div>
                                         <div class="client-name">{{ vote.name }}</div>
                                         <div class="client-code">Cód. Cliente: {{ vote.client_code }}</div>
-                                        <div class="card-footer">@alana_assessoria</div>
+                                        <div class="card-footer">@raylook_assessoria</div>
                                     </td>
                                     <td valign="middle" class="right-col details">
                                         {% if unit_price > 0 %}
                                         <div class="price-line">{{ vote.qty }} {{ pieces_label }} de R$ {{ vote.unit_price_fmt }}</div>
                                         <div class="total-line">Total: R$ {{ vote.subtotal_fmt }}</div>
-                                        <div class="commission">+ 13% = <span class="total-bold">R$ {{ vote.total_with_commission_fmt }}</span></div>
+                                        <div class="commission">+ R$ {{ vote.commission_fmt }} (assessoria) = <span class="total-bold">R$ {{ vote.total_with_commission_fmt }}</span></div>
                                         {% else %}
                                         <div class="price-line">Quantidade: {{ vote.qty }} {{ pieces_label }}</div>
                                         <div class="commission">(Preço não identificado)</div>

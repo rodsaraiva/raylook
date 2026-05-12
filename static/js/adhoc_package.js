@@ -113,10 +113,10 @@
       const price = parseFloat(priceEl.value || '0');
       if (price > 0) {
         const subtotal = price * 24;
-        const commission = subtotal * 0.13;
+        const commission = 24 * 5;
         calcEl.textContent =
           `Total do pacote: R$ ${subtotal.toFixed(2)} (24 × ${price.toFixed(2)}) ` +
-          `+ comissão 13% = R$ ${(subtotal + commission).toFixed(2)}`;
+          `+ assessoria R$ ${commission.toFixed(2)} = R$ ${(subtotal + commission).toFixed(2)}`;
       } else {
         calcEl.textContent = '';
       }
@@ -416,7 +416,7 @@
           <div style="font-weight:600;font-size:1.1rem;">${escapeHtml(p.product.name)}</div>
           <div>Preço/peça: R$ ${p.product.unit_price.toFixed(2)}</div>
           <div>Subtotal (24 peças): R$ ${p.subtotal.toFixed(2)}</div>
-          <div>Comissão ${p.commission_percent}%: R$ ${p.commission_amount.toFixed(2)}</div>
+          <div>Assessoria (R$5/peça): R$ ${p.commission_amount.toFixed(2)}</div>
           <div style="font-weight:700;margin-top:0.4rem;">Total: R$ ${p.total_final.toFixed(2)}</div>
         </div>
       </div>

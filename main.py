@@ -1576,7 +1576,7 @@ async def download_package_pdf_by_package_id(pkg_id: str):
                     continue
 
     try:
-        pdf_bytes = await asyncio.to_thread(build_pdf, pkg, settings.COMMISSION_PERCENT)
+        pdf_bytes = await asyncio.to_thread(build_pdf, pkg, settings.COMMISSION_PER_PIECE)
     except Exception as e:
         logger.exception("Falha ao gerar PDF on-demand para pkg=%s", pkg_id)
         raise HTTPException(status_code=500, detail="Erro ao gerar PDF da etiqueta.") from e
@@ -2311,14 +2311,14 @@ async def edit_package(pkg_id: str, request: Request):
                         filters=[("pacote_id", "eq", resolved_pkg_id)],
                     )
                     if isinstance(pc_rows, list):
-                        commission_pct = float(_settings.COMMISSION_PERCENT)
+                        commission_per_piece = float(_settings.COMMISSION_PER_PIECE)
                         for row in pc_rows:
                             current_price = float(row.get("unit_price") or 0)
                             if abs(current_price - new_price) < 0.01:
                                 continue  # mesmo preço, skip
                             qty = int(row.get("qty") or 0)
                             subtotal = round(new_price * qty, 2)
-                            commission_amount = round(subtotal * (commission_pct / 100), 2)
+                            commission_amount = round(qty * commission_per_piece, 2)
                             total_amount = round(subtotal + commission_amount, 2)
                             sb.update(
                                 "pacote_clientes",

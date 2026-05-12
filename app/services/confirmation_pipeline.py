@@ -98,7 +98,7 @@ async def run_post_confirmation_effects(
             from estoque.pdf_builder import build_pdf
             from finance.utils import get_pdf_filename_by_id
 
-            pdf_bytes = await asyncio.to_thread(build_pdf, package_snapshot, settings.COMMISSION_PERCENT)
+            pdf_bytes = await asyncio.to_thread(build_pdf, package_snapshot, settings.COMMISSION_PER_PIECE)
             filename = get_pdf_filename_by_id(pkg_id)
 
             out_dir = Path("etiquetas_estoque").resolve()

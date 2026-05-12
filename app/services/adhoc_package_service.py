@@ -111,7 +111,7 @@ def create_adhoc_package(
     )[0]
     pacote_id = pacote["id"]
 
-    commission_pct = float(settings.COMMISSION_PERCENT)
+    commission_per_piece = float(settings.COMMISSION_PER_PIECE)
 
     for v in votes:
         phone = _clean_phone(v.get("phone"))
@@ -138,7 +138,7 @@ def create_adhoc_package(
         )[0]
 
         subtotal = round(unit_price * qty, 2)
-        commission_amount = round(subtotal * (commission_pct / 100), 2)
+        commission_amount = round(qty * commission_per_piece, 2)
         total_amount = round(subtotal + commission_amount, 2)
 
         client.insert(
@@ -151,7 +151,7 @@ def create_adhoc_package(
                 "qty": qty,
                 "unit_price": unit_price,
                 "subtotal": subtotal,
-                "commission_percent": commission_pct,
+                "commission_percent": 0,
                 "commission_amount": commission_amount,
                 "total_amount": total_amount,
                 "status": "closed",

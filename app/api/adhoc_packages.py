@@ -215,8 +215,7 @@ async def preview(body: AdhocPackageRequest):
         raise HTTPException(status_code=400, detail="O pacote precisa ter exatamente 24 peças.")
     votes_resolved = _resolve_vote_names(body.votes)
     subtotal = round(body.product.unit_price * 24, 2)
-    commission_pct = float(settings.COMMISSION_PERCENT)
-    commission_amount = round(subtotal * (commission_pct / 100), 2)
+    commission_amount = round(24 * settings.COMMISSION_PER_PIECE, 2)
     total_final = round(subtotal + commission_amount, 2)
 
     try:
@@ -228,7 +227,7 @@ async def preview(body: AdhocPackageRequest):
     return {
         "total_qty": total,
         "subtotal": subtotal,
-        "commission_percent": commission_pct,
+        "commission_percent": 0,
         "commission_amount": commission_amount,
         "total_final": total_final,
         "votes_resolved": votes_resolved,

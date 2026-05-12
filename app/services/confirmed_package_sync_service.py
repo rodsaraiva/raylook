@@ -24,7 +24,7 @@ from app.services.supabase_service import SupabaseRestClient
 
 logger = logging.getLogger("raylook.confirmed_package_sync")
 
-COMMISSION_PERCENT = 13.0
+COMMISSION_PER_PIECE = 5.0
 
 
 def _now_iso() -> str:
@@ -33,7 +33,7 @@ def _now_iso() -> str:
 
 def _calc_financials(unit_price: float, qty: int) -> Dict[str, float]:
     subtotal = round(unit_price * qty, 2)
-    commission_amount = round(subtotal * (COMMISSION_PERCENT / 100.0), 2)
+    commission_amount = round(qty * COMMISSION_PER_PIECE, 2)
     total_amount = round(subtotal + commission_amount, 2)
     return {
         "subtotal": subtotal,
@@ -374,7 +374,7 @@ class ConfirmedPackageSyncService:
                 "qty": qty,
                 "unit_price": unit_price,
                 "subtotal": fin["subtotal"],
-                "commission_percent": COMMISSION_PERCENT,
+                "commission_percent": 0,
                 "commission_amount": fin["commission_amount"],
                 "total_amount": fin["total_amount"],
                 "status": "closed",
@@ -400,7 +400,7 @@ class ConfirmedPackageSyncService:
             "qty": qty,
             "unit_price": unit_price,
             "subtotal": fin["subtotal"],
-            "commission_percent": COMMISSION_PERCENT,
+            "commission_percent": 0,
             "commission_amount": fin["commission_amount"],
             "total_amount": fin["total_amount"],
         }

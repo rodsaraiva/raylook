@@ -187,7 +187,7 @@ def create_manual_package_in_supabase(poll_id: str, vote_lines: List[Any]) -> Di
 
     customer_names = {_clean_phone(phone): name for phone, name in load_customers().items() if _clean_phone(phone)}
     unit_price = float(produto.get("valor_unitario") or extract_price(str(meta.get("poll_title") or "")) or 0.0)
-    commission_pct = float(settings.COMMISSION_PERCENT)
+    commission_per_piece = float(settings.COMMISSION_PER_PIECE)
 
     # Cache das alternativas da enquete (usado quando precisamos criar voto sintético)
     alternativas_by_qty: Dict[int, str] = {}
@@ -254,7 +254,7 @@ def create_manual_package_in_supabase(poll_id: str, vote_lines: List[Any]) -> Di
                 voto_id,
             )
         subtotal = round(unit_price * qty, 2)
-        commission_amount = round(subtotal * (commission_pct / 100), 2)
+        commission_amount = round(qty * commission_per_piece, 2)
         total_amount = round(subtotal + commission_amount, 2)
         client.insert(
             "pacote_clientes",
@@ -266,7 +266,7 @@ def create_manual_package_in_supabase(poll_id: str, vote_lines: List[Any]) -> Di
                 "qty": qty,
                 "unit_price": unit_price,
                 "subtotal": subtotal,
-                "commission_percent": commission_pct,
+                "commission_percent": 0,
                 "commission_amount": commission_amount,
                 "total_amount": total_amount,
                 "status": "closed",

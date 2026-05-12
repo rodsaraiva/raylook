@@ -45,27 +45,27 @@ class FinanceManager:
         poll_title = package.get("poll_title", "")
         valor_col = package.get("valor_col")
         price = resolve_unit_price(poll_title, valor_col)
-        comm_pct = getattr(settings, "COMMISSION_PERCENT", 13.0)
-        
+        commission_per_piece = getattr(settings, "COMMISSION_PER_PIECE", 5.0)
+
         pkg_id = package.get("id")
         confirmed_at = package.get("confirmed_at") or datetime.now(timezone.utc).isoformat()
-        
+
         new_charges = []
-        
+
         # Iterar sobre os votos (compradores) dentro do pacote
         for vote in package.get("votes", []):
             qty = vote.get("qty", 0)
             if qty <= 0:
                 continue
-                
+
             charge_id = str(uuid.uuid4())
             subtotal = price * qty
-            commission_amount = round(subtotal * (comm_pct / 100), 2)
+            commission_amount = round(qty * commission_per_piece, 2)
             total_amount = round(subtotal + commission_amount, 2)
-            
+
             # Tentar pegar o mercadopago_payment_id se já existir
             mercadopago_id = vote.get("mercadopago_payment_id") or vote.get("asaas_payment_id")
-            
+
             charge = {
                 "id": charge_id,
                 "package_id": pkg_id,
@@ -76,7 +76,7 @@ class FinanceManager:
                 "item_price": price,
                 "quantity": qty,
                 "subtotal": subtotal,
-                "commission_percent": comm_pct,
+                "commission_percent": 0,
                 "commission_amount": commission_amount,
                 "total_amount": total_amount,
                 "status": "enviando",
