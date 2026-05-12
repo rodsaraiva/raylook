@@ -2033,3 +2033,101 @@ body.test-mode-active::before {
 .create-package-choice-icon { font-size: 2rem; }
 .create-package-choice-title { font-weight: 600; }
 .create-package-choice-sub { font-size: 0.85rem; color: #666; }
+/* F-062 — Aging bar + tabela financeiro */
+.aging-bar {
+    display: flex;
+    width: 100%;
+    height: 18px;
+    border-radius: 9px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.05);
+    margin: 0.5rem 0;
+}
+.aging-bucket { height: 100%; transition: width .3s ease; }
+.aging-bucket-0-7    { background: #22c55e; }
+.aging-bucket-8-15   { background: #eab308; }
+.aging-bucket-16-30  { background: #f97316; }
+.aging-bucket-30-plus{ background: #ef4444; }
+
+.aging-legend {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    font-size: 0.75rem;
+    margin-top: 0.5rem;
+}
+.aging-legend-item { display: inline-flex; align-items: center; gap: 0.3rem; }
+.aging-legend-dot  {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--c, #999);
+}
+
+.aging-badge {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    color: #fff;
+}
+.aging-badge.bucket-0-7    { background: #22c55e; }
+.aging-badge.bucket-8-15   { background: #eab308; color: #422; }
+.aging-badge.bucket-16-30  { background: #f97316; }
+.aging-badge.bucket-30plus { background: #ef4444; }
+
+.view-toggle {
+    display: inline-flex;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    overflow: hidden;
+}
+.view-toggle .toggle-btn {
+    background: transparent;
+    color: var(--text-muted, #aaa);
+    padding: 0.4rem 0.8rem;
+    border: none;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+.view-toggle .toggle-btn.active {
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+}
+
+.client-expand td { background: rgba(255,255,255,0.03); padding: 0.5rem 1rem; }
+.charges-mini { width: 100%; font-size: 0.8rem; }
+.charges-mini th, .charges-mini td { padding: 0.3rem 0.6rem; }
+
+.btn-expand, .btn-history, .btn-writeoff {
+    background: transparent;
+    border: none;
+    color: var(--text-muted, #aaa);
+    cursor: pointer;
+    padding: 0.3rem;
+}
+.btn-writeoff:hover { color: #ef4444; }
+.btn-history:hover  { color: #22c55e; }
+
+.modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+.modal-card {
+    background: #1a1a1a; color: #eee;
+    border-radius: 12px;
+    padding: 1.5rem;
+    min-width: 320px;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow: auto;
+}
+.modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.modal-close {
+    background: transparent; border: none; color: #aaa;
+    font-size: 1.5rem; cursor: pointer;
+}
+.history-event { padding: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.history-ts    { margin-left: 0.5rem; color: #888; font-size: 0.8rem; }
+.history-reason{ margin-top: 0.3rem; color: #ccc; font-style: italic; }
