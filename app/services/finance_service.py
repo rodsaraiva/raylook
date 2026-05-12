@@ -850,3 +850,136 @@ def refresh_dashboard_stats() -> Dict[str, Any]:
     if runtime_state_enabled():
         save_runtime_state(FINANCE_STATS_STATE_KEY, stats)
     return stats
+
+
+# ---------------------------------------------------------------------------
+# F-062: Gestão de contas a receber
+# ---------------------------------------------------------------------------
+
+PENDING_RECEIVABLE_STATUSES = ("created", "sent")
+AGING_BUCKETS = (
+    ("0-7", 0, 7),
+    ("8-15", 8, 15),
+    ("16-30", 16, 30),
+    ("30+", 31, 10_000),
+)
+
+
+def _classify_bucket(age_days: int) -> str:
+    for label, lo, hi in AGING_BUCKETS:
+        if lo <= age_days <= hi:
+            return label
+    return "30+"
+
+
+def _now_dt(now_iso: str | None) -> datetime:
+    if now_iso:
+        return datetime.fromisoformat(now_iso.replace("Z", "+00:00"))
+    return datetime.now(tz=ZoneInfo("UTC"))
+
+
+def build_receivables_by_client(now_iso: str | None = None) -> List[Dict[str, Any]]:
+    """Agrega pagamentos pendentes (created/sent) por cliente.
+
+    Retorna lista ordenada por idade do débito mais antigo desc.
+    Cada item: {cliente_id, nome, celular_last4, total, count, oldest_age_days,
+                bucket, charges:[{pagamento_id, pacote_id, enquete_titulo, valor,
+                                  age_days, status}]}.
+    """
+    if not supabase_domain_enabled():
+        return []
+
+    client = SupabaseRestClient.from_settings()
+    pagamentos = client.select_all(
+        "pagamentos",
+        columns="id,venda_id,status,created_at",
+        filters=[("status", "in", list(PENDING_RECEIVABLE_STATUSES))],
+        order="created_at.asc",
+    )
+    if not pagamentos:
+        return []
+
+    venda_ids = list({str(p["venda_id"]) for p in pagamentos if p.get("venda_id")})
+    vendas = _select_in_batches(
+        client, "vendas",
+        columns="id,cliente_id,pacote_id,total_amount",
+        filter_field="id", values=venda_ids,
+    )
+    venda_by_id = {str(v["id"]): v for v in vendas}
+
+    cliente_ids = list({str(v["cliente_id"]) for v in vendas if v.get("cliente_id")})
+    clientes = _select_in_batches(
+        client, "clientes",
+        columns="id,nome,celular",
+        filter_field="id", values=cliente_ids,
+    )
+    cliente_by_id = {str(c["id"]): c for c in clientes}
+
+    pacote_ids = list({str(v["pacote_id"]) for v in vendas if v.get("pacote_id")})
+    pacotes = _select_in_batches(
+        client, "pacotes",
+        columns="id,enquete_id,sequence_no",
+        filter_field="id", values=pacote_ids,
+    )
+    pacote_by_id = {str(p["id"]): p for p in pacotes}
+
+    enquete_ids = list({str(p["enquete_id"]) for p in pacotes if p.get("enquete_id")})
+    enquetes = _select_in_batches(
+        client, "enquetes",
+        columns="id,titulo",
+        filter_field="id", values=enquete_ids,
+    )
+    enquete_by_id = {str(e["id"]): e for e in enquetes}
+
+    now = _now_dt(now_iso)
+    by_cliente: Dict[str, Dict[str, Any]] = {}
+
+    for pag in pagamentos:
+        venda = venda_by_id.get(str(pag.get("venda_id")))
+        if not venda:
+            continue
+        cliente_id = str(venda.get("cliente_id") or "")
+        cliente = cliente_by_id.get(cliente_id)
+        if not cliente:
+            continue
+        pacote = pacote_by_id.get(str(venda.get("pacote_id") or ""))
+        enquete_titulo = ""
+        if pacote:
+            enq = enquete_by_id.get(str(pacote.get("enquete_id") or ""))
+            if enq:
+                enquete_titulo = enq.get("titulo") or ""
+
+        created_at = _parse_dt(pag.get("created_at"))
+        # Calcula idade em dias pela data (sem hora) para consistência
+        age_days = (now.date() - created_at.date()).days if created_at else 0
+        valor = float(venda.get("total_amount") or 0)
+
+        bucket = by_cliente.setdefault(cliente_id, {
+            "cliente_id": cliente_id,
+            "nome": cliente.get("nome") or "",
+            "celular_last4": str(cliente.get("celular") or "")[-4:],
+            "total": 0.0,
+            "count": 0,
+            "oldest_age_days": 0,
+            "bucket": "0-7",
+            "charges": [],
+        })
+        bucket["total"] += valor
+        bucket["count"] += 1
+        if age_days > bucket["oldest_age_days"]:
+            bucket["oldest_age_days"] = age_days
+            bucket["bucket"] = _classify_bucket(age_days)
+        bucket["charges"].append({
+            "pagamento_id": str(pag["id"]),
+            "pacote_id": str(venda.get("pacote_id") or ""),
+            "enquete_titulo": enquete_titulo,
+            "valor": valor,
+            "age_days": age_days,
+            "status": pag.get("status"),
+        })
+
+    rows = list(by_cliente.values())
+    rows.sort(key=lambda r: r["oldest_age_days"], reverse=True)
+    for r in rows:
+        r["total"] = round(r["total"], 2)
+    return rows
