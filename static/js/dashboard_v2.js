@@ -328,7 +328,7 @@
             const backBtn = (state === "aberto" || state === "fechado" || state === "cancelled")
                 ? ""
                 : `<button class="row-back" data-action="regress" data-id="${p.id}" title="Voltar pra etapa anterior">←</button>`;
-            const valueLabel = p.total_value ? L.money(p.total_value)
+            const valueLabel = p.total_value ? L.moneyFull(p.total_value)
                 : (meta.valor != null ? `${L.money(meta.valor)} <span class="row-unit">/un</span>` : "—");
             // "Cancelar pacote" aparece em fechado/confirmado (não em aberto, cancelled).
             const cancelBtn = (state === "fechado" || state === "confirmado")

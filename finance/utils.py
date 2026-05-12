@@ -11,7 +11,8 @@ def extract_price(text: str) -> Optional[float]:
         return None
 
     # 1. Procura por símbolo de moeda (R$ ou $)
-    match = re.search(r'(?:R\$|\$)\s*(\d+(?:[.,]\d{1,2})?)', text, re.IGNORECASE)
+    # [*\s]* cobre o asterisco de bold do WhatsApp antes do número (ex: $*31)
+    match = re.search(r'(?:R\$|\$)[*\s]*(\d+(?:[.,]\d{1,2})?)', text, re.IGNORECASE)
     if match:
         return _parse_val(match.group(1))
     
