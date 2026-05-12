@@ -209,87 +209,86 @@
 
             <!-- Finance Section -->
             <div id="section-finance" style="display: none;">
-                {% if false %} <!-- removido: banner estático substituído pelo modo teste dinâmico F-053 -->
-                {% endif %}
-                <!-- Finance KPIs -->
-                <div class="kpi-container finance-summary" style="margin-bottom: 2rem;">
-                    <div class="kpi-card">
-                        <div class="kpi-title">Total Pendente</div>
-                        <div class="kpi-value" id="finance-pending-total">R$ 0,00</div>
-                        <div class="kpi-diff" id="finance-pending-count">0 cobranças</div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="kpi-title">Total Pago (Hoje)</div>
-                        <div class="kpi-value" id="finance-paid-today">R$ 0,00</div>
-                        <div class="kpi-diff" id="finance-paid-count">0 cobranças</div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="kpi-title" title="Proporção do valor recebido sobre o total ativo (pendente + pago), excluindo cancelados">% do Valor Recebido</div>
-                        <div class="kpi-value" id="finance-conversion-rate">0%</div>
-                        <div class="kpi-diff" id="finance-conversion-amount">R$ 0,00 / R$ 0,00</div>
-                    </div>
+    <!-- KPIs -->
+    <div class="kpi-container finance-summary" style="margin-bottom: 2rem;">
+        <div class="kpi-card">
+            <div class="kpi-title">Total a receber</div>
+            <div class="kpi-value" id="finance-receivable-total">R$ 0,00</div>
+            <div class="kpi-diff" id="finance-receivable-meta">0 cobranças · 0 clientes</div>
+        </div>
+        <div class="kpi-card kpi-aging">
+            <div class="kpi-title">Aging</div>
+            <div class="aging-bar" id="finance-aging-bar">
+                <div class="aging-bucket aging-bucket-0-7" data-bucket="0-7"></div>
+                <div class="aging-bucket aging-bucket-8-15" data-bucket="8-15"></div>
+                <div class="aging-bucket aging-bucket-16-30" data-bucket="16-30"></div>
+                <div class="aging-bucket aging-bucket-30-plus" data-bucket="30+"></div>
+            </div>
+            <div class="aging-legend" id="finance-aging-legend"></div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Idade média do débito</div>
+            <div class="kpi-value" id="finance-avg-age">0d</div>
+            <div class="kpi-diff" id="finance-avg-age-trend">—</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">% pago vs confirmado (30d)</div>
+            <div class="kpi-value" id="finance-paid-rate">0%</div>
+        </div>
+    </div>
+
+    <div class="card-item full">
+        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+            <span><i class="fas fa-wallet"></i> Contas a Receber</span>
+            <div style="display: flex; gap: 0.75rem; align-items: center;">
+                <div class="view-toggle">
+                    <button class="toggle-btn active" data-mode="by-client">Por cliente</button>
+                    <button class="toggle-btn" data-mode="by-charge">Por cobrança</button>
                 </div>
-
-                <div class="card-item full">
-                    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
-                        <span><i class="fas fa-wallet"></i> Controle de Cobranças</span>
-                        <div style="display: flex; gap: 0.75rem; align-items: center;">
-                            <button class="btn-refresh" id="btn-sync-asaas" style="padding: 0.45rem 0.75rem; font-size: 0.8rem;" title="Força verificação de pagamentos no Asaas">
-                                <i class="fas fa-rotate"></i> Sincronizar
-                            </button>
-                            <button class="btn-refresh" id="btn-open-extract-modal" style="padding: 0.45rem 0.75rem; font-size: 0.8rem;">
-                                <i class="fas fa-file-invoice-dollar"></i> Extrato
-                            </button>
-                            <div class="search-box">
-                            <input type="text" id="finance-search" placeholder="Buscar cliente..." class="search-input">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="finance-charts-grid">
-                        <div class="chart-container-full">
-                            <div class="card-title"><i class="fas fa-chart-line"></i> Evolução de Vendas</div>
-                            <canvas id="finance-revenue-chart" height="100"></canvas>
-                        </div>
-                    </div>
-
-                    <div class="finance-filters">
-                        <button class="filter-btn active" data-filter="all">Todos</button>
-                        <button class="filter-btn" data-filter="pending">Pendentes</button>
-                        <button class="filter-btn" data-filter="paid">Pagos</button>
-                        <button class="filter-btn" data-filter="cancelled">Cancelados</button>
-                    </div>
-
-                    <div class="finance-table-container">
-                        <table class="finance-table">
-                            <thead>
-                                <tr>
-                                    <th>Cliente</th>
-                                    <th>Pacote / Enquete</th>
-                                    <th>Valor Total</th>
-                                    <th>Status</th>
-                                    <th>Data de Pagamento</th>
-                                    <th style="text-align: right; width: 60px;">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody id="finance-table-body">
-                                <!-- JS Loaded -->
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="pagination-bar">
-                        <div class="pagination-summary" id="finance-pagination-summary">Pagina 1</div>
-                        <div class="pagination-actions">
-                            <div class="page-jump">
-                                <label for="finance-page-jump">Ir para:</label>
-                                <select id="finance-page-jump" class="page-jump-select"></select>
-                            </div>
-                            <button type="button" class="pagination-btn" id="finance-page-prev">Anterior</button>
-                            <button type="button" class="pagination-btn" id="finance-page-next">Próxima</button>
-                        </div>
-                    </div>
+                <button class="btn-refresh" id="btn-sync-asaas" style="padding: 0.45rem 0.75rem; font-size: 0.8rem;" title="Força verificação de pagamentos no Asaas">
+                    <i class="fas fa-rotate"></i> Sincronizar
+                </button>
+                <div class="search-box">
+                    <input type="text" id="finance-search" placeholder="Buscar cliente..." class="search-input">
                 </div>
             </div>
+        </div>
+
+        <div class="finance-filters">
+            <button class="filter-btn active" data-filter="all">Todos</button>
+            <button class="filter-btn" data-filter="0-7">0-7d</button>
+            <button class="filter-btn" data-filter="8-15">8-15d</button>
+            <button class="filter-btn" data-filter="16-30">16-30d</button>
+            <button class="filter-btn" data-filter="30+">30+d</button>
+            <button class="filter-btn" data-filter="written_off">Perdidos</button>
+        </div>
+
+        <div class="finance-table-container">
+            <table class="finance-table" id="finance-table">
+                <thead id="finance-thead">
+                    <tr>
+                        <th>Cliente</th>
+                        <th>Celular</th>
+                        <th>Total devido</th>
+                        <th>Cobranças</th>
+                        <th>Idade do mais antigo</th>
+                        <th style="text-align: right; width: 60px;"></th>
+                    </tr>
+                </thead>
+                <tbody id="finance-table-body">
+                    <!-- JS Loaded -->
+                </tbody>
+            </table>
+        </div>
+        <div class="pagination-bar">
+            <div class="pagination-summary" id="finance-pagination-summary">Página 1</div>
+            <div class="pagination-actions">
+                <button type="button" class="pagination-btn" id="finance-page-prev">Anterior</button>
+                <button type="button" class="pagination-btn" id="finance-page-next">Próxima</button>
+            </div>
+        </div>
+    </div>
+</div>
 
             <div id="section-customers" style="display: none;">
                 <div class="card-item full">
@@ -632,6 +631,7 @@
     </div>
 
     <script src="/static/js/dashboard.js?v={{ cache_bust }}"></script>
+    <script src="/static/js/finance.js?v={{ cache_bust }}"></script>
     <script src="/static/js/adhoc_package.js"></script>
 </body>
 

@@ -850,3 +850,351 @@ def refresh_dashboard_stats() -> Dict[str, Any]:
     if runtime_state_enabled():
         save_runtime_state(FINANCE_STATS_STATE_KEY, stats)
     return stats
+
+
+# ---------------------------------------------------------------------------
+# F-062: Gestão de contas a receber
+# ---------------------------------------------------------------------------
+
+PENDING_RECEIVABLE_STATUSES = ("created", "sent")
+AGING_BUCKETS = (
+    ("0-7", 0, 7),
+    ("8-15", 8, 15),
+    ("16-30", 16, 30),
+    ("30+", 31, 10_000),
+)
+
+
+def _classify_bucket(age_days: int) -> str:
+    for label, lo, hi in AGING_BUCKETS:
+        if lo <= age_days <= hi:
+            return label
+    return "30+"
+
+
+def _now_dt(now_iso: str | None) -> datetime:
+    if now_iso:
+        return datetime.fromisoformat(now_iso.replace("Z", "+00:00"))
+    tz = _finance_timezone() or ZoneInfo("UTC")
+    return datetime.now(tz=tz)
+
+
+def build_receivables_by_client(now_iso: str | None = None) -> List[Dict[str, Any]]:
+    """Agrega pagamentos pendentes (created/sent) por cliente.
+
+    Retorna lista ordenada por idade do débito mais antigo desc.
+    Cada item: {cliente_id, nome, celular_last4, total, count, oldest_age_days,
+                bucket, charges:[{pagamento_id, pacote_id, enquete_titulo, valor,
+                                  age_days, status}]}.
+    """
+    if not supabase_domain_enabled():
+        return []
+
+    client = SupabaseRestClient.from_settings()
+    pagamentos = client.select_all(
+        "pagamentos",
+        columns="id,venda_id,status,created_at",
+        filters=[("status", "in", list(PENDING_RECEIVABLE_STATUSES))],
+        order="created_at.asc",
+    )
+    if not pagamentos:
+        return []
+
+    venda_ids = list({str(p["venda_id"]) for p in pagamentos if p.get("venda_id")})
+    vendas = _select_in_batches(
+        client, "vendas",
+        columns="id,cliente_id,pacote_id,total_amount",
+        filter_field="id", values=venda_ids,
+    )
+    venda_by_id = {str(v["id"]): v for v in vendas}
+
+    cliente_ids = list({str(v["cliente_id"]) for v in vendas if v.get("cliente_id")})
+    clientes = _select_in_batches(
+        client, "clientes",
+        columns="id,nome,celular",
+        filter_field="id", values=cliente_ids,
+    )
+    cliente_by_id = {str(c["id"]): c for c in clientes}
+
+    pacote_ids = list({str(v["pacote_id"]) for v in vendas if v.get("pacote_id")})
+    pacotes = _select_in_batches(
+        client, "pacotes",
+        columns="id,enquete_id,sequence_no",
+        filter_field="id", values=pacote_ids,
+    )
+    pacote_by_id = {str(p["id"]): p for p in pacotes}
+
+    enquete_ids = list({str(p["enquete_id"]) for p in pacotes if p.get("enquete_id")})
+    enquetes = _select_in_batches(
+        client, "enquetes",
+        columns="id,titulo",
+        filter_field="id", values=enquete_ids,
+    )
+    enquete_by_id = {str(e["id"]): e for e in enquetes}
+
+    now = _now_dt(now_iso)
+    by_cliente: Dict[str, Dict[str, Any]] = {}
+
+    for pag in pagamentos:
+        venda = venda_by_id.get(str(pag.get("venda_id")))
+        if not venda:
+            continue
+        cliente_id = str(venda.get("cliente_id") or "")
+        cliente = cliente_by_id.get(cliente_id)
+        if not cliente:
+            continue
+        pacote = pacote_by_id.get(str(venda.get("pacote_id") or ""))
+        enquete_titulo = ""
+        if pacote:
+            enq = enquete_by_id.get(str(pacote.get("enquete_id") or ""))
+            if enq:
+                enquete_titulo = enq.get("titulo") or ""
+
+        created_at = _parse_dt(pag.get("created_at"))
+        # Calcula idade em dias pela data (sem hora) para consistência
+        age_days = (now.date() - created_at.date()).days if created_at else 0
+        valor = float(venda.get("total_amount") or 0)
+
+        bucket = by_cliente.setdefault(cliente_id, {
+            "cliente_id": cliente_id,
+            "nome": cliente.get("nome") or "",
+            "celular_last4": str(cliente.get("celular") or "")[-4:],
+            "total": 0.0,
+            "count": 0,
+            "oldest_age_days": 0,
+            "bucket": "0-7",
+            "charges": [],
+        })
+        bucket["total"] += valor
+        bucket["count"] += 1
+        if age_days > bucket["oldest_age_days"]:
+            bucket["oldest_age_days"] = age_days
+            bucket["bucket"] = _classify_bucket(age_days)
+        bucket["charges"].append({
+            "pagamento_id": str(pag["id"]),
+            "pacote_id": str(venda.get("pacote_id") or ""),
+            "enquete_titulo": enquete_titulo,
+            "valor": valor,
+            "age_days": age_days,
+            "status": pag.get("status"),
+        })
+
+    rows = list(by_cliente.values())
+    rows.sort(key=lambda r: r["oldest_age_days"], reverse=True)
+    for r in rows:
+        r["total"] = round(r["total"], 2)
+    return rows
+
+
+def build_aging_summary(now_iso: str | None = None) -> Dict[str, Any]:
+    """KPIs de aging: total a receber, distribuição em buckets,
+    idade média ponderada e taxa de conversão 30d.
+
+    Retorna: {total_receivable, count, clients_count,
+              buckets:{"0-7":{amount,count}, ...},
+              avg_age_days, paid_rate_30d}.
+    """
+    empty_buckets = {label: {"amount": 0, "count": 0} for label, _, _ in AGING_BUCKETS}
+    empty = {
+        "total_receivable": 0, "count": 0, "clients_count": 0,
+        "buckets": empty_buckets, "avg_age_days": 0, "paid_rate_30d": 0,
+    }
+    if not supabase_domain_enabled():
+        return empty
+
+    client = SupabaseRestClient.from_settings()
+    now = _now_dt(now_iso)
+
+    pagamentos_pendentes = client.select_all(
+        "pagamentos",
+        columns="id,venda_id,status,created_at",
+        filters=[("status", "in", list(PENDING_RECEIVABLE_STATUSES))],
+    )
+    if not pagamentos_pendentes:
+        empty_with_paid_rate = dict(empty)
+        empty_with_paid_rate["paid_rate_30d"] = _paid_rate_30d(client, now)
+        return empty_with_paid_rate
+
+    venda_ids = list({str(p["venda_id"]) for p in pagamentos_pendentes if p.get("venda_id")})
+    vendas = _select_in_batches(
+        client, "vendas",
+        columns="id,cliente_id,total_amount",
+        filter_field="id", values=venda_ids,
+    )
+    venda_by_id = {str(v["id"]): v for v in vendas}
+
+    buckets = {label: {"amount": 0.0, "count": 0} for label, _, _ in AGING_BUCKETS}
+    total = 0.0
+    weighted_age_sum = 0.0
+    clientes = set()
+
+    for pag in pagamentos_pendentes:
+        venda = venda_by_id.get(str(pag.get("venda_id")))
+        if not venda:
+            continue
+        valor = float(venda.get("total_amount") or 0)
+        created_at = _parse_dt(pag.get("created_at"))
+        # Diferença em dias usando .date() para evitar off-by-one por hora
+        age_days = (now.date() - created_at.date()).days if created_at else 0
+        bucket = _classify_bucket(age_days)
+        buckets[bucket]["amount"] += valor
+        buckets[bucket]["count"] += 1
+        total += valor
+        weighted_age_sum += valor * age_days
+        if venda.get("cliente_id"):
+            clientes.add(str(venda["cliente_id"]))
+
+    return {
+        "total_receivable": round(total, 2),
+        "count": sum(b["count"] for b in buckets.values()),
+        "clients_count": len(clientes),
+        "buckets": {k: {"amount": round(v["amount"], 2), "count": v["count"]}
+                    for k, v in buckets.items()},
+        "avg_age_days": round(weighted_age_sum / total, 2) if total > 0 else 0,
+        "paid_rate_30d": _paid_rate_30d(client, now),
+    }
+
+
+def _paid_rate_30d(client: SupabaseRestClient, now: datetime) -> float:
+    """% de R$ pago sobre o total confirmado nos últimos 30d (rolling)."""
+    cutoff = (now - timedelta(days=30)).isoformat()
+    pagamentos = client.select_all(
+        "pagamentos",
+        columns="id,venda_id,status,created_at",
+        filters=[("created_at", "gte", cutoff)],
+    )
+    if not pagamentos:
+        return 0
+    venda_ids = list({str(p["venda_id"]) for p in pagamentos if p.get("venda_id")})
+    vendas = _select_in_batches(
+        client, "vendas",
+        columns="id,total_amount",
+        filter_field="id", values=venda_ids,
+    )
+    valor_by_venda = {str(v["id"]): float(v.get("total_amount") or 0) for v in vendas}
+
+    total = 0.0
+    paid = 0.0
+    for p in pagamentos:
+        valor = valor_by_venda.get(str(p.get("venda_id")), 0)
+        status = str(p.get("status") or "")
+        if status in ("paid", "created", "sent"):
+            total += valor
+            if status == "paid":
+                paid += valor
+    return round(paid / total, 4) if total > 0 else 0
+
+
+class PaymentNotFound(Exception):
+    pass
+
+
+def mark_payment_written_off(pagamento_id: str, *, reason: str) -> Dict[str, Any]:
+    """Marca um pagamento como perdido. Idempotente: se já está written_off,
+    retorna o estado atual sem sobrescrever."""
+    if not supabase_domain_enabled():
+        raise PaymentNotFound(pagamento_id)
+    client = SupabaseRestClient.from_settings()
+    existing = client.select(
+        "pagamentos",
+        columns="id,status,written_off_at,written_off_reason",
+        filters=[("id", "eq", pagamento_id)],
+        single=True,
+    )
+    if not isinstance(existing, dict) or not existing.get("id"):
+        raise PaymentNotFound(pagamento_id)
+    if existing.get("status") == "written_off":
+        return existing
+
+    now_iso = client.now_iso() if hasattr(client, "now_iso") else \
+        datetime.now(tz=ZoneInfo("UTC")).isoformat()
+    updates = {
+        "status": "written_off",
+        "written_off_at": now_iso,
+        "written_off_reason": reason,
+        "updated_at": now_iso,
+    }
+    client.update(
+        "pagamentos",
+        updates,
+        filters=[("id", "eq", pagamento_id)],
+    )
+    # FakeSupabaseClient.update modifica in-place; retornamos o estado atualizado
+    updated = client.select(
+        "pagamentos",
+        columns="id,status,written_off_at,written_off_reason",
+        filters=[("id", "eq", pagamento_id)],
+        single=True,
+    )
+    return updated if isinstance(updated, dict) else {**existing, **updates}
+
+
+def build_payment_history(pagamento_id: str) -> List[Dict[str, Any]]:
+    """Timeline derivada dos campos do pagamento + sessão do cliente.
+
+    Cada evento: {kind, timestamp, label, reason?}.
+    """
+    if not supabase_domain_enabled():
+        return []
+
+    client = SupabaseRestClient.from_settings()
+    pag = client.select(
+        "pagamentos",
+        columns="id,venda_id,status,created_at,updated_at,pix_payload,paid_at,"
+                "written_off_at,written_off_reason",
+        filters=[("id", "eq", pagamento_id)],
+        single=True,
+    )
+    if not isinstance(pag, dict) or not pag.get("id"):
+        return []
+
+    events: List[Dict[str, Any]] = []
+    if pag.get("created_at"):
+        events.append({
+            "kind": "package_confirmed",
+            "timestamp": pag["created_at"],
+            "label": "Pacote confirmado",
+        })
+    if pag.get("pix_payload") and pag.get("updated_at"):
+        events.append({
+            "kind": "pix_generated",
+            "timestamp": pag["updated_at"],
+            "label": "PIX gerado (última tentativa registrada)",
+        })
+
+    venda = client.select(
+        "vendas", columns="cliente_id",
+        filters=[("id", "eq", pag.get("venda_id"))], single=True,
+    )
+    if isinstance(venda, dict) and venda.get("cliente_id"):
+        cliente = client.select(
+            "clientes", columns="session_expires_at",
+            filters=[("id", "eq", venda["cliente_id"])], single=True,
+        )
+        if isinstance(cliente, dict) and cliente.get("session_expires_at"):
+            expires = _parse_dt(cliente["session_expires_at"])
+            if expires:
+                # Sessão dura 30 dias — último acesso é expires - 30d
+                last_access = (expires - timedelta(days=30)).isoformat()
+                events.append({
+                    "kind": "last_portal_access",
+                    "timestamp": last_access,
+                    "label": "Último acesso ao portal",
+                })
+
+    if pag.get("paid_at"):
+        events.append({
+            "kind": "paid",
+            "timestamp": pag["paid_at"],
+            "label": "Pago",
+        })
+    if pag.get("written_off_at"):
+        events.append({
+            "kind": "written_off",
+            "timestamp": pag["written_off_at"],
+            "label": "Marcado como perdido",
+            "reason": pag.get("written_off_reason") or "",
+        })
+
+    events.sort(key=lambda e: e["timestamp"])
+    return events

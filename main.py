@@ -60,6 +60,7 @@ from app.workers.background_tasks import (
 from app.routers import customers as customers_router
 from app.routers import portal as portal_router
 from app.routers import dashboard as dashboard_router
+from app.routers import finance as finance_router
 import time
 from uuid import UUID, uuid4
 from datetime import datetime, timedelta, timezone
@@ -302,6 +303,7 @@ async def dashboard_auth_middleware(request: Request, call_next):
 app.include_router(customers_router.router)
 app.include_router(portal_router.router)
 app.include_router(dashboard_router.router)
+app.include_router(finance_router.router)
 if settings.ADHOC_PACKAGES_ENABLED:
     from app.api import adhoc_packages as adhoc_packages_api
     app.include_router(adhoc_packages_api.router)

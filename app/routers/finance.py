@@ -1,11 +1,19 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from typing import Dict, Any, List
 from datetime import datetime, timedelta
 from collections import defaultdict
 import logging
 
 from finance.manager import FinanceManager
+from app.services.finance_service import (
+    build_receivables_by_client,
+    build_aging_summary,
+    build_payment_history,
+    mark_payment_written_off,
+    PaymentNotFound,
+)
 
 router = APIRouter(prefix="/api/finance")
 logger = logging.getLogger("raylook.routers.finance")
@@ -71,3 +79,43 @@ async def get_stats() -> Dict[str, Any]:
             status_code=500,
             content={"error": str(e)}
         )
+
+
+class WriteOffRequest(BaseModel):
+    reason: str
+
+
+@router.get("/receivables")
+async def get_receivables() -> List[Dict[str, Any]]:
+    """Contas a receber agregadas por cliente."""
+    try:
+        return build_receivables_by_client()
+    except Exception:
+        logger.exception("Erro ao agregar receivables")
+        return JSONResponse(status_code=500, content={"error": "internal"})
+
+
+@router.get("/aging-summary")
+async def get_aging_summary() -> Dict[str, Any]:
+    """KPIs de aging para o topo da aba."""
+    try:
+        return build_aging_summary()
+    except Exception:
+        logger.exception("Erro ao construir aging summary")
+        return JSONResponse(status_code=500, content={"error": "internal"})
+
+
+@router.post("/pagamentos/{pagamento_id}/write-off")
+async def post_write_off(pagamento_id: str, body: WriteOffRequest) -> Dict[str, Any]:
+    reason = body.reason.strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="reason required")
+    try:
+        return mark_payment_written_off(pagamento_id, reason=reason)
+    except PaymentNotFound:
+        raise HTTPException(status_code=404, detail="pagamento not found")
+
+
+@router.get("/pagamentos/{pagamento_id}/history")
+async def get_payment_history(pagamento_id: str) -> List[Dict[str, Any]]:
+    return build_payment_history(pagamento_id)

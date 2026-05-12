@@ -109,7 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (changed.includes('finance') && isSectionVisible('section-finance')) {
-            loadFinanceData(currentFinancePage, { silent: true });
+            window.financeRefresh?.();
         }
         if (changed.includes('customers') && isSectionVisible('section-customers')) {
             loadCustomersData({ silent: true });
@@ -184,7 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         section.style.display = 'block';
                         // Specific initialization
                         if (key === 'dashboard') performAutoRefresh();
-                        if (key === 'finance') loadFinanceData();
+                        if (key === 'finance') window.financeRefresh?.();
                         if (key === 'customers') loadCustomersData();
                     } else {
                         section.style.display = 'none';
@@ -194,18 +194,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Finance Logic
-    let currentFinanceFilter = 'all';
-    let currentFinanceSearch = '';
-    let currentFinancePage = 1;
-    const financePageSize = 50;
-    let financeHasPrevPage = false;
-    let financeHasNextPage = false;
-    let financeTotalItems = 0;
-    let financeSearchTimer = null;
-    let allCharges = [];
-    let queueByCharge = {};
-    let financeCharts = {};
     let queueRefreshTimer = null;
     let currentEditingPackageId = null;
     let currentEditingMode = null;
@@ -220,412 +208,6 @@ document.addEventListener('DOMContentLoaded', () => {
         'error': 'Erro',
         'sent': 'Enviado'
     };
-
-    async function loadFinanceData(page = currentFinancePage, options = {}) {
-        const tbody = document.getElementById('finance-table-body');
-        if (!tbody) return;
-
-        const silent = options.silent === true;
-        // Preservar scroll position durante refresh silencioso
-        const scrollY = silent ? window.scrollY : 0;
-
-        if (!silent) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 2rem;">Carregando...</td></tr>';
-        }
-        currentFinancePage = Math.max(1, page || 1);
-
-        try {
-            const params = new URLSearchParams({
-                page: String(currentFinancePage),
-                page_size: String(financePageSize)
-            });
-            if (currentFinanceFilter && currentFinanceFilter !== 'all') {
-                params.set('status', currentFinanceFilter);
-            }
-            if (currentFinanceSearch) {
-                params.set('search', currentFinanceSearch);
-            }
-
-            const [chargesRes, statsRes, queueRes] = await Promise.all([
-                fetch(`/api/finance/charges?${params.toString()}`),
-                fetch('/api/finance/stats'),
-                fetch('/api/finance/queue')
-            ]);
-
-            const chargesPayload = await chargesRes.json().catch(() => null);
-            const stats = await statsRes.json().catch(() => null);
-            const queue = await queueRes.json().catch(() => null);
-
-            if (!chargesRes.ok) throw new Error('Erro ao carregar cobrancas');
-
-            if (Array.isArray(chargesPayload)) {
-                allCharges = chargesPayload;
-                financeHasPrevPage = false;
-                financeHasNextPage = false;
-                financeTotalItems = allCharges.length;
-            } else {
-                allCharges = Array.isArray(chargesPayload?.items) ? chargesPayload.items : [];
-                currentFinancePage = Number(chargesPayload?.page || currentFinancePage || 1);
-                financeHasPrevPage = Boolean(chargesPayload?.has_prev);
-                financeHasNextPage = Boolean(chargesPayload?.has_next);
-                financeTotalItems = Number(chargesPayload?.total || 0);
-            }
-            queueByCharge = queue && queue.charge_jobs ? queue.charge_jobs : {};
-            updateFinanceSummary(stats);
-            renderFinanceTable(tbody, allCharges, queueByCharge);
-            renderFinancePagination();
-
-            if (stats) renderFinanceCharts(stats);
-
-            // Restaurar scroll após render silencioso
-            if (silent && scrollY > 0) {
-                window.scrollTo(0, scrollY);
-            }
-        } catch (error) {
-            console.error('Error loading finance data:', error);
-            if (!silent) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 2rem;">Erro ao carregar dados financeiros.</td></tr>';
-            }
-        }
-    }
-
-    function renderFinanceCharts(stats) {
-        const revenueCtx = document.getElementById('finance-revenue-chart')?.getContext('2d');
-        if (!revenueCtx) return;
-
-        const labels = Object.keys(stats.timeline);
-        const createdData = labels.map(date => stats.timeline[date].created);
-        const paidData = labels.map(date => stats.timeline[date].paid);
-
-        // Se já existe, apenas atualizar os dados (sem piscar)
-        if (financeCharts.revenue) {
-            financeCharts.revenue.data.labels = labels;
-            financeCharts.revenue.data.datasets[0].data = createdData;
-            financeCharts.revenue.data.datasets[1].data = paidData;
-            financeCharts.revenue.update('none'); // 'none' = sem animação
-            return;
-        }
-
-        // Primeira renderização: criar do zero
-        financeCharts.revenue = new Chart(revenueCtx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [
-                    {
-                        label: 'Cobranças (R$)',
-                        data: createdData,
-                        borderColor: '#8B4444',
-                        backgroundColor: 'rgba(139, 68, 68, 0.1)',
-                        fill: true,
-                        tension: 0.3
-                    },
-                    {
-                        label: 'Pago (R$)',
-                        data: paidData,
-                        borderColor: '#3E5A44',
-                        backgroundColor: 'rgba(62, 90, 68, 0.1)',
-                        fill: true,
-                        tension: 0.3
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: { display: true, position: 'top' }
-                },
-                interaction: {
-                    mode: 'index',
-                    intersect: false,
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        grid: { color: 'rgba(0,0,0,0.05)' }
-                    },
-                    x: {
-                        grid: { display: false }
-                    }
-                }
-            }
-        });
-    }
-
-    function updateFinanceSummary(stats) {
-        // F-041: "Porcentagem Pagos" agora é calculada por VALOR (R$), não
-        // por contagem de cobranças. Mais significativo pro fluxo do negócio:
-        // "de cada R$ 100 cobrados, quantos R$ entraram no caixa".
-        // Exclui cobranças canceladas do cálculo.
-        //   ratio = total_paid / (total_pending + total_paid) * 100
-        const safeStats = stats || {};
-        const pendingTotal = Number(safeStats.total_pending ?? 0);
-        const pendingCount = Number(safeStats.pending_count ?? 0);
-        const paidTotal = Number(safeStats.total_paid ?? 0);
-        const paidTodayTotal = Number(safeStats.paid_today_total ?? 0);
-        const paidTodayCount = Number(safeStats.paid_today_count ?? 0);
-
-        const activeValue = pendingTotal + paidTotal;
-        const conversionRate = activeValue > 0 ? (paidTotal / activeValue) * 100 : 0;
-
-        const formatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-
-        document.getElementById('finance-pending-total').textContent = formatter.format(pendingTotal);
-        document.getElementById('finance-pending-count').textContent = `${pendingCount} cobranças`;
-
-        document.getElementById('finance-paid-today').textContent = formatter.format(paidTodayTotal);
-        document.getElementById('finance-paid-count').textContent = `${paidTodayCount} cobranças`;
-
-        document.getElementById('finance-conversion-rate').textContent = `${conversionRate.toFixed(1)}%`;
-        const conversionAmountEl = document.getElementById('finance-conversion-amount');
-        if (conversionAmountEl) {
-            conversionAmountEl.textContent = `${formatter.format(paidTotal)} / ${formatter.format(activeValue)}`;
-        }
-    }
-
-    function renderFinancePagination() {
-        const summary = document.getElementById('finance-pagination-summary');
-        const prevBtn = document.getElementById('finance-page-prev');
-        const nextBtn = document.getElementById('finance-page-next');
-        const jumpSelect = document.getElementById('finance-page-jump');
-        const totalPages = Math.max(1, Math.ceil((financeTotalItems || 0) / financePageSize));
-        if (summary) {
-            const filterLabel = currentFinanceFilter && currentFinanceFilter !== 'all' ? `, filtro: ${currentFinanceFilter}` : '';
-            const searchLabel = currentFinanceSearch ? `, busca: \"${currentFinanceSearch}\"` : '';
-            summary.textContent = `Pagina ${currentFinancePage} de ${totalPages} (${financeTotalItems || allCharges.length} itens)${filterLabel}${searchLabel}`;
-        }
-        if (jumpSelect) {
-            // Popular opções se mudou total de paginas ou se vazio
-            const current = String(currentFinancePage);
-            if (jumpSelect.dataset.total !== String(totalPages)) {
-                jumpSelect.innerHTML = '';
-                for (let p = 1; p <= totalPages; p++) {
-                    const opt = document.createElement('option');
-                    opt.value = String(p);
-                    opt.textContent = `Pág. ${p}`;
-                    jumpSelect.appendChild(opt);
-                }
-                jumpSelect.dataset.total = String(totalPages);
-            }
-            jumpSelect.value = current;
-            jumpSelect.disabled = totalPages <= 1;
-        }
-        if (prevBtn) prevBtn.disabled = !financeHasPrevPage;
-        if (nextBtn) nextBtn.disabled = !financeHasNextPage;
-    }
-
-    function renderFinanceTable(tbody, charges, queueMap = {}) {
-        tbody.innerHTML = '';
-
-        if (!charges || charges.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 2rem;">Nenhuma cobranca registrada.</td></tr>';
-            return;
-        }
-
-        charges.forEach(charge => {
-            const tr = document.createElement('tr');
-            if (charge.is_test_group) tr.classList.add('finance-row-test-group');
-            const formatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-            const total = formatter.format(charge.total_amount || 0);
-
-            let titleAttr = '';
-            if (charge.subtotal && charge.commission_amount) {
-                const sub = formatter.format(charge.subtotal);
-                const comm = formatter.format(charge.commission_amount);
-                titleAttr = `title="Base: ${sub} + Assessoria (R$5/peça): ${comm}"`;
-            }
-
-            // Data de Pagamento: só preenche quando status='paid'.
-            // Usa updated_at (instante em que o sistema marcou como pago,
-            // com hora real). paid_at do Asaas vem só com DATE, então
-            // cairia sempre em 00:00 — não serve pra exibir hora.
-            const payDateRaw = charge.status === 'paid'
-                ? (charge.updated_at || charge.paid_at)
-                : null;
-            const date = payDateRaw
-                ? new Date(payDateRaw).toLocaleString('pt-BR', {
-                    day: '2-digit', month: '2-digit', year: 'numeric',
-                    hour: '2-digit', minute: '2-digit',
-                })
-                : '—';
-
-            let statusHtml = '';
-            if (charge.status === 'paid') {
-                statusHtml = '<span class="status-badge paid clickable-status" data-chargeid="' + charge.id + '" data-current="paid" title="Clique para alterar status" style="cursor:pointer;">Pago</span>';
-            } else if (charge.status === 'enviando') {
-                statusHtml = '<span class="status-badge enviando">Enviando</span>';
-            } else if (charge.status === 'erro no envio') {
-                statusHtml = '<span class="status-badge error">Erro no envio</span>';
-            } else if (charge.status === 'cancelled' || charge.status === 'cancelado') {
-                // F-036: cobrança cancelada — não conta no débito nem no total pago
-                statusHtml = '<span class="status-badge cancelled clickable-status" data-chargeid="' + charge.id + '" data-current="cancelled" title="Clique para reverter para pendente" style="cursor:pointer; background:rgba(107,114,128,0.15); color:#6b7280;">Cancelado</span>';
-            } else {
-                statusHtml = '<span class="status-badge pending clickable-status" data-chargeid="' + charge.id + '" data-current="pending" title="Clique para alterar status" style="cursor:pointer;">Pendente</span>';
-            }
-            const queueJob = queueMap?.[charge.id];
-            if (queueJob && ['queued', 'sending', 'retry'].includes(queueJob.status || '')) {
-                const queueLabel = queueStatusTranslations[queueJob.status] || 'em processamento';
-                statusHtml += `<div class="sub-status">${queueLabel.toLowerCase()}</div>`;
-            }
-            const groupBadgeHtml = '';  // Removido: "Grupo oficial/teste" poluía sem agregar
-
-            tr.innerHTML = `
-                <td>
-                    <div style="font-weight: 600;">${getCustomerName(charge.customer_phone, charge.customer_name)}</div>
-                    <div style="font-size: 0.8rem; color: var(--text-secondary);">${charge.customer_phone || ''}</div>
-                </td>
-                <td>
-                    <div style="font-size: 0.9rem;">${charge.poll_title || 'Enquete'}</div>
-                    ${groupBadgeHtml ? `<div class="finance-group-row">${groupBadgeHtml}</div>` : ''}
-                </td>
-                <td style="font-family: 'Outfit', sans-serif; font-weight: 600;" ${titleAttr}>${total}</td>
-                <td>${statusHtml}</td>
-                <td style="font-size: 0.85rem; color: var(--text-secondary);">${date}</td>
-                <td style="text-align: right;">
-                  <div style="display: inline-flex; gap: 0.4rem; align-items: center; vertical-align: middle;">
-                    <button class="btn-package-action btn-cancel-charge"
-                            title="Cancelar cobranca (mantém histórico)"
-                            data-chargeid="${charge.id}"
-                            style="background: rgba(107, 114, 128, 0.12); color: #6b7280; width: 30px; height: 30px;">
-                        <i class="fas fa-ban"></i>
-                    </button>
-                    <button class="btn-package-action btn-delete-charge"
-                            title="Excluir cobranca definitivamente"
-                            data-chargeid="${charge.id}"
-                            style="background: rgba(239, 68, 68, 0.1); color: var(--danger); width: 30px; height: 30px;">
-                        <i class="fas fa-trash-alt"></i>
-                    </button>
-                  </div>
-                </td>
-            `;
-            tbody.appendChild(tr);
-        });
-
-        tbody.querySelectorAll('.btn-delete-charge').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const chargeId = btn.getAttribute('data-chargeid');
-                if (!chargeId) return;
-
-                if (confirm('Deseja realmente excluir esta cobranca? Esta acao nao pode ser desfeita.')) {
-                    try {
-                        const response = await fetch(`/api/finance/charges/${chargeId}`, { method: 'DELETE' });
-                        const payload = await response.json().catch(() => ({}));
-                        if (response.ok) {
-                            loadFinanceData(currentFinancePage);
-                        } else {
-                            alert('Erro ao excluir: ' + (payload.detail || 'Falha desconhecida'));
-                        }
-                    } catch (error) {
-                        console.error('Error deleting charge:', error);
-                        alert('Falha na conexao com o servidor.');
-                    }
-                }
-            });
-        });
-
-        // Status toggle click handler (paid ↔ pending; cancelled → pending)
-        tbody.querySelectorAll('.clickable-status').forEach(badge => {
-            badge.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const chargeId = badge.getAttribute('data-chargeid');
-                const current = badge.getAttribute('data-current');
-                if (!chargeId) return;
-
-                let newStatus;
-                if (current === 'paid') newStatus = 'pending';
-                else if (current === 'cancelled') newStatus = 'pending';
-                else newStatus = 'paid';
-
-                const label = newStatus === 'paid' ? 'Pago' : 'Pendente';
-                // F-039: ao tentar reverter paid → pending, exige confirmação
-                // extra explicando que o Asaas pode ter marcado como pago
-                // automaticamente. Pra evitar reverter pagamentos reais por
-                // engano.
-                if (current === 'paid' && newStatus === 'pending') {
-                    const ok = confirm(
-                        'ATENÇÃO: esta cobrança está marcada como Pago. ' +
-                        'O pagamento pode ter sido confirmado automaticamente pelo Asaas. ' +
-                        '\n\nTem certeza que quer reverter para Pendente? ' +
-                        'Isso só deve ser feito se foi marcada como paga por engano.'
-                    );
-                    if (!ok) return;
-                } else if (!confirm('Alterar status para ' + label + '?')) {
-                    return;
-                }
-
-                try {
-                    const response = await fetch('/api/finance/charges/' + chargeId + '/status', {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ status: newStatus })
-                    });
-                    if (response.ok) {
-                        loadFinanceData(currentFinancePage);
-                    } else {
-                        const payload = await response.json().catch(() => ({}));
-                        alert('Erro: ' + (payload.detail || 'Falha ao atualizar status'));
-                    }
-                } catch (error) {
-                    console.error('Error toggling status:', error);
-                    alert('Falha na conexao com o servidor.');
-                }
-            });
-        });
-
-        // F-036: botão cancelar cobrança (mantém a linha, só muda status)
-        tbody.querySelectorAll('.btn-cancel-charge').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const chargeId = btn.getAttribute('data-chargeid');
-                if (!chargeId) return;
-                if (!confirm('Cancelar esta cobranca? O valor sai do débito do cliente mas o histórico é mantido.')) return;
-                try {
-                    const response = await fetch('/api/finance/charges/' + chargeId + '/status', {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ status: 'cancelled' })
-                    });
-                    if (response.ok) {
-                        loadFinanceData(currentFinancePage);
-                    } else {
-                        const payload = await response.json().catch(() => ({}));
-                        alert('Erro: ' + (payload.detail || 'Falha ao cancelar cobranca'));
-                    }
-                } catch (error) {
-                    console.error('Error cancelling charge:', error);
-                    alert('Falha na conexao com o servidor.');
-                }
-            });
-        });
-    }
-
-    const searchInput = document.getElementById('finance-search');
-    if (searchInput) {
-        searchInput.addEventListener('input', (e) => {
-            currentFinanceSearch = e.target.value;
-            currentFinancePage = 1;
-            if (financeSearchTimer) clearTimeout(financeSearchTimer);
-            financeSearchTimer = setTimeout(() => loadFinanceData(1), 250);
-        });
-    }
-
-    document.getElementById('finance-page-prev')?.addEventListener('click', () => {
-        if (!financeHasPrevPage) return;
-        loadFinanceData(currentFinancePage - 1);
-    });
-
-    document.getElementById('finance-page-next')?.addEventListener('click', () => {
-        if (!financeHasNextPage) return;
-        loadFinanceData(currentFinancePage + 1);
-    });
-
-    document.getElementById('finance-page-jump')?.addEventListener('change', (e) => {
-        const target = parseInt(e.target.value, 10);
-        if (Number.isFinite(target) && target >= 1 && target !== currentFinancePage) {
-            loadFinanceData(target);
-        }
-    });
 
     // ----- Extrato de Pagamentos -----
     let lastExtractData = null;
@@ -773,17 +355,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-
-    // Filter Buttons
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            currentFinanceFilter = btn.getAttribute('data-filter');
-            currentFinancePage = 1;
-            loadFinanceData(1);
-        });
-    });
 
     // Initialize Dashboard
     setupConfirmedEditDropzones();
@@ -2708,7 +2279,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('modalCancel')?.addEventListener('click', closeModal);
     document.getElementById('modalConfirm')?.addEventListener('click', executePackageAction);
-    document.getElementById('btn-open-extract-modal')?.addEventListener('click', openExtractModal);
     document.getElementById('extractModalClose')?.addEventListener('click', () => {
         const m = document.getElementById('extractModal');
         if (m) m.hidden = true;
@@ -2741,7 +2311,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ? `<i class="fas fa-check"></i> ${count} atualizado${count > 1 ? 's' : ''}`
                         : '<i class="fas fa-check"></i> Atualizado';
                     // Reload finance data sem piscar
-                    loadFinanceData(currentFinancePage, { silent: true });
+                    window.financeRefresh?.();
                 } else {
                     btnSyncAsaas.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Erro';
                 }
@@ -3503,7 +3073,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Also refresh finance if it's currently visible (silent: sem piscar)
                 const financeSection = document.getElementById('section-finance');
                 if (financeSection && financeSection.style.display !== 'none') {
-                    loadFinanceData(currentFinancePage, { silent: true });
+                    window.financeRefresh?.();
                 }
                 // E também a aba de clientes
                 const customersSection = document.getElementById('section-customers');
@@ -3539,7 +3109,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (response.ok && result.status === 'success') {
                     updateUI(result.data);
-                    loadFinanceData();
+                    window.financeRefresh?.();
                     btnSync.classList.add('success');
                 } else {
                     btnSync.classList.add('error');
