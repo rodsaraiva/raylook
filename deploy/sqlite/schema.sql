@@ -234,7 +234,8 @@ CREATE TABLE IF NOT EXISTS vendas (
     qty INTEGER NOT NULL CHECK (qty > 0),
     unit_price REAL NOT NULL DEFAULT 0 CHECK (unit_price >= 0),
     subtotal REAL NOT NULL DEFAULT 0 CHECK (subtotal >= 0),
-    commission_percent REAL NOT NULL DEFAULT 13 CHECK (commission_percent = 13),
+    commission_percent REAL NOT NULL DEFAULT 0
+        CHECK (commission_percent >= 0 AND commission_percent <= 100),
     commission_amount REAL NOT NULL DEFAULT 0 CHECK (commission_amount >= 0),
     total_amount REAL NOT NULL DEFAULT 0 CHECK (total_amount >= 0),
     status TEXT NOT NULL DEFAULT 'pending'
