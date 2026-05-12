@@ -1083,3 +1083,74 @@ def _paid_rate_30d(client: SupabaseRestClient, now: datetime) -> float:
             if status == "paid":
                 paid += valor
     return round(paid / total, 4) if total > 0 else 0
+
+
+def build_payment_history(pagamento_id: str) -> List[Dict[str, Any]]:
+    """Timeline derivada dos campos do pagamento + sessão do cliente.
+
+    Cada evento: {kind, timestamp, label, reason?}.
+    """
+    if not supabase_domain_enabled():
+        return []
+
+    client = SupabaseRestClient.from_settings()
+    pag = client.select(
+        "pagamentos",
+        columns="id,venda_id,status,created_at,updated_at,pix_payload,paid_at,"
+                "written_off_at,written_off_reason",
+        filters=[("id", "eq", pagamento_id)],
+        single=True,
+    )
+    if not isinstance(pag, dict) or not pag.get("id"):
+        return []
+
+    events: List[Dict[str, Any]] = []
+    if pag.get("created_at"):
+        events.append({
+            "kind": "package_confirmed",
+            "timestamp": pag["created_at"],
+            "label": "Pacote confirmado",
+        })
+    if pag.get("pix_payload") and pag.get("updated_at"):
+        events.append({
+            "kind": "pix_generated",
+            "timestamp": pag["updated_at"],
+            "label": "PIX gerado (última tentativa registrada)",
+        })
+
+    venda = client.select(
+        "vendas", columns="cliente_id",
+        filters=[("id", "eq", pag.get("venda_id"))], single=True,
+    )
+    if isinstance(venda, dict) and venda.get("cliente_id"):
+        cliente = client.select(
+            "clientes", columns="session_expires_at",
+            filters=[("id", "eq", venda["cliente_id"])], single=True,
+        )
+        if isinstance(cliente, dict) and cliente.get("session_expires_at"):
+            expires = _parse_dt(cliente["session_expires_at"])
+            if expires:
+                # Sessão dura 30 dias — último acesso é expires - 30d
+                last_access = (expires - timedelta(days=30)).isoformat()
+                events.append({
+                    "kind": "last_portal_access",
+                    "timestamp": last_access,
+                    "label": "Último acesso ao portal",
+                })
+
+    if pag.get("paid_at"):
+        events.append({
+            "kind": "paid",
+            "timestamp": pag["paid_at"],
+            "label": "Pago",
+        })
+    if pag.get("written_off_at"):
+        events.append({
+            "kind": "written_off",
+            "timestamp": pag["written_off_at"],
+            "label": "Marcado como perdido",
+            "reason": pag.get("written_off_reason") or "",
+        })
+
+    events.sort(key=lambda e: e["timestamp"])
+    return events
