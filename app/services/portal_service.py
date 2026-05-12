@@ -557,7 +557,7 @@ def create_combined_pix(cliente_id: str) -> Dict[str, Any]:
     )
 
     due = date.today().isoformat()
-    description = f"Pagamento de {item_count} pedido{'s' if item_count > 1 else ''} - Alana Camilo Assessoria"
+    description = f"Pagamento de {item_count} pedido{'s' if item_count > 1 else ''} - Raylook Assessoria"
 
     payment = asaas.create_payment_pix(customer["id"], total, due, description)
     pix_data = asaas.get_payment_pix_with_retry(payment["id"])

@@ -79,7 +79,7 @@ services:
     image: ${DOCKER_IMAGE:-ghcr.io/rodsaraiva/raylook:latest}
     environment:
       DATA_BACKEND: postgres
-      RAYLOOK_SANDBOX: ${RAYLOOK_SANDBOX:-true}
+      RAYLOOK_SANDBOX: ${RAYLOOK_SANDBOX:-false}
 
       SUPABASE_URL: http://raylook-postgrest:3000
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:?gere com tools/gen_pgrst_jwt.py}
@@ -97,6 +97,8 @@ services:
       WHATSAPP_WEBHOOK_SECRET: ${WHATSAPP_WEBHOOK_SECRET:-}
       WHAPI_TOKEN: ${WHAPI_TOKEN:-}
       WHAPI_API_URL: ${WHAPI_API_URL:-https://gate.whapi.cloud}
+
+      ASAAS_PROD_TOKEN: ${ASAAS_PROD_TOKEN:?ASAAS_PROD_TOKEN obrigatorio}
       OFFICIAL_GROUP_CHAT_ID: ${OFFICIAL_GROUP_CHAT_ID:-}
       AUTHORIZED_GROUP_1: ${AUTHORIZED_GROUP_1:-}
       AUTHORIZED_GROUP_2: ${AUTHORIZED_GROUP_2:-}
