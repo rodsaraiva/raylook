@@ -250,7 +250,7 @@ CREATE INDEX IF NOT EXISTS vendas_pacote_status_idx ON vendas (pacote_id, status
 CREATE INDEX IF NOT EXISTS vendas_cliente_status_idx ON vendas (cliente_id, status);
 
 -- ============================================================
--- pagamentos (status inclui 'cancelled' via migration_F036_pagamento_cancelled_status)
+-- pagamentos (status inclui 'written_off' via migration_F062_pagamento_written_off)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS pagamentos (
     id TEXT PRIMARY KEY,
@@ -264,7 +264,9 @@ CREATE TABLE IF NOT EXISTS pagamentos (
     due_date TEXT,
     paid_at TEXT,
     status TEXT NOT NULL DEFAULT 'created'
-        CHECK (status IN ('created', 'sent', 'paid', 'failed', 'cancelled')),
+        CHECK (status IN ('created', 'sent', 'paid', 'failed', 'cancelled', 'written_off')),
+    written_off_at TEXT,
+    written_off_reason TEXT,
     payload_json TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
