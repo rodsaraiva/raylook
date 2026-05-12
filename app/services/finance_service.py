@@ -875,7 +875,8 @@ def _classify_bucket(age_days: int) -> str:
 def _now_dt(now_iso: str | None) -> datetime:
     if now_iso:
         return datetime.fromisoformat(now_iso.replace("Z", "+00:00"))
-    return datetime.now(tz=ZoneInfo("UTC"))
+    tz = _finance_timezone() or ZoneInfo("UTC")
+    return datetime.now(tz=tz)
 
 
 def build_receivables_by_client(now_iso: str | None = None) -> List[Dict[str, Any]]:
