@@ -72,7 +72,7 @@ def test_preview_returns_totals(monkeypatch):
     body = response.json()
     assert body["total_qty"] == 24
     assert body["subtotal"] == 24 * 45.00
-    assert body["commission_percent"] > 0
+    assert body["commission_amount"] == 24 * 5.0   # R$5/peça × 24 peças
     assert body["total_final"] == round(body["subtotal"] + body["commission_amount"], 2)
     assert len(body["votes_resolved"]) == 2
 

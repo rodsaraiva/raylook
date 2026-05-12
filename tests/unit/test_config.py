@@ -176,10 +176,10 @@ class TestSettingsDefaults:
         config = _reload_config(monkeypatch, {"DATA_BACKEND": "sqlite"})
         assert config.settings.DATA_BACKEND == "sqlite"
 
-    def test_commission_percent_default(self, monkeypatch):
-        """COMMISSION_PERCENT default deve ser 13.0."""
-        config = _reload_config(monkeypatch, {"COMMISSION_PERCENT": "13.0"})
-        assert config.settings.COMMISSION_PERCENT == pytest.approx(13.0)
+    def test_commission_per_piece_default(self, monkeypatch):
+        """COMMISSION_PER_PIECE default deve ser 5.0."""
+        config = _reload_config(monkeypatch, {"COMMISSION_PER_PIECE": "5.0"})
+        assert config.settings.COMMISSION_PER_PIECE == pytest.approx(5.0)
 
     def test_supabase_domain_enabled_default_false(self, monkeypatch):
         """SUPABASE_DOMAIN_ENABLED='false' deve resultar em False."""
@@ -330,16 +330,16 @@ class TestNumericParsing:
         assert config.settings.APP_PORT == 9090
         assert isinstance(config.settings.APP_PORT, int)
 
-    def test_commission_percent_float(self, monkeypatch):
-        """COMMISSION_PERCENT deve ser float."""
-        config = _reload_config(monkeypatch, {"COMMISSION_PERCENT": "7.5"})
-        assert config.settings.COMMISSION_PERCENT == pytest.approx(7.5)
-        assert isinstance(config.settings.COMMISSION_PERCENT, float)
+    def test_commission_per_piece_float(self, monkeypatch):
+        """COMMISSION_PER_PIECE deve ser float."""
+        config = _reload_config(monkeypatch, {"COMMISSION_PER_PIECE": "7.5"})
+        assert config.settings.COMMISSION_PER_PIECE == pytest.approx(7.5)
+        assert isinstance(config.settings.COMMISSION_PER_PIECE, float)
 
-    def test_commission_percent_inteiro_vira_float(self, monkeypatch):
-        """COMMISSION_PERCENT com valor inteiro deve virar float."""
-        config = _reload_config(monkeypatch, {"COMMISSION_PERCENT": "10"})
-        assert config.settings.COMMISSION_PERCENT == pytest.approx(10.0)
+    def test_commission_per_piece_inteiro_vira_float(self, monkeypatch):
+        """COMMISSION_PER_PIECE com valor inteiro deve virar float."""
+        config = _reload_config(monkeypatch, {"COMMISSION_PER_PIECE": "10"})
+        assert config.settings.COMMISSION_PER_PIECE == pytest.approx(10.0)
 
 
 # ---------------------------------------------------------------------------
@@ -680,7 +680,7 @@ def _make_fallback_settings(env: dict) -> object:
         AS_AASAAS_URL: str = env.get("AS_AASAAS_URL", "https://api.asaas.com/v3/")
         AS_AASAAS_TOKEN = env.get("AS_AASAAS_TOKEN")
         ESTOQUE_PHONE_NUMBER: str = env.get("ESTOQUE_PHONE_NUMBER", "5562993353390")
-        COMMISSION_PERCENT: float = float(env.get("COMMISSION_PERCENT", "13"))
+        COMMISSION_PER_PIECE: float = float(env.get("COMMISSION_PER_PIECE", "5"))
         TEST_MODE: bool = env.get("TEST_MODE", "").lower() == "true"
         TEST_PHONE_NUMBER = env.get("TEST_PHONE_NUMBER")
         STAGING_DRY_RUN: bool = env.get("STAGING_DRY_RUN", "").lower() == "true"
@@ -765,10 +765,10 @@ class TestFallbackSettingsClass:
         s = _make_fallback_settings({"APP_PORT": "9000"})
         assert s.APP_PORT == 9000
 
-    def test_commission_percent_float(self):
-        """COMMISSION_PERCENT deve ser float."""
-        s = _make_fallback_settings({"COMMISSION_PERCENT": "5.5"})
-        assert s.COMMISSION_PERCENT == pytest.approx(5.5)
+    def test_commission_per_piece_float(self):
+        """COMMISSION_PER_PIECE deve ser float."""
+        s = _make_fallback_settings({"COMMISSION_PER_PIECE": "5.5"})
+        assert s.COMMISSION_PER_PIECE == pytest.approx(5.5)
 
     def test_test_mode_true(self):
         """TEST_MODE='true' deve ser True."""
@@ -920,7 +920,7 @@ class TestFallbackSettingsClass:
         assert s.METRICS_SOURCE == "baserow"
         assert s.WELCOME_NAME == "raylook"
         assert s.ESTOQUE_PHONE_NUMBER == "5562993353390"
-        assert s.COMMISSION_PERCENT == pytest.approx(13.0)
+        assert s.COMMISSION_PER_PIECE == pytest.approx(5.0)
 
     def test_whapi_api_url_fallback_whapi_url(self):
         """WHAPI_API_URL usa WHAPI_URL como fallback."""
@@ -993,10 +993,10 @@ class TestFallbackBranchReal:
         assert mod.settings.APP_PORT == 9999
         assert isinstance(mod.settings.APP_PORT, int)
 
-    def test_fallback_commission_percent(self):
-        """COMMISSION_PERCENT é float no fallback."""
-        mod = _load_config_without_pydantic({"COMMISSION_PERCENT": "7.5"})
-        assert mod.settings.COMMISSION_PERCENT == pytest.approx(7.5)
+    def test_fallback_commission_per_piece(self):
+        """COMMISSION_PER_PIECE é float no fallback."""
+        mod = _load_config_without_pydantic({"COMMISSION_PER_PIECE": "7.5"})
+        assert mod.settings.COMMISSION_PER_PIECE == pytest.approx(7.5)
 
     def test_fallback_allowed_origins_wildcard(self):
         """ALLOWED_ORIGINS='*' retorna ['*'] no fallback."""

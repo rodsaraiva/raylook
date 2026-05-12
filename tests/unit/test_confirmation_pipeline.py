@@ -407,7 +407,7 @@ class TestPdfWorker:
             stub_pdf_modules["estoque.pdf_builder"].build_pdf = build_pdf_fn
         stub_pdf_modules["finance.utils"].get_pdf_filename_by_id = lambda pkg_id: "pacote_test.pdf"
         monkeypatch.setattr("app.services.package_state_service.update_package_state", lambda *a, **kw: None)
-        monkeypatch.setattr("app.config.settings", type("S", (), {"COMMISSION_PERCENT": 13.0})())
+        monkeypatch.setattr("app.config.settings", type("S", (), {"COMMISSION_PER_PIECE": 5.0})())
         monkeypatch.chdir(tmp_path)
 
     def test_pdf_worker_sucesso_grava_arquivo_e_persiste(self, monkeypatch, tmp_path, stub_pdf_modules):
@@ -478,7 +478,7 @@ class TestPdfWorker:
             raise RuntimeError("state svc offline")
 
         monkeypatch.setattr("app.services.package_state_service.update_package_state", _raise_update)
-        monkeypatch.setattr("app.config.settings", type("S", (), {"COMMISSION_PERCENT": 13.0})())
+        monkeypatch.setattr("app.config.settings", type("S", (), {"COMMISSION_PER_PIECE": 5.0})())
         monkeypatch.setattr(svc, "persist_metrics", lambda *a, **kw: None)
         monkeypatch.chdir(tmp_path)
 

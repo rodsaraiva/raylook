@@ -96,7 +96,7 @@ def test_drill_down_falls_back_to_voters_when_no_pacote_clientes(fake_client):
     bia = next(c for c in body["clientes"] if c["nome"] == "Bia")
     assert bia["qty"] == 10
     assert bia["subtotal"] == 800.0  # 10 * 80
-    assert bia["total_amount"] == 904.0  # 800 * 1.13
+    assert bia["total_amount"] == 850.0  # 800 + 10 * R$5/peça
 
 
 def test_drill_down_timeline_ordered_by_timestamp(fake_client):

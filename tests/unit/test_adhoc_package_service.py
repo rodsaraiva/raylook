@@ -107,10 +107,10 @@ def test_create_adhoc_package_persists_pacote_votos_pacote_clientes(monkeypatch)
 
     pc_payloads = [p for t, p in inserted if t == "pacote_clientes"]
     pc_by_qty = {p["qty"]: p for p in pc_payloads}
-    # 10 × 45 = 450; comissão 13% = 58.50; total = 508.50
+    # 10 × 45 = 450; assessoria R$5 × 10 = 50; total = 500
     assert pc_by_qty[10]["subtotal"] == 450.0
-    assert pc_by_qty[10]["commission_amount"] == 58.5
-    assert pc_by_qty[10]["total_amount"] == 508.5
+    assert pc_by_qty[10]["commission_amount"] == 50.0
+    assert pc_by_qty[10]["total_amount"] == 500.0
 
 
 def test_create_adhoc_package_rejects_sum_not_24(monkeypatch):

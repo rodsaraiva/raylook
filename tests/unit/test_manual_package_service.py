@@ -486,8 +486,8 @@ def test_create_manual_package_calculates_financials(monkeypatch):
     assert len(pc_rows) == 1
     pc = pc_rows[0]
     assert pc["subtotal"] == 100.0
-    assert pc["commission_amount"] == 13.0   # 13% de 100
-    assert pc["total_amount"] == 113.0
+    assert pc["commission_amount"] == 10.0   # R$5 × 2 peças
+    assert pc["total_amount"] == 110.0
 
 
 def test_create_manual_package_upserts_cliente(monkeypatch):
@@ -635,7 +635,7 @@ def test_create_manual_package_pacote_qty_sum(monkeypatch):
 
 
 def test_create_manual_package_commission_zero_price(monkeypatch):
-    """Com unit_price=0, subtotal e commission são zero."""
+    """Com unit_price=0, subtotal=0 mas comissão é R$5/peça (flat fee independe do preço)."""
     enquete = {**_minimal_enquete()}
     enquete["produto"] = {
         "id": "PROD-1",
@@ -648,5 +648,5 @@ def test_create_manual_package_commission_zero_price(monkeypatch):
     svc.create_manual_package_in_supabase("poll_abc", votes)
     pc_rows = [p for t, p in fc._inserted if t == "pacote_clientes"]
     assert pc_rows[0]["subtotal"] == 0.0
-    assert pc_rows[0]["commission_amount"] == 0.0
-    assert pc_rows[0]["total_amount"] == 0.0
+    assert pc_rows[0]["commission_amount"] == 25.0   # R$5 × 5 peças
+    assert pc_rows[0]["total_amount"] == 25.0

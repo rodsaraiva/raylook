@@ -14,17 +14,17 @@ from tests._helpers.fake_supabase import FakeSupabaseClient, empty_tables
 
 # ── _calc_financials ───────────────────────────────────────────────────────
 def test_calc_financials_basic():
-    """unit=80, qty=3 → subtotal=240, commission=31.2 (13%), total=271.2."""
+    """unit=80, qty=3 → subtotal=240, commission=3*5=15, total=255."""
     result = svc._calc_financials(80.0, 3)
-    assert result == {"subtotal": 240.0, "commission_amount": 31.2, "total_amount": 271.2}
+    assert result == {"subtotal": 240.0, "commission_amount": 15.0, "total_amount": 255.0}
 
 
 def test_calc_financials_round_correctly():
-    """unit=33.33, qty=6 → subtotal=199.98 (round), commission=26.0 (199.98*0.13)."""
+    """unit=33.33, qty=6 → subtotal=199.98, commission=6*5=30, total=229.98."""
     result = svc._calc_financials(33.33, 6)
     assert result["subtotal"] == 199.98
-    assert result["commission_amount"] == 26.0
-    assert result["total_amount"] == round(199.98 + 26.0, 2)
+    assert result["commission_amount"] == 30.0
+    assert result["total_amount"] == round(199.98 + 30.0, 2)
 
 
 def test_calc_financials_zero_qty():
