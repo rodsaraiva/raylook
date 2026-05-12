@@ -719,7 +719,7 @@ def test_now_iso_retorna_string_utc():
 # ---------------------------------------------------------------------------
 
 def test_fetch_project_status_usa_probe_postgrest(monkeypatch):
-    monkeypatch.setattr(supabase_service.settings, "SUPABASE_URL", "http://alana-postgrest:3000")
+    monkeypatch.setattr(supabase_service.settings, "SUPABASE_URL", "http://raylook-postgrest:3000")
     monkeypatch.setattr(supabase_service.settings, "SUPABASE_ACCESS_TOKEN", None)
     monkeypatch.setattr(supabase_service.settings, "SUPABASE_PROJECT_REF", None)
     monkeypatch.setattr(supabase_service.settings, "SUPABASE_SCHEMA", "public")
@@ -907,7 +907,7 @@ def test_request_keeps_default_supabase_rest_prefix(monkeypatch):
 
 
 def test_fetch_project_status_uses_postgrest_probe_when_not_on_supabase(monkeypatch):
-    monkeypatch.setattr(supabase_service.settings, "SUPABASE_URL", "http://alana-postgrest-staging:3000")
+    monkeypatch.setattr(supabase_service.settings, "SUPABASE_URL", "http://raylook-postgrest:3000")
     monkeypatch.setattr(supabase_service.settings, "SUPABASE_ACCESS_TOKEN", None)
     monkeypatch.setattr(supabase_service.settings, "SUPABASE_PROJECT_REF", None)
     monkeypatch.setattr(supabase_service.settings, "SUPABASE_SCHEMA", "public")

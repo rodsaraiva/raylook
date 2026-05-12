@@ -55,7 +55,7 @@ def _templates():
 
 
 def _get_domain() -> str:
-    return os.getenv("DOMAIN_HOST", "alana.v4smc.com")
+    return os.getenv("DOMAIN_HOST", "raylook.v4smc.com")
 
 
 def _is_secure() -> bool:
@@ -252,7 +252,7 @@ async def portal_reset_submit(request: Request, phone: str = Form(...)):
             "html": f"""
                 <div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
                     <div style="text-align: center; margin-bottom: 24px;">
-                        <h2 style="color: #4A3B3B; font-size: 18px; letter-spacing: 0.1em; margin: 0;">ALANA CAMILO</h2>
+                        <h2 style="color: #4A3B3B; font-size: 18px; letter-spacing: 0.1em; margin: 0;">RAYLOOK</h2>
                         <p style="color: #5C4A4A; font-size: 10px; letter-spacing: 0.3em; margin: 4px 0 0; text-transform: uppercase;">Assessoria</p>
                     </div>
                     <div style="background: #f9f3f3; border-radius: 16px; padding: 32px 24px; text-align: center;">

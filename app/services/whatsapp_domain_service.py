@@ -749,7 +749,7 @@ class VoteService:
         elif not event.chat_id and poll.get("chat_id"):
             event.chat_id = str(poll.get("chat_id")).strip() or None
         # Inserir cliente se novo. Se já existe, NÃO sobrescrever o nome
-        # (a Alana pode ter renomeado manualmente no dash).
+        # (admin pode ter renomeado manualmente no dash).
         existing = self.client.select(
             "clientes", columns="id,nome,celular",
             filters=[("celular", "eq", event.voter_phone)], limit=1,

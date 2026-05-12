@@ -1,5 +1,5 @@
 -- Schema SQLite do Raylook (dev).
--- Tradução fiel do schema Postgres de staging (alana_staging_schema.sql)
+-- Tradução fiel do schema Postgres (deploy/postgres/schema.sql)
 -- + colunas adicionadas em migrations F031, F039, F036, F046, F061, portal_auth, cleanup_lid_phantoms, confirmed_edit_nullable_fk.
 --
 -- Regras de tradução:

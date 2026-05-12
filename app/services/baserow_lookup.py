@@ -9,7 +9,7 @@ from metrics import clients
 
 logger = logging.getLogger("raylook.baserow_lookup")
 
-# Field IDs (see fields.txt) for the Alana Baserow database
+# Field IDs (see fields.txt) for the Raylook Baserow database
 _FIELD_VOTOS_POLL_ID = 158
 _FIELD_VOTOS_VOTER_PHONE = 160
 _FIELD_ENQUETES_POLL_ID = 169

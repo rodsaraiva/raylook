@@ -1,5 +1,5 @@
 -- F-001: RPC close_package (transacional, com advisory lock).
--- Port da migration original do projeto Alana, adaptada pro schema do raylook
+-- RPC close_package adaptada pro schema do raylook
 -- (ids como TEXT em vez de uuid).
 
 CREATE OR REPLACE FUNCTION close_package(

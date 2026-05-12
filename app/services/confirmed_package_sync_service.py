@@ -1,11 +1,11 @@
 """Sincroniza composição de pacote confirmado com vendas/pagamentos no Postgres.
 
-Usado quando a Alana edita membros de um pacote já confirmado no dashboard.
+Usado quando a admin edita membros de um pacote já confirmado no dashboard.
 Faz diff cirúrgico: adiciona, remove ou atualiza apenas o que mudou.
 
 Regra crítica: se um cliente pago é removido, mantém venda/pagamento intactos
 (só desacopla de pacote_clientes setando pacote_cliente_id=NULL). A cobrança
-permanece visível no portal do cliente com status 'paid' — Alana resolve
+permanece visível no portal do cliente com status 'paid' — admin resolve
 manualmente com o cliente (reembolso) e depois cancela a cobrança no Financeiro
 se quiser.
 """

@@ -1,7 +1,7 @@
 """Stub do envio de PDF de estoque.
 
-Original mandava o PDF via Evolution API pra um número WhatsApp do estoque
-da Alana. Em raylook (sandbox), apenas registra que o envio aconteceria.
+Original mandava o PDF via Evolution API pra um número WhatsApp do estoque.
+Em raylook (sandbox), apenas registra que o envio aconteceria.
 Quando o WHAPI próprio do raylook for provisionado, este módulo pode ser
 reescrito pra chamar a API do canal próprio.
 """

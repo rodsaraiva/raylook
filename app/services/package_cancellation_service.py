@@ -1,6 +1,6 @@
 """Cancelamento de pacote confirmado com cascade.
 
-Regra de negócio (vinda do vídeo da Alana, 19/04/2026):
+Regra de negócio (19/04/2026):
 
 Quando a loja avisa que o estoque esgotou depois de confirmado, a admin precisa
 cancelar o pacote inteiro do dashboard. Antes existia só o cancelamento por

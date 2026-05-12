@@ -5,7 +5,7 @@ pacote fechado AINDA não tem `vendas` nem `pagamentos` — esses só nascem no
 approve (`SalesService.approve_package`). Então a edição é bem mais simples:
 só inserir/remover linhas em `pacote_clientes`.
 
-Regras do fluxo (pedido da Alana, 19/04):
+Regras do fluxo (19/04):
   - Membros trocáveis vêm só da **fila da mesma enquete** (votos com status='in'
     que não estão em nenhum outro pacote não-cancelado da enquete). Nunca de
     outros pacotes (nem fechados nem confirmados).

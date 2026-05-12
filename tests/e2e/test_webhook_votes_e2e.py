@@ -10,11 +10,12 @@ Uso:
     python tests/e2e/test_webhook_votes_e2e.py
 """
 import json
+import os
 import time
 import uuid
 import requests
 
-BASE_URL = "https://alana.v4smc.com"
+BASE_URL = os.getenv("E2E_BASE_URL", "http://localhost:8000")
 # Grupo de teste (mesmo do sistema)
 TEST_CHAT_ID = "120363403901156886@g.us"
 
@@ -23,7 +24,7 @@ RUN_ID = uuid.uuid4().hex[:8]
 POLL_ID = f"TEST_E2E_{RUN_ID}_poll"
 POLL_TITLE = f"[E2E] Teste automatizado {RUN_ID}"
 
-# Opções do poll (padrão Alana: 3, 6, 9, 12)
+# Opções do poll (3, 6, 9, 12 peças)
 OPTION_3 = {"id": f"opt3_{RUN_ID}", "name": "3", "count": 0, "voters": []}
 OPTION_6 = {"id": f"opt6_{RUN_ID}", "name": "6", "count": 0, "voters": []}
 OPTION_9 = {"id": f"opt9_{RUN_ID}", "name": "9", "count": 0, "voters": []}
@@ -156,7 +157,7 @@ def db_query(sql):
     import subprocess
     result = subprocess.run(
         ["docker", "exec", "postgres-postgres-1", "psql", "-U", "postgres",
-         "-d", "alana_staging", "-t", "-A", "-c", sql],
+         "-d", "raylook", "-t", "-A", "-c", sql],
         capture_output=True, text=True, timeout=10,
     )
     return result.stdout.strip()

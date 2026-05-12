@@ -221,7 +221,7 @@ app.add_middleware(GZipMiddleware, minimum_size=1024)
 #   docker service update --env-add DASHBOARD_AUTH_ENABLED=true \
 #     --env-add DASHBOARD_AUTH_USER=admin \
 #     --env-add DASHBOARD_AUTH_PASS=... \
-#     alana-staging_alana-dashboard
+#     raylook_raylook-dashboard
 import base64 as _b64_auth
 import hmac as _hmac_auth
 
@@ -238,7 +238,7 @@ _AUTH_PUBLIC_PREFIXES = (
 
 _DASH_PASSWORD = os.getenv("DASHBOARD_AUTH_PASS", "R@ylook")
 _DASH_COOKIE = "dash_session"
-_DASH_TOKEN = _hmac_auth.new(_DASH_PASSWORD.encode(), b"alana-dash-session", "sha256").hexdigest()
+_DASH_TOKEN = _hmac_auth.new(_DASH_PASSWORD.encode(), b"raylook-dash-session", "sha256").hexdigest()
 
 
 @app.get("/login", response_class=HTMLResponse)

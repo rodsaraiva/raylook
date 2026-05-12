@@ -41,7 +41,7 @@ if _USE_PYDANTIC:
 
         # Sandbox global do raylook. True = nenhuma chamada externa real
         # (Asaas/Resend/etc.) chega na API real; clients logam e retornam dummy.
-        # Default True pra que rodar sem .env nunca toque na prod da Alana.
+        # Default True pra que rodar sem .env nunca conecte em serviços externos reais.
         RAYLOOK_SANDBOX: bool = True
 
         BASEROW_API_URL: str = "https://base.v4smc.com"

@@ -171,7 +171,7 @@ def test_login_page_redireciona_se_ja_autenticado():
     """GET /login com cookie válido deve redirecionar para /."""
     # Calcula token igual ao main.py
     password = os.getenv("DASHBOARD_AUTH_PASS", "R@ylook")
-    token = hmac.new(password.encode(), b"alana-dash-session", "sha256").hexdigest()
+    token = hmac.new(password.encode(), b"raylook-dash-session", "sha256").hexdigest()
 
     client = _make_client()
     resp = client.get("/login", cookies={"dash_session": token}, follow_redirects=False)
@@ -195,7 +195,7 @@ def test_login_submit_senha_correta_seta_cookie(monkeypatch):
     """POST /login com senha correta deve redirecionar e setar dash_session."""
     # Garante senha conhecida via _DASH_PASSWORD do módulo
     monkeypatch.setattr(main_module, "_DASH_PASSWORD", "senha_teste")
-    token = hmac.new(b"senha_teste", b"alana-dash-session", "sha256").hexdigest()
+    token = hmac.new(b"senha_teste", b"raylook-dash-session", "sha256").hexdigest()
     monkeypatch.setattr(main_module, "_DASH_TOKEN", token)
 
     client = _make_client()

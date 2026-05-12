@@ -85,7 +85,7 @@ def _resolve_vote_names(votes: List[VoteLineAdhoc]) -> List[dict]:
 
 def _detect_duplicate_clients(votes: List[VoteLineAdhoc]) -> List[dict]:
     """Para cada cliente nos votos, retorna lista dos pacotes approved/closed onde
-    ele já aparece (últimos 30 dias). Usado pra avisar a Alana antes de criar um
+    ele já aparece (últimos 30 dias). Usado pra avisar antes de criar um
     pacote adhoc que duplicaria o cliente.
 
     Evita o cenário que aconteceu em 19/04 com a Lary — ela estava num pacote
