@@ -1,0 +1,324 @@
+/* Aba Financeiro — Contas a Receber */
+(function () {
+    "use strict";
+
+    const BUCKET_COLORS = {
+        "0-7": "#22c55e",
+        "8-15": "#eab308",
+        "16-30": "#f97316",
+        "30+": "#ef4444",
+    };
+    const fmtMoney = (v) =>
+        "R$ " + Number(v || 0).toFixed(2).replace(".", ",");
+
+    const state = {
+        mode: "by-client",      // "by-client" | "by-charge"
+        filter: "all",          // "all" | "0-7" | ... | "written_off"
+        search: "",
+        receivables: [],
+        page: 1,
+        pageSize: 25,
+    };
+
+    function el(id) { return document.getElementById(id); }
+
+    // ---- KPIs ----
+    async function loadAgingSummary() {
+        const res = await fetch("/api/finance/aging-summary", { credentials: "same-origin" });
+        if (!res.ok) return;
+        const s = await res.json();
+
+        el("finance-receivable-total").textContent = fmtMoney(s.total_receivable);
+        el("finance-receivable-meta").textContent =
+            `${s.count} cobranças · ${s.clients_count} clientes`;
+
+        const total = s.total_receivable || 1;
+        const bar = el("finance-aging-bar");
+        bar.querySelectorAll(".aging-bucket").forEach((seg) => {
+            const b = seg.dataset.bucket;
+            const amount = (s.buckets[b] || {}).amount || 0;
+            seg.style.width = ((amount / total) * 100).toFixed(1) + "%";
+            seg.title = `${b}: ${fmtMoney(amount)} (${(s.buckets[b] || {}).count || 0})`;
+        });
+        el("finance-aging-legend").innerHTML = ["0-7", "8-15", "16-30", "30+"]
+            .map((b) => {
+                const item = s.buckets[b] || {};
+                return `<span class="aging-legend-item" style="--c:${BUCKET_COLORS[b]}">
+                    <span class="aging-legend-dot"></span>${b}d: ${fmtMoney(item.amount)}
+                </span>`;
+            }).join("");
+
+        el("finance-avg-age").textContent = (s.avg_age_days || 0).toFixed(0) + "d";
+        el("finance-paid-rate").textContent =
+            ((s.paid_rate_30d || 0) * 100).toFixed(0) + "%";
+    }
+
+    // ---- Receivables ----
+    async function loadReceivables() {
+        const res = await fetch("/api/finance/receivables", { credentials: "same-origin" });
+        if (!res.ok) return;
+        state.receivables = await res.json();
+        render();
+    }
+
+    function filterRows() {
+        let rows = state.receivables;
+        if (state.filter === "written_off") {
+            return [];  // TODO Fase 5: endpoint /receivables?include_written_off
+        }
+        if (state.filter !== "all") {
+            rows = rows.filter((r) => r.bucket === state.filter);
+        }
+        if (state.search) {
+            const q = state.search.toLowerCase();
+            rows = rows.filter((r) =>
+                (r.nome || "").toLowerCase().includes(q) ||
+                (r.celular_last4 || "").includes(q)
+            );
+        }
+        return rows;
+    }
+
+    function render() {
+        const tbody = el("finance-table-body");
+        const rows = filterRows();
+        const start = (state.page - 1) * state.pageSize;
+        const pageRows = rows.slice(start, start + state.pageSize);
+        tbody.innerHTML = "";
+
+        if (state.mode === "by-charge") {
+            renderByCharge(tbody, pageRows);
+        } else {
+            renderByClient(tbody, pageRows);
+        }
+
+        el("finance-pagination-summary").textContent =
+            `Página ${state.page} de ${Math.max(1, Math.ceil(rows.length / state.pageSize))} (${rows.length} resultados)`;
+    }
+
+    function renderByClient(tbody, rows) {
+        rows.forEach((r) => {
+            const tr = document.createElement("tr");
+            tr.className = "client-row";
+            tr.innerHTML = `
+                <td>${escapeHtml(r.nome)}</td>
+                <td>***${escapeHtml(r.celular_last4 || "")}</td>
+                <td>${fmtMoney(r.total)}</td>
+                <td>${r.count}</td>
+                <td><span class="aging-badge bucket-${r.bucket.replace("+","plus")}">${r.oldest_age_days}d</span></td>
+                <td style="text-align:right;">
+                    <button class="btn-expand" data-cliente="${r.cliente_id}"><i class="fas fa-chevron-right"></i></button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+
+            const expandTr = document.createElement("tr");
+            expandTr.className = "client-expand";
+            expandTr.dataset.cliente = r.cliente_id;
+            expandTr.style.display = "none";
+            expandTr.innerHTML = `
+                <td colspan="6">
+                    <table class="charges-mini">
+                        <thead>
+                            <tr><th>Pacote</th><th>Valor</th><th>Idade</th><th>Status</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            ${r.charges.map((c) => `
+                                <tr>
+                                    <td>${escapeHtml(c.enquete_titulo) || c.pacote_id}</td>
+                                    <td>${fmtMoney(c.valor)}</td>
+                                    <td>${c.age_days}d</td>
+                                    <td>${c.status}</td>
+                                    <td>
+                                        <button class="btn-history" data-pag="${c.pagamento_id}" title="Histórico"><i class="fas fa-scroll"></i></button>
+                                        <button class="btn-writeoff" data-pag="${c.pagamento_id}" data-cliente-nome="${escapeHtml(r.nome)}" data-valor="${c.valor}" data-pacote="${escapeHtml(c.enquete_titulo)}" title="Marcar como perdido"><i class="fas fa-times-circle"></i></button>
+                                    </td>
+                                </tr>
+                            `).join("")}
+                        </tbody>
+                    </table>
+                </td>
+            `;
+            tbody.appendChild(expandTr);
+        });
+    }
+
+    function renderByCharge(tbody, rows) {
+        const charges = [];
+        rows.forEach((r) => r.charges.forEach((c) =>
+            charges.push({ ...c, nome: r.nome, celular_last4: r.celular_last4 })
+        ));
+        charges.forEach((c) => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td>${escapeHtml(c.nome)}</td>
+                <td>${escapeHtml(c.enquete_titulo) || c.pacote_id}</td>
+                <td>${fmtMoney(c.valor)}</td>
+                <td>${c.status}</td>
+                <td>${c.age_days}d</td>
+                <td style="text-align:right;">
+                    <button class="btn-history" data-pag="${c.pagamento_id}"><i class="fas fa-scroll"></i></button>
+                    <button class="btn-writeoff" data-pag="${c.pagamento_id}" data-cliente-nome="${escapeHtml(c.nome)}" data-valor="${c.valor}" data-pacote="${escapeHtml(c.enquete_titulo)}"><i class="fas fa-times-circle"></i></button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function escapeHtml(s) {
+        return String(s || "").replace(/[&<>"']/g, (c) =>
+            ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    // ---- Click handlers (delegated) ----
+    document.addEventListener("click", (ev) => {
+        const expandBtn = ev.target.closest(".btn-expand");
+        if (expandBtn) {
+            const id = expandBtn.dataset.cliente;
+            const row = document.querySelector(`.client-expand[data-cliente="${id}"]`);
+            if (row) {
+                const open = row.style.display !== "none";
+                row.style.display = open ? "none" : "table-row";
+                expandBtn.querySelector("i").className =
+                    "fas " + (open ? "fa-chevron-right" : "fa-chevron-down");
+            }
+            return;
+        }
+
+        const wo = ev.target.closest(".btn-writeoff");
+        if (wo) {
+            openWriteOffModal(wo.dataset);
+            return;
+        }
+
+        const hist = ev.target.closest(".btn-history");
+        if (hist) {
+            openHistoryModal(hist.dataset.pag);
+            return;
+        }
+    });
+
+    // ---- Toggle modo + filtros + busca ----
+    document.querySelectorAll(".view-toggle .toggle-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            document.querySelectorAll(".view-toggle .toggle-btn")
+                .forEach((b) => b.classList.toggle("active", b === btn));
+            state.mode = btn.dataset.mode;
+            state.page = 1;
+            updateHead();
+            render();
+        });
+    });
+
+    function updateHead() {
+        const thead = el("finance-thead");
+        if (state.mode === "by-charge") {
+            thead.innerHTML = `<tr><th>Cliente</th><th>Pacote</th><th>Valor</th><th>Status</th><th>Idade</th><th></th></tr>`;
+        } else {
+            thead.innerHTML = `<tr><th>Cliente</th><th>Celular</th><th>Total devido</th><th>Cobranças</th><th>Idade do mais antigo</th><th></th></tr>`;
+        }
+    }
+
+    document.querySelectorAll("#section-finance .filter-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            document.querySelectorAll("#section-finance .filter-btn")
+                .forEach((b) => b.classList.toggle("active", b === btn));
+            state.filter = btn.dataset.filter;
+            state.page = 1;
+            render();
+        });
+    });
+
+    const search = el("finance-search");
+    if (search) {
+        search.addEventListener("input", () => {
+            state.search = search.value.trim();
+            state.page = 1;
+            render();
+        });
+    }
+
+    el("finance-page-prev")?.addEventListener("click", () => {
+        if (state.page > 1) { state.page -= 1; render(); }
+    });
+    el("finance-page-next")?.addEventListener("click", () => {
+        state.page += 1; render();
+    });
+
+    // ---- Modals: write-off + history ----
+    function openWriteOffModal(data) {
+        const reason = prompt(
+            `Marcar como perdido?\n\nCliente: ${data.clienteNome}\nPacote: ${data.pacote}\nValor: ${fmtMoney(data.valor)}\n\nMotivo (obrigatório):`
+        );
+        if (!reason || !reason.trim()) return;
+        fetch(`/api/finance/pagamentos/${data.pag}/write-off`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ reason: reason.trim() }),
+        }).then((r) => {
+            if (!r.ok) { alert("Erro ao marcar como perdido"); return; }
+            return refreshAll();
+        });
+    }
+
+    async function openHistoryModal(pagId) {
+        const res = await fetch(`/api/finance/pagamentos/${pagId}/history`, { credentials: "same-origin" });
+        if (!res.ok) { alert("Erro ao carregar histórico"); return; }
+        const events = await res.json();
+        const html = events.map((e) => `
+            <div class="history-event">
+                <strong>${escapeHtml(e.label)}</strong>
+                <span class="history-ts">${formatTs(e.timestamp)}</span>
+                ${e.reason ? `<div class="history-reason">${escapeHtml(e.reason)}</div>` : ""}
+            </div>
+        `).join("") || "<p>Sem eventos registrados.</p>";
+        showModal("Histórico do pagamento", html);
+    }
+
+    function formatTs(iso) {
+        if (!iso) return "—";
+        const d = new Date(iso);
+        return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function showModal(title, bodyHtml) {
+        let backdrop = document.getElementById("finance-modal-backdrop");
+        if (!backdrop) {
+            backdrop = document.createElement("div");
+            backdrop.id = "finance-modal-backdrop";
+            backdrop.className = "modal-backdrop";
+            backdrop.innerHTML = `
+                <div class="modal-card">
+                    <div class="modal-head"><h3 id="finance-modal-title"></h3>
+                        <button class="modal-close">&times;</button></div>
+                    <div class="modal-body" id="finance-modal-body"></div>
+                </div>`;
+            document.body.appendChild(backdrop);
+            backdrop.querySelector(".modal-close").addEventListener("click",
+                () => backdrop.style.display = "none");
+        }
+        document.getElementById("finance-modal-title").textContent = title;
+        document.getElementById("finance-modal-body").innerHTML = bodyHtml;
+        backdrop.style.display = "flex";
+    }
+
+    // ---- Refresh ----
+    async function refreshAll() {
+        await Promise.all([loadAgingSummary(), loadReceivables()]);
+    }
+
+    // ---- Trigger on nav ----
+    const navItem = document.querySelector('.nav-item[data-target="finance"]');
+    if (navItem) {
+        navItem.addEventListener("click", () => {
+            setTimeout(refreshAll, 50);
+        });
+    }
+
+    if (document.getElementById("section-finance")?.style.display !== "none") {
+        refreshAll();
+    }
+
+    window.financeRefresh = refreshAll;
+})();
