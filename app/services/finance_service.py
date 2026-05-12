@@ -1085,6 +1085,50 @@ def _paid_rate_30d(client: SupabaseRestClient, now: datetime) -> float:
     return round(paid / total, 4) if total > 0 else 0
 
 
+class PaymentNotFound(Exception):
+    pass
+
+
+def mark_payment_written_off(pagamento_id: str, *, reason: str) -> Dict[str, Any]:
+    """Marca um pagamento como perdido. Idempotente: se já está written_off,
+    retorna o estado atual sem sobrescrever."""
+    if not supabase_domain_enabled():
+        raise PaymentNotFound(pagamento_id)
+    client = SupabaseRestClient.from_settings()
+    existing = client.select(
+        "pagamentos",
+        columns="id,status,written_off_at,written_off_reason",
+        filters=[("id", "eq", pagamento_id)],
+        single=True,
+    )
+    if not isinstance(existing, dict) or not existing.get("id"):
+        raise PaymentNotFound(pagamento_id)
+    if existing.get("status") == "written_off":
+        return existing
+
+    now_iso = client.now_iso() if hasattr(client, "now_iso") else \
+        datetime.now(tz=ZoneInfo("UTC")).isoformat()
+    updates = {
+        "status": "written_off",
+        "written_off_at": now_iso,
+        "written_off_reason": reason,
+        "updated_at": now_iso,
+    }
+    client.update(
+        "pagamentos",
+        updates,
+        filters=[("id", "eq", pagamento_id)],
+    )
+    # FakeSupabaseClient.update modifica in-place; retornamos o estado atualizado
+    updated = client.select(
+        "pagamentos",
+        columns="id,status,written_off_at,written_off_reason",
+        filters=[("id", "eq", pagamento_id)],
+        single=True,
+    )
+    return updated if isinstance(updated, dict) else {**existing, **updates}
+
+
 def build_payment_history(pagamento_id: str) -> List[Dict[str, Any]]:
     """Timeline derivada dos campos do pagamento + sessão do cliente.
 
