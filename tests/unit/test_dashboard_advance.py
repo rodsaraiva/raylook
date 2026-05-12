@@ -60,7 +60,7 @@ def test_advance_closed_creates_vendas_and_pagamentos(fake_client):
     assert len(fake.tables["pagamentos"]) == 2
     for pag in fake.tables["pagamentos"]:
         assert pag["status"] == "created"
-        assert pag["payment_link"].startswith("https://exemplo.dev/pay/")
+        assert pag.get("payment_link") is None
 
 
 def test_advance_confirmado_marks_pagamentos_paid(fake_client):

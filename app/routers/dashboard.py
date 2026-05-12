@@ -635,10 +635,8 @@ def advance_package(pacote_id: str, to: Optional[str] = None) -> Dict[str, Any]:
             client.insert("pagamentos", {
                 "venda_id": venda["id"],
                 "provider": "asaas",
-                "provider_customer_id": f"cus_sim_{venda['id'][:8]}",
-                "payment_link": f"https://exemplo.dev/pay/{venda['id']}",
                 "status": "created",
-                "payload_json": {"simulated": True},
+                "payload_json": {},
             })
         return {"status": "ok", "previous": "fechado", "new_state": "confirmado"}
 
