@@ -984,3 +984,102 @@ def build_receivables_by_client(now_iso: str | None = None) -> List[Dict[str, An
     for r in rows:
         r["total"] = round(r["total"], 2)
     return rows
+
+
+def build_aging_summary(now_iso: str | None = None) -> Dict[str, Any]:
+    """KPIs de aging: total a receber, distribuição em buckets,
+    idade média ponderada e taxa de conversão 30d.
+
+    Retorna: {total_receivable, count, clients_count,
+              buckets:{"0-7":{amount,count}, ...},
+              avg_age_days, paid_rate_30d}.
+    """
+    empty_buckets = {label: {"amount": 0, "count": 0} for label, _, _ in AGING_BUCKETS}
+    empty = {
+        "total_receivable": 0, "count": 0, "clients_count": 0,
+        "buckets": empty_buckets, "avg_age_days": 0, "paid_rate_30d": 0,
+    }
+    if not supabase_domain_enabled():
+        return empty
+
+    client = SupabaseRestClient.from_settings()
+    now = _now_dt(now_iso)
+
+    pagamentos_pendentes = client.select_all(
+        "pagamentos",
+        columns="id,venda_id,status,created_at",
+        filters=[("status", "in", list(PENDING_RECEIVABLE_STATUSES))],
+    )
+    if not pagamentos_pendentes:
+        empty_with_paid_rate = dict(empty)
+        empty_with_paid_rate["paid_rate_30d"] = _paid_rate_30d(client, now)
+        return empty_with_paid_rate
+
+    venda_ids = list({str(p["venda_id"]) for p in pagamentos_pendentes if p.get("venda_id")})
+    vendas = _select_in_batches(
+        client, "vendas",
+        columns="id,cliente_id,total_amount",
+        filter_field="id", values=venda_ids,
+    )
+    venda_by_id = {str(v["id"]): v for v in vendas}
+
+    buckets = {label: {"amount": 0.0, "count": 0} for label, _, _ in AGING_BUCKETS}
+    total = 0.0
+    weighted_age_sum = 0.0
+    clientes = set()
+
+    for pag in pagamentos_pendentes:
+        venda = venda_by_id.get(str(pag.get("venda_id")))
+        if not venda:
+            continue
+        valor = float(venda.get("total_amount") or 0)
+        created_at = _parse_dt(pag.get("created_at"))
+        # Diferença em dias usando .date() para evitar off-by-one por hora
+        age_days = (now.date() - created_at.date()).days if created_at else 0
+        bucket = _classify_bucket(age_days)
+        buckets[bucket]["amount"] += valor
+        buckets[bucket]["count"] += 1
+        total += valor
+        weighted_age_sum += valor * age_days
+        if venda.get("cliente_id"):
+            clientes.add(str(venda["cliente_id"]))
+
+    return {
+        "total_receivable": round(total, 2),
+        "count": sum(b["count"] for b in buckets.values()),
+        "clients_count": len(clientes),
+        "buckets": {k: {"amount": round(v["amount"], 2), "count": v["count"]}
+                    for k, v in buckets.items()},
+        "avg_age_days": round(weighted_age_sum / total, 2) if total > 0 else 0,
+        "paid_rate_30d": _paid_rate_30d(client, now),
+    }
+
+
+def _paid_rate_30d(client: SupabaseRestClient, now: datetime) -> float:
+    """% de R$ pago sobre o total confirmado nos últimos 30d (rolling)."""
+    cutoff = (now - timedelta(days=30)).isoformat()
+    pagamentos = client.select_all(
+        "pagamentos",
+        columns="id,venda_id,status,created_at",
+        filters=[("created_at", "gte", cutoff)],
+    )
+    if not pagamentos:
+        return 0
+    venda_ids = list({str(p["venda_id"]) for p in pagamentos if p.get("venda_id")})
+    vendas = _select_in_batches(
+        client, "vendas",
+        columns="id,total_amount",
+        filter_field="id", values=venda_ids,
+    )
+    valor_by_venda = {str(v["id"]): float(v.get("total_amount") or 0) for v in vendas}
+
+    total = 0.0
+    paid = 0.0
+    for p in pagamentos:
+        valor = valor_by_venda.get(str(p.get("venda_id")), 0)
+        status = str(p.get("status") or "")
+        if status in ("paid", "created", "sent"):
+            total += valor
+            if status == "paid":
+                paid += valor
+    return round(paid / total, 4) if total > 0 else 0
