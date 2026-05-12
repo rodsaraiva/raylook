@@ -205,7 +205,7 @@ CREATE TABLE IF NOT EXISTS pacote_clientes (
     qty integer NOT NULL CHECK (qty > 0),
     unit_price numeric NOT NULL DEFAULT 0 CHECK (unit_price >= 0),
     subtotal numeric NOT NULL DEFAULT 0 CHECK (subtotal >= 0),
-    commission_percent numeric NOT NULL DEFAULT 13
+    commission_percent numeric NOT NULL DEFAULT 0
         CHECK (commission_percent >= 0 AND commission_percent <= 100),
     commission_amount numeric NOT NULL DEFAULT 0 CHECK (commission_amount >= 0),
     total_amount numeric NOT NULL DEFAULT 0 CHECK (total_amount >= 0),

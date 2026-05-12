@@ -120,9 +120,9 @@ const RaylookModal = (() => {
             } else {
                 pill = "—";
             }
-            const amount = cli.is_voter_only
-                ? `<span style="color:var(--text-muted);">est. ${L.moneyFull(cli.total_amount)}</span>`
-                : L.moneyFull(cli.total_amount);
+            const muted = cli.is_voter_only ? 'style="color:var(--text-muted);"' : '';
+            const subtotalFmt = `<span ${muted}>${cli.is_voter_only ? "est. " : ""}${L.moneyFull(cli.subtotal || 0)}</span>`;
+            const commFmt = `<span ${muted}>${L.moneyFull(cli.commission_amount || 0)}</span>`;
             const canMarkPaid = isConfirmado && cli.pagamento_status && cli.pagamento_status !== "paid";
             const markPaidBtn = canMarkPaid
                 ? `<button class="rl-btn-mark-paid" data-mark-paid="${cli.cliente_id}" data-cliente-nome="${escape(cli.nome || '')}" data-cliente-celular="${escape(cli.celular || '')}">Marcar pago</button>`
@@ -139,11 +139,12 @@ const RaylookModal = (() => {
                     <div class="phone">${escape(cli.celular || "")}</div>
                 </td>
                 <td class="num">${cli.qty}</td>
-                <td class="num">${amount}</td>
+                <td class="num">${subtotalFmt}</td>
+                <td class="num">${commFmt}</td>
                 <td>${pill}</td>
                 <td class="num">${actions}</td>
             </tr>`;
-        }).join("") || `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);font-style:italic;">Sem clientes associados ainda.</td></tr>`;
+        }).join("") || `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);font-style:italic;">Sem clientes associados ainda.</td></tr>`;
 
         const clientesSectionTitle = data.clientes.length && data.clientes[0].is_voter_only
             ? "Candidatos na enquete (ainda não consolidados)"
@@ -206,7 +207,7 @@ const RaylookModal = (() => {
             <div class="rl-section">
                 <h3>${clientesSectionTitle}</h3>
                 <table class="rl-table">
-                    <thead><tr><th>Nome</th><th class="num">Peças</th><th class="num">Valor</th><th>Pagamento</th><th></th></tr></thead>
+                    <thead><tr><th>Nome</th><th class="num">Peças</th><th class="num">Valor</th><th class="num">Comissão</th><th>Pagamento</th><th></th></tr></thead>
                     <tbody>${rows}</tbody>
                 </table>
                 ${addBlock}

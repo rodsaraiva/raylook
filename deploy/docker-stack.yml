@@ -105,7 +105,7 @@ services:
 
       WELCOME_NAME: Raylook
       ALLOWED_ORIGINS: '["https://raylook.v4smc.com"]'
-      COMMISSION_PERCENT: "13"
+      COMMISSION_PER_PIECE: "5"
       PACKAGE_LIMIT_TOTAL: "24"
       ADHOC_PACKAGES_ENABLED: "true"
       LOG_LEVEL: INFO

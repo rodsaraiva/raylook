@@ -431,6 +431,7 @@ def get_package_detail(pacote_id: str) -> Dict[str, Any]:
             "celular": c.get("celular"),
             "qty": pc["qty"],
             "subtotal": pc["subtotal"],
+            "commission_amount": pc["commission_amount"],
             "total_amount": pc["total_amount"],
             "venda_status": venda.get("status") if venda else None,
             "pagamento_status": pag.get("status") if pag else None,
@@ -478,13 +479,15 @@ def get_package_detail(pacote_id: str) -> Dict[str, Any]:
             c = voter_map.get(v["cliente_id"], {})
             qty = int(v.get("qty") or 0)
             subtotal = round(unit_price * qty, 2)
-            total = round(subtotal + qty * settings.COMMISSION_PER_PIECE, 2)
+            commission_amount = round(qty * settings.COMMISSION_PER_PIECE, 2)
+            total = round(subtotal + commission_amount, 2)
             clientes_detail.append({
                 "cliente_id": v.get("cliente_id"),
                 "nome": c.get("nome"),
                 "celular": c.get("celular"),
                 "qty": qty,
                 "subtotal": subtotal,
+                "commission_amount": commission_amount,
                 "total_amount": total,
                 "venda_status": None,
                 "pagamento_status": None,

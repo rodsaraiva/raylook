@@ -24,7 +24,7 @@ load_dotenv()
 from app.services.sqlite_service import SQLiteRestClient, _default_db_path
 
 
-COMMISSION_PCT = 13.0
+COMMISSION_PER_PIECE = 5.0
 
 
 def _iso(dt: datetime) -> str:
@@ -35,11 +35,11 @@ def _iso(dt: datetime) -> str:
 
 def _compute_amounts(unit_price: float, qty: int) -> Dict[str, float]:
     subtotal = round(unit_price * qty, 2)
-    commission = round(subtotal * COMMISSION_PCT / 100, 2)
+    commission = round(qty * COMMISSION_PER_PIECE, 2)
     return {
         "unit_price": float(unit_price),
         "subtotal": subtotal,
-        "commission_percent": COMMISSION_PCT,
+        "commission_percent": 0,
         "commission_amount": commission,
         "total_amount": round(subtotal + commission, 2),
     }

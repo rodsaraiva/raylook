@@ -14,7 +14,7 @@ import psycopg2
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from finance.utils import extract_price
 
-COMMISSION_PERCENT = 13.0
+COMMISSION_PER_PIECE = 5.0
 DRY_RUN = "--apply" not in sys.argv
 
 DB_HOST = os.getenv("DB_HOST", "10.0.3.3")
@@ -26,7 +26,7 @@ DB_PASS = os.getenv("DB_PASS", "809a9787befa23a73322a12164bb99d4925b632c1292cc9a
 
 def recalc(unit_price: float, qty: int) -> dict:
     subtotal = round(unit_price * qty, 2)
-    commission_amount = round(subtotal * COMMISSION_PERCENT / 100, 2)
+    commission_amount = round(qty * COMMISSION_PER_PIECE, 2)
     total_amount = round(subtotal + commission_amount, 2)
     return {"subtotal": subtotal, "commission_amount": commission_amount, "total_amount": total_amount}
 
