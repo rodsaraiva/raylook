@@ -737,8 +737,9 @@ async def reconcile_supabase_baserow():
     return {"status": "ok", "supabase": supabase_counts, "baserow_comparison": "disabled_in_staging"}
 
 @app.get("/", response_class=HTMLResponse)
+@app.get("/v2", response_class=HTMLResponse)
 async def read_root(request: Request):
-    # Dashboard atual — layout combinado dos mockups (rail vertical + split lista/detalhe).
+    # Dashboard v2 — rail vertical + split lista/detalhe + painel financeiro retrátil.
     return templates.TemplateResponse(request, "dashboard_v2.html", {"settings": settings})
 
 
