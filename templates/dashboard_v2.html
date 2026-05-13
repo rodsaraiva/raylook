@@ -660,37 +660,25 @@
 
     window.toggleFinanceView = function () {
         financeOpen = !financeOpen;
+        window._financeOpen = financeOpen;
+
+        const railBtn = document.getElementById('rail-finance');
 
         if (financeOpen) {
-            // Pacotes encolhem para a esquerda
             pkgsArea.classList.add('retracted');
             finSection.classList.add('active');
-            railBtn.classList.add('active');
+            if (railBtn) railBtn.classList.add('active');
             filterBar.style.opacity = '0.25';
             filterBar.style.pointerEvents = 'none';
-            // Carrega dados financeiros
             window.financeRefresh?.();
         } else {
             pkgsArea.classList.remove('retracted');
             finSection.classList.remove('active');
-            railBtn.classList.remove('active');
+            if (railBtn) railBtn.classList.remove('active');
             filterBar.style.opacity = '';
             filterBar.style.pointerEvents = '';
         }
-
-        // Reativa etapas no rail ao voltar para pacotes
-        if (!financeOpen) {
-            document.querySelectorAll('.rail-step').forEach(s => s.style.opacity = '');
-        }
     };
-
-    // Mostra o botão de financeiro depois que o rail é renderizado
-    document.addEventListener('DOMContentLoaded', () => {
-        setTimeout(() => {
-            document.getElementById('rail-fin-divider').style.display = '';
-            document.getElementById('rail-finance').style.display = '';
-        }, 600);
-    });
 })();
 </script>
 <script src="/static/js/finance.js"></script>

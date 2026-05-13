@@ -151,12 +151,33 @@
              </div>`;
         rail.querySelectorAll(".rail-step").forEach(el =>
             el.addEventListener("click", () => {
+                if (window._financeOpen) window.toggleFinanceView();
                 activeState = el.dataset.state;
                 const pkgs = currentItems();
                 selectedId = pkgs[0] ? pkgs[0].id : null;
                 render();
             })
         );
+
+        // Botão financeiro — sempre ao fim do rail
+        const finDiv = document.createElement("div");
+        finDiv.id = "rail-finance";
+        finDiv.className = "rail-finance" + (window._financeOpen ? " active" : "");
+        finDiv.innerHTML = `
+            <div class="rf-icon"><i class="fas fa-coins"></i></div>
+            <div>
+                <div class="rf-label">Financeiro</div>
+                <div class="rf-sub">Contas a receber</div>
+            </div>
+            <div class="rf-amount" id="rail-fin-amount">—</div>`;
+        finDiv.onclick = () => window.toggleFinanceView();
+
+        const divider = document.createElement("div");
+        divider.className = "rail-divider";
+        divider.style.marginTop = "4px";
+
+        rail.appendChild(divider);
+        rail.appendChild(finDiv);
     }
 
     function clientItemKey(c) { return `${c.pacote_id}:${c.cliente_id}`; }
