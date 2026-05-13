@@ -102,7 +102,7 @@ class PackageTagRequest(BaseModel):
 PHONE_BR_RE = re.compile(r"^55\d{10,11}$")
 
 
-MANUAL_ALLOWED_QTY = {3, 6, 9, 12, 24}
+MANUAL_ALLOWED_QTY = {3, 4, 6, 8, 9, 12, 16, 20, 24}
 
 
 class VoteLineCreate(BaseModel):
@@ -113,7 +113,7 @@ class VoteLineCreate(BaseModel):
     @classmethod
     def qty_must_be_allowed(cls, v: int) -> int:
         if v not in MANUAL_ALLOWED_QTY:
-            raise ValueError("Quantidade deve ser uma das opções: 3, 6, 9, 12 ou 24.")
+            raise ValueError("Quantidade deve ser uma das opções: 3, 4, 6, 8, 9, 12, 16, 20 ou 24.")
         return v
 
     @field_validator("phone")

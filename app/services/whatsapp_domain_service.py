@@ -12,7 +12,7 @@ from finance.utils import extract_price
 
 logger = logging.getLogger("raylook.whatsapp_domain")
 
-ALLOWED_QTY = {0, 3, 6, 9, 12}
+ALLOWED_QTY = {0, 3, 4, 6, 8, 9, 12, 16, 20, 24}
 
 
 @dataclass
@@ -148,7 +148,7 @@ def _normalize_options(options: Any) -> List[Dict[str, Any]]:
             label = str(option).strip()
             option_id = label or str(idx)
         q = _qty_from_text(label)
-        if q in {3, 6, 9, 12}:
+        if q in ALLOWED_QTY and q > 0:
             normalized.append(
                 {
                     "option_external_id": option_id,

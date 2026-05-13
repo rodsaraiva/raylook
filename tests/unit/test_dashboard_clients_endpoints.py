@@ -66,7 +66,7 @@ def test_add_client_400_when_qty_invalid(fake_client):
     client, fake = fake_client
     fake.tables["pacotes"].append({"id": "p1", "status": "open"})
     res = client.post("/api/dashboard/packages/p1/clients",
-                      json={"cliente_id": "c1", "qty": 4})
+                      json={"cliente_id": "c1", "qty": 5})
     assert res.status_code == 400
 
 

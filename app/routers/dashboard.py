@@ -921,8 +921,8 @@ def add_client_to_package(pacote_id: str, body: Dict[str, Any]) -> Dict[str, Any
     qty = int(body.get("qty") or 3)
     if not cliente_id:
         raise HTTPException(400, "cliente_id é obrigatório")
-    if qty not in (3, 6, 9, 12):
-        raise HTTPException(400, "qty deve ser 3, 6, 9 ou 12")
+    if qty not in (3, 4, 6, 8, 9, 12, 16, 20, 24):
+        raise HTTPException(400, "qty deve ser 3, 4, 6, 8, 9, 12, 16, 20 ou 24")
 
     client = SupabaseRestClient.from_settings()
     pkg = client.select("pacotes", filters=[("id", "eq", pacote_id)], single=True)

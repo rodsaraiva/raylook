@@ -44,7 +44,8 @@ def test_is_lid_or_invalid_phone(raw, is_invalid):
 # ── _qty / _qty_from_text ──────────────────────────────────────────────────
 @pytest.mark.parametrize("raw,expected", [
     (3, 3), (6, 6), (9, 9), (12, 12), (0, 0),
-    (4, 0),    # não pertence ao conjunto permitido
+    (4, 4), (8, 8), (16, 16), (20, 20), (24, 24),
+    (5, 0),    # não pertence ao conjunto permitido
     (15, 0),   # idem
     ("6", 6),
     ("6.0", 6),
