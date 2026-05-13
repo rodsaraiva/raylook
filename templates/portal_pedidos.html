@@ -43,7 +43,7 @@
         <!-- Pagar Todos -->
         {% if kpis.pending_count > 1 %}
         <div class="pay-all-section">
-            <button class="btn-pay-all" id="btnPayAll" data-valor="R$ {{ '%.2f' | format(kpis.total_pending) | replace('.', ',') }}">
+            <button type="button" class="btn-pay-all" id="btnPayAll" data-valor="R$ {{ '%.2f' | format(kpis.total_pending) | replace('.', ',') }}">
                 <i class="fas fa-bolt"></i>
                 Pagar todos (R$ {{ "%.2f" | format(kpis.total_pending) | replace('.', ',') }})
             </button>
@@ -57,9 +57,9 @@
 
         <!-- Filters -->
         <div class="filters">
-            <button class="filter-chip active" data-filter="all">Todos</button>
-            <button class="filter-chip" data-filter="pending">Pendentes</button>
-            <button class="filter-chip" data-filter="paid">Pagos</button>
+            <button type="button" class="filter-chip active" data-filter="all">Todos</button>
+            <button type="button" class="filter-chip" data-filter="pending">Pendentes</button>
+            <button type="button" class="filter-chip" data-filter="paid">Pagos</button>
         </div>
 
         <!-- Orders -->
@@ -110,7 +110,7 @@
                             {% endif %}
                         </div>
                         {% elif order.pagamento_id %}
-                        <button class="btn-pay"
+                        <button type="button" class="btn-pay"
                             data-pagamento="{{ order.pagamento_id }}"
                             data-nome="{{ order.enquete_titulo or order.produto_nome }}"
                             data-valor="R$ {{ '%.2f' | format(order.total_amount) | replace('.', ',') }}">
