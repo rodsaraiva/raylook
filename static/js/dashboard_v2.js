@@ -136,7 +136,16 @@
 
     function renderRail() {
         const rail = document.getElementById("rail");
-        rail.innerHTML = `<div class="rail-title">Fluxo <i class="fas fa-chevron-down rail-chevron"></i></div>` +
+        rail.innerHTML = `
+            <div class="rail-title">
+                <span class="rail-title-icon"><i class="fas fa-box"></i></span>
+                <span class="rail-title-main">
+                    <span class="rail-title-fluxo">Fluxo</span>
+                    <span class="rail-title-name">Pacotes</span>
+                    <span class="rail-title-sub">Fluxo de etapas</span>
+                </span>
+                <i class="fas fa-chevron-down rail-chevron"></i>
+            </div>` +
             L.STATES.map((s, i) => `
                 <div class="rail-step ${s === activeState ? "active" : ""}" data-state="${s}">
                     <div class="num">${i + 1}</div>

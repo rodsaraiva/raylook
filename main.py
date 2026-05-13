@@ -737,18 +737,8 @@ async def reconcile_supabase_baserow():
     return {"status": "ok", "supabase": supabase_counts, "baserow_comparison": "disabled_in_staging"}
 
 @app.get("/", response_class=HTMLResponse)
-@app.get("/v2", response_class=HTMLResponse)
 async def read_root(request: Request):
-    # Dashboard v2 — rail vertical + split lista/detalhe + painel financeiro retrátil.
     return templates.TemplateResponse(request, "dashboard_v2.html", {"settings": settings})
-
-
-@app.get("/v1", response_class=HTMLResponse)
-async def read_root_v1(request: Request):
-    # Dashboard antigo (cards de KPI + listas) — mantido como /v1 enquanto o v2 valida.
-    import hashlib, time as _time
-    cache_bust = hashlib.md5(str(int(_time.time()) // 300).encode()).hexdigest()[:8]
-    return templates.TemplateResponse(request, "index.html", {"settings": settings, "cache_bust": cache_bust})
 
 @app.get("/api/metrics/history")
 async def get_metrics_history(

@@ -88,13 +88,36 @@
         max-height: 800px;
         transition: max-height 0.45s cubic-bezier(0.16,1,0.3,1), opacity 0.35s ease;
     }
-    .rail.collapsed { max-height: 54px; opacity: 0.65; cursor: pointer; }
-    .rail-chevron { font-size: 9px; margin-left: 4px; transition: transform 0.35s; vertical-align: middle; }
+    .rail.collapsed { max-height: 62px; cursor: pointer; }
+    .rail-chevron { font-size: 9px; margin-left: auto; transition: transform 0.35s; }
     .rail.collapsed .rail-chevron { transform: rotate(-90deg); }
+
+    /* Título do rail — dois modos: expandido (FLUXO) e colapsado (bloco Pacotes) */
     .rail-title {
-        font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em;
-        font-weight: 700; color: var(--accent); padding: 8px 10px 4px;
+        display: flex; align-items: center; gap: 10px;
+        padding: 4px 2px 6px; transition: padding 0.3s;
     }
+    .rail.collapsed .rail-title { padding: 2px 2px; }
+    .rail-title-icon {
+        width: 34px; height: 34px; border-radius: 9px; background: var(--accent);
+        color: var(--bg-main); display: none; align-items: center; justify-content: center;
+        font-size: 15px; flex-shrink: 0; transition: transform 0.25s;
+    }
+    .rail.collapsed .rail-title-icon { display: flex; }
+    .rail-title-main { flex: 1; min-width: 0; }
+    .rail-title-fluxo {
+        font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em;
+        font-weight: 700; color: var(--accent);
+    }
+    .rail.collapsed .rail-title-fluxo { display: none; }
+    .rail-title-name {
+        font-size: 13px; font-weight: 700; color: var(--accent); display: none;
+    }
+    .rail.collapsed .rail-title-name { display: block; }
+    .rail-title-sub {
+        font-size: 10px; color: var(--text-muted); margin-top: 2px; display: none;
+    }
+    .rail.collapsed .rail-title-sub { display: block; }
     .rail-step {
         display: grid; grid-template-columns: 28px 1fr auto; gap: 10px;
         align-items: center; padding: 10px 12px; border-radius: var(--radius-sm);
@@ -619,7 +642,7 @@
                     <div class="aging-legend" id="finance-aging-legend"></div>
                 </div>
                 <div class="fin-kpi">
-                    <div class="lbl">Idade média</div>
+                    <div class="lbl">Tempo médio</div>
                     <div class="val" id="finance-avg-age">—</div>
                     <div class="meta" id="finance-avg-age-trend">—</div>
                 </div>
