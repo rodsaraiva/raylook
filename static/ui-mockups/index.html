@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Variações — Financeiro no Dashboard V2</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/static/dashboard/base.css">
+<style>
+body { padding: 40px 48px; }
+h1 { font-family:'Outfit',sans-serif; font-size:28px; font-weight:700; color:var(--accent); margin-bottom:8px; }
+.sub { color:var(--text-muted); font-size:14px; margin-bottom:40px; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:20px; }
+.card {
+  background:rgba(255,255,255,0.04); border:1px solid rgba(212,175,55,0.2);
+  border-radius:18px; padding:24px; text-decoration:none; color:inherit;
+  transition:all 0.2s; display:block;
+}
+.card:hover { background:rgba(255,255,255,0.07); border-color:rgba(212,175,55,0.45); transform:translateY(-2px); }
+.card-num { font-size:11px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text-muted); font-weight:700; margin-bottom:8px; }
+.card-title { font-family:'Outfit',sans-serif; font-size:18px; font-weight:700; color:var(--primary); margin-bottom:10px; }
+.card-desc { font-size:13px; color:var(--text-secondary); line-height:1.6; margin-bottom:16px; }
+.card-tag { display:inline-block; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:600; margin-right:6px; margin-top:4px; }
+.tag-nav { background:rgba(212,175,55,0.1); color:var(--accent); }
+.tag-ctx { background:rgba(74,222,128,0.1); color:#4ade80; }
+.tag-compact { background:rgba(147,51,234,0.1); color:#c084fc; }
+.tag-always { background:rgba(59,130,246,0.1); color:#60a5fa; }
+.card-cta { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--accent); font-weight:600; margin-top:16px; }
+</style>
+</head>
+<body>
+<h1>Financeiro no Dashboard V2</h1>
+<div class="sub">5 abordagens para encaixar a gestão de contas a receber na interface v2</div>
+
+<div class="grid">
+  <a class="card" href="/static/ui-mockups/finance-v1-topbar-toggle.html" target="_blank">
+    <div class="card-num">Variação 1</div>
+    <div class="card-title">Toggle no Topbar</div>
+    <div class="card-desc">Dois botões "Pacotes | Financeiro" ao lado do título. Troca a view inteira. O filtro de período some ao mudar pra Financeiro. Navegação explícita e direta.</div>
+    <span class="card-tag tag-nav">Troca de view</span>
+    <span class="card-tag tag-compact">Minimalista</span>
+    <div class="card-cta">Ver mockup →</div>
+  </a>
+
+  <a class="card" href="/static/ui-mockups/finance-v2-rail-extension.html" target="_blank">
+    <div class="card-num">Variação 2</div>
+    <div class="card-title">Extensão do Rail</div>
+    <div class="card-desc">Item "Financeiro" adicionado no fim do rail de etapas, separado por um divisor. Clicar expande o painel financeiro ocupando as colunas 2 e 3. Mantém a metáfora do rail.</div>
+    <span class="card-tag tag-nav">Troca de view</span>
+    <span class="card-tag tag-ctx">Integrado ao rail</span>
+    <div class="card-cta">Ver mockup →</div>
+  </a>
+
+  <a class="card" href="/static/ui-mockups/finance-v3-topbar-widget.html" target="_blank">
+    <div class="card-num">Variação 3</div>
+    <div class="card-title">Widget Expansível no Topbar</div>
+    <div class="card-desc">Pílula "R$ 8.640 a receber" com dots de aging no topbar. Clicar faz um painel deslizar para baixo empurrando o conteúdo. Financeiro e pacotes coexistem visualmente.</div>
+    <span class="card-tag tag-always">Sempre visível</span>
+    <span class="card-tag tag-compact">Expansível</span>
+    <div class="card-cta">Ver mockup →</div>
+  </a>
+
+  <a class="card" href="/static/ui-mockups/finance-v4-contextual-drawer.html" target="_blank">
+    <div class="card-num">Variação 4</div>
+    <div class="card-title">Abas no Painel de Detalhe</div>
+    <div class="card-desc">O painel direito (detalhe do pacote) ganha duas abas: "Pacote" e "Financeiro". A aba Financeiro mostra as cobranças dos clientes daquele pacote. Contextual e sem trocar de view.</div>
+    <span class="card-tag tag-ctx">Contextual</span>
+    <span class="card-tag tag-nav">Sem troca de view</span>
+    <div class="card-cta">Ver mockup →</div>
+  </a>
+
+  <a class="card" href="/static/ui-mockups/finance-v5-status-bar.html" target="_blank">
+    <div class="card-num">Variação 5</div>
+    <div class="card-title">Barra de Status Financeiro</div>
+    <div class="card-desc">Faixa horizontal permanente entre o filter-bar e o layout com os 4 KPIs e mini aging bar em linha. Sempre visível; clicar expande a tabela completa inline sem sair da tela.</div>
+    <span class="card-tag tag-always">Sempre visível</span>
+    <span class="card-tag tag-compact">Expansível inline</span>
+    <div class="card-cta">Ver mockup →</div>
+  </a>
+</div>
+</body>
+</html>

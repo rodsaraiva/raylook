@@ -74,12 +74,19 @@
     .layout { display: grid; grid-template-columns: 240px 1fr 420px; gap: 14px; }
 
     /* Rail (de 01a-stepper-vertical.html) */
+    /* Sidebar: rail de fluxo + bloco financeiro empilhados */
+    .sidebar {
+        display: flex; flex-direction: column; gap: 10px;
+        position: sticky; top: 20px; height: fit-content;
+    }
+
     .rail {
         background: var(--card-bg); backdrop-filter: blur(14px);
         border: 1px solid var(--card-border); border-radius: var(--radius-lg);
         padding: 16px 14px; display: flex; flex-direction: column; gap: 6px;
-        position: sticky; top: 20px; height: fit-content;
+        transition: opacity 0.3s ease;
     }
+    .rail.dimmed { opacity: 0.35; }
     .rail-title {
         font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em;
         font-weight: 700; color: var(--accent); padding: 8px 10px 4px;
@@ -383,26 +390,26 @@
         transition: transform 0.42s cubic-bezier(0.16,1,0.3,1), opacity 0.32s ease, visibility 0s linear 0s;
     }
 
-    /* Rail: item Financeiro */
-    .rail-finance {
-        display: flex; align-items: center; gap: 10px;
-        padding: 11px 12px; border-radius: var(--radius-sm);
-        cursor: pointer; border: 1px solid rgba(212,175,55,0.2);
-        background: rgba(212,175,55,0.04); margin-top: 4px;
-        transition: all 0.2s;
+    /* Bloco Financeiro — bloco separado do rail de fluxo */
+    .fin-block {
+        display: flex; align-items: center; gap: 12px;
+        padding: 14px 16px; border-radius: var(--radius-lg);
+        background: var(--card-bg); backdrop-filter: blur(14px);
+        border: 1px solid rgba(212,175,55,0.28);
+        cursor: pointer; transition: all 0.2s;
     }
-    .rail-finance:hover { background: rgba(212,175,55,0.1); border-color: rgba(212,175,55,0.45); }
-    .rail-finance.active { background: rgba(212,175,55,0.16); border-color: rgba(212,175,55,0.6); }
-    .rail-finance .rf-icon {
-        width: 26px; height: 26px; border-radius: 7px; background: var(--accent);
+    .fin-block:hover { background: rgba(212,175,55,0.07); border-color: rgba(212,175,55,0.5); }
+    .fin-block.active { background: rgba(212,175,55,0.14); border-color: rgba(212,175,55,0.65); }
+    .fin-block-icon {
+        width: 34px; height: 34px; border-radius: 9px; background: var(--accent);
         display: flex; align-items: center; justify-content: center;
-        font-size: 13px; flex-shrink: 0; color: var(--bg-main);
+        font-size: 15px; flex-shrink: 0; color: var(--bg-main);
         transition: transform 0.25s;
     }
-    .rail-finance.active .rf-icon { transform: scale(1.08); }
-    .rail-finance .rf-label { font-size: 13px; font-weight: 700; color: var(--accent); line-height: 1.2; }
-    .rail-finance .rf-sub { font-size: 10px; color: var(--text-muted); margin-top: 1px; }
-    .rail-finance .rf-amount {
+    .fin-block.active .fin-block-icon { transform: scale(1.06); }
+    .fin-block-label { font-size: 13px; font-weight: 700; color: var(--accent); line-height: 1.2; }
+    .fin-block-sub { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+    .fin-block-amount {
         font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 700;
         color: var(--accent); margin-left: auto; white-space: nowrap;
     }
@@ -545,19 +552,20 @@
 </div>
 
 <div class="layout">
-    <!-- Rail: etapas + botão financeiro -->
-    <aside class="rail" id="rail">
-        <!-- Steps injetados pelo dashboard_v2.js -->
-        <div class="rail-divider" id="rail-fin-divider" style="display:none;margin-top:4px;"></div>
-        <div class="rail-finance" id="rail-finance" style="display:none;" onclick="window.toggleFinanceView()">
-            <div class="rf-icon"><i class="fas fa-coins"></i></div>
+    <!-- Sidebar: bloco Fluxo (rail) + bloco Financeiro separados -->
+    <div class="sidebar">
+        <aside class="rail" id="rail">
+            <!-- Steps injetados pelo dashboard_v2.js -->
+        </aside>
+        <div class="fin-block" id="fin-block">
+            <div class="fin-block-icon"><i class="fas fa-coins"></i></div>
             <div>
-                <div class="rf-label">Financeiro</div>
-                <div class="rf-sub" id="rail-fin-sub">Contas a receber</div>
+                <div class="fin-block-label">Financeiro</div>
+                <div class="fin-block-sub">Contas a receber</div>
             </div>
-            <div class="rf-amount" id="rail-fin-amount">—</div>
+            <div class="fin-block-amount" id="fin-block-amount">—</div>
         </div>
-    </aside>
+    </div>
 
     <!-- Área de conteúdo: pacotes e financeiro empilhados, troca retrátil -->
     <div class="content-area">
@@ -650,35 +658,38 @@
 <script src="/static/dashboard/modal.js"></script>
 <script src="/static/js/dashboard_v2.js"></script>
 <script>
-// ── Toggle retrátil Pacotes ↔ Financeiro ──────────────────────────────────
 (function () {
     let financeOpen = false;
-    const pkgsArea  = document.getElementById('packages-area');
-    const finSection = document.getElementById('section-finance');
-    const railBtn   = document.getElementById('rail-finance');
-    const filterBar = document.getElementById('filter-bar');
 
     window.toggleFinanceView = function () {
         financeOpen = !financeOpen;
         window._financeOpen = financeOpen;
 
-        const railBtn = document.getElementById('rail-finance');
+        const pkgsArea   = document.getElementById('packages-area');
+        const finSection = document.getElementById('section-finance');
+        const finBlock   = document.getElementById('fin-block');
+        const rail       = document.getElementById('rail');
+        const filterBar  = document.getElementById('filter-bar');
 
         if (financeOpen) {
-            pkgsArea.classList.add('retracted');
-            finSection.classList.add('active');
-            if (railBtn) railBtn.classList.add('active');
-            filterBar.style.opacity = '0.25';
-            filterBar.style.pointerEvents = 'none';
+            pkgsArea?.classList.add('retracted');
+            finSection?.classList.add('active');
+            finBlock?.classList.add('active');
+            rail?.classList.add('dimmed');
+            if (filterBar) { filterBar.style.opacity = '0.25'; filterBar.style.pointerEvents = 'none'; }
             window.financeRefresh?.();
         } else {
-            pkgsArea.classList.remove('retracted');
-            finSection.classList.remove('active');
-            if (railBtn) railBtn.classList.remove('active');
-            filterBar.style.opacity = '';
-            filterBar.style.pointerEvents = '';
+            pkgsArea?.classList.remove('retracted');
+            finSection?.classList.remove('active');
+            finBlock?.classList.remove('active');
+            rail?.classList.remove('dimmed');
+            if (filterBar) { filterBar.style.opacity = ''; filterBar.style.pointerEvents = ''; }
         }
     };
+
+    document.getElementById('fin-block').addEventListener('click', function () {
+        window.toggleFinanceView();
+    });
 })();
 </script>
 <script src="/static/js/finance.js"></script>

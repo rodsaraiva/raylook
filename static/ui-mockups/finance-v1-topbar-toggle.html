@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Variação 1 — Toggle no Topbar</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/static/dashboard/base.css">
+<style>
+body { padding: 22px 32px 60px; }
+.topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; gap:16px; }
+.topbar-left { display:flex; align-items:baseline; gap:20px; }
+.topbar h1 { font-family:'Outfit',sans-serif; font-size:26px; font-weight:700; letter-spacing:-0.01em; }
+.topbar .sub { color:var(--text-muted); font-size:13px; }
+.topbar a.logout { color:var(--text-muted); font-size:12px; text-decoration:none; padding:6px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); }
+
+.view-toggle { display:flex; gap:0; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:3px; }
+.view-toggle button { padding:6px 16px; border-radius:7px; font-size:12px; font-weight:600; border:none; cursor:pointer; font-family:inherit; color:var(--text-muted); background:transparent; transition:all 0.2s; }
+.view-toggle button.active { background:var(--accent); color:var(--bg-main); }
+.view-toggle button:hover:not(.active) { color:var(--text-primary); background:rgba(255,255,255,0.06); }
+
+.filter-bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:18px; padding:10px 14px; background:rgba(255,255,255,0.03); border:1px solid var(--card-border); border-radius:var(--radius-md); }
+.filter-bar .label { font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted); font-weight:700; margin-right:4px; }
+.filter-pill { padding:6px 12px; border-radius:999px; font-size:12px; font-weight:600; background:rgba(255,255,255,0.04); color:var(--text-secondary); border:1px solid rgba(255,255,255,0.08); cursor:pointer; font-family:inherit; transition:var(--transition); }
+.filter-pill.active { background:var(--accent-soft); color:var(--accent); border-color:rgba(212,175,55,0.4); }
+
+.layout { display:grid; grid-template-columns:240px 1fr 420px; gap:14px; }
+.rail { background:var(--card-bg); backdrop-filter:blur(14px); border:1px solid var(--card-border); border-radius:var(--radius-lg); padding:16px 14px; display:flex; flex-direction:column; gap:6px; }
+.rail-title { font-size:10px; text-transform:uppercase; letter-spacing:0.1em; font-weight:700; color:var(--accent); padding:8px 10px 4px; }
+.rail-step { display:grid; grid-template-columns:28px 1fr auto; gap:10px; align-items:center; padding:10px 12px; border-radius:var(--radius-sm); cursor:pointer; border:1px solid transparent; }
+.rail-step:hover { background:rgba(255,255,255,0.04); }
+.rail-step.active { background:var(--accent-soft); border-color:rgba(212,175,55,0.35); }
+.rail-step .num { width:26px; height:26px; border-radius:50%; background:rgba(255,255,255,0.04); color:var(--text-muted); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; }
+.rail-step.active .num { background:var(--accent); color:var(--bg-main); }
+.rail-step .label { font-size:13px; font-weight:600; color:var(--text-primary); line-height:1.2; }
+.rail-step .sub { font-size:10px; color:var(--text-muted); margin-top:2px; }
+.rail-step .count { font-family:'Outfit',sans-serif; font-size:18px; font-weight:700; color:var(--text-primary); }
+.rail-step.active .count { color:var(--accent); }
+.rail-divider { height:1px; background:rgba(212,175,55,0.12); margin:8px 4px; }
+
+.pkg-list { background:rgba(255,255,255,0.04); border:1px solid var(--card-border); border-radius:var(--radius-md); overflow:hidden; }
+.pkg-list-head { padding:14px 18px; display:flex; justify-content:space-between; align-items:center; gap:12px; border-bottom:1px solid rgba(255,255,255,0.065); background:rgba(255,255,255,0.04); }
+.pkg-list-title { font-family:'Outfit',sans-serif; font-size:15px; font-weight:700; color:var(--primary); }
+.search-box { background:rgba(255,255,255,0.05); color:var(--text-primary); border:1px solid rgba(255,255,255,0.12); border-radius:10px; padding:6px 12px; font-size:12px; width:200px; font-family:inherit; }
+.pkg-row { padding:12px 18px; display:grid; grid-template-columns:56px 1fr auto auto; gap:10px; align-items:center; border-bottom:1px solid rgba(255,255,255,0.052); cursor:pointer; }
+.pkg-row:hover { background:rgba(255,255,255,0.06); }
+.pkg-thumb { width:56px; height:56px; border-radius:10px; background:rgba(212,175,55,0.08); display:flex; align-items:center; justify-content:center; font-size:22px; }
+.pkg-row-main .name { font-family:'Outfit',sans-serif; font-size:14px; font-weight:700; color:var(--primary); }
+.pkg-row-main .sub { font-size:11px; color:var(--text-muted); margin-top:2px; }
+.pkg-row-meta { text-align:right; font-family:'Outfit',sans-serif; font-size:14px; font-weight:700; color:var(--success); }
+.pkg-row-meta .sub { font-size:11px; font-weight:400; color:var(--text-muted); margin-top:2px; }
+.status-pill { padding:4px 10px; border-radius:999px; font-size:11px; font-weight:600; background:rgba(212,175,55,0.12); color:var(--accent); }
+.pkg-detail { background:rgba(255,255,255,0.06); border:1px solid var(--card-border); border-radius:var(--radius-md); padding:24px 26px; }
+.empty-state { padding:40px; text-align:center; color:var(--text-muted); font-style:italic; }
+
+/* Finance view */
+.finance-view { display:none; }
+.finance-view.visible { display:block; }
+.packages-view { }
+.packages-view.hidden { display:none; }
+
+.kpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
+.kpi-card { background:var(--card-bg); border:1px solid var(--card-border); border-radius:var(--radius-md); padding:18px 20px; }
+.kpi-label { font-size:11px; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-muted); font-weight:600; margin-bottom:8px; }
+.kpi-value { font-family:'Outfit',sans-serif; font-size:24px; font-weight:700; color:var(--primary); }
+.kpi-sub { font-size:11px; color:var(--text-muted); margin-top:4px; }
+.aging-bar { display:flex; height:8px; border-radius:4px; overflow:hidden; gap:2px; margin-top:10px; }
+.aging-seg { border-radius:3px; }
+
+.fin-table { width:100%; border-collapse:collapse; margin-top:16px; }
+.fin-table th { font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); font-weight:600; padding:8px 12px; text-align:left; border-bottom:1px solid rgba(255,255,255,0.065); }
+.fin-table td { padding:12px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:13px; }
+.fin-table tr:hover td { background:rgba(255,255,255,0.03); }
+.badge { padding:3px 9px; border-radius:999px; font-size:11px; font-weight:600; }
+.badge-green { background:rgba(74,222,128,0.12); color:#4ade80; }
+.badge-yellow { background:rgba(251,191,36,0.12); color:#fbbf24; }
+.badge-orange { background:rgba(249,115,22,0.12); color:#f97316; }
+.badge-red { background:rgba(248,113,113,0.12); color:#f87171; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-left">
+    <div>
+      <h1>Raylook</h1>
+      <div class="sub" id="topbar-sub">Pacotes em fluxo · 7 etapas</div>
+    </div>
+    <div class="view-toggle">
+      <button class="active" onclick="showView('packages')">📦 Pacotes</button>
+      <button onclick="showView('finance')">💰 Financeiro</button>
+    </div>
+  </div>
+  <a class="logout" href="#">Sair</a>
+</header>
+
+<!-- Filter bar — some na view finance -->
+<div class="filter-bar" id="filter-bar">
+  <span class="label">Período</span>
+  <button class="filter-pill active">Todos</button>
+  <button class="filter-pill">Hoje</button>
+  <button class="filter-pill">7 dias</button>
+  <button class="filter-pill">Este mês</button>
+</div>
+
+<!-- VIEW: PACOTES -->
+<div class="packages-view" id="packages-view">
+  <div class="layout">
+    <aside class="rail">
+      <div class="rail-title">Etapas</div>
+      <div class="rail-step active">
+        <div class="num">1</div>
+        <div><div class="label">Aberto</div><div class="sub">Formando</div></div>
+        <div class="count">3</div>
+      </div>
+      <div class="rail-step">
+        <div class="num">2</div>
+        <div><div class="label">Fechado</div><div class="sub">Aguardando</div></div>
+        <div class="count">1</div>
+      </div>
+      <div class="rail-step">
+        <div class="num">3</div>
+        <div><div class="label">Confirmado</div><div class="sub">PIX aberto</div></div>
+        <div class="count">2</div>
+      </div>
+      <div class="rail-step">
+        <div class="num">4</div>
+        <div><div class="label">Pago</div><div class="sub">Validar</div></div>
+        <div class="count">0</div>
+      </div>
+      <div class="rail-step">
+        <div class="num">5</div>
+        <div><div class="label">Pendente</div><div class="sub">Separar</div></div>
+        <div class="count">1</div>
+      </div>
+      <div class="rail-step">
+        <div class="num">6</div>
+        <div><div class="label">Separado</div><div class="sub">Despachar</div></div>
+        <div class="count">2</div>
+      </div>
+      <div class="rail-step">
+        <div class="num">7</div>
+        <div><div class="label">Enviado</div><div class="sub">Finalizado</div></div>
+        <div class="count">5</div>
+      </div>
+    </aside>
+    <div class="pkg-list">
+      <div class="pkg-list-head">
+        <div><div class="pkg-list-title">Pacotes Abertos</div></div>
+        <input class="search-box" placeholder="🔍 Buscar…">
+      </div>
+      <div class="pkg-row">
+        <div class="pkg-thumb">👗</div>
+        <div class="pkg-row-main"><div class="name">Enquete Inverno #12</div><div class="sub">8 clientes · aberto há 2 dias</div></div>
+        <div class="pkg-row-meta">R$ 4.320<div class="sub">8 votos</div></div>
+        <span class="status-pill">Aberto</span>
+      </div>
+      <div class="pkg-row">
+        <div class="pkg-thumb">👟</div>
+        <div class="pkg-row-main"><div class="name">Tênis Coleção #08</div><div class="sub">5 clientes · aberto há 1 dia</div></div>
+        <div class="pkg-row-meta">R$ 2.150<div class="sub">5 votos</div></div>
+        <span class="status-pill">Aberto</span>
+      </div>
+    </div>
+    <aside class="pkg-detail">
+      <div class="empty-state">Selecione um pacote</div>
+    </aside>
+  </div>
+</div>
+
+<!-- VIEW: FINANCEIRO -->
+<div class="finance-view" id="finance-view">
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <div class="kpi-label">Total a receber</div>
+      <div class="kpi-value">R$ 8.640</div>
+      <div class="kpi-sub">14 cobranças · 11 clientes</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Aging</div>
+      <div class="kpi-sub">Distribuição por idade</div>
+      <div class="aging-bar" style="margin-top:12px;">
+        <div class="aging-seg" style="background:#22c55e;flex:3"></div>
+        <div class="aging-seg" style="background:#eab308;flex:4"></div>
+        <div class="aging-seg" style="background:#f97316;flex:2"></div>
+        <div class="aging-seg" style="background:#ef4444;flex:5"></div>
+      </div>
+      <div class="kpi-sub" style="margin-top:6px;">0-7d · 8-15d · 16-30d · 30+d</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Idade média</div>
+      <div class="kpi-value">18d <span style="font-size:16px;color:#f87171">↑</span></div>
+      <div class="kpi-sub">+3d vs semana passada</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">% Pago (30d)</div>
+      <div class="kpi-value">64%</div>
+      <div class="kpi-sub">R$ 12.800 / R$ 20.000</div>
+    </div>
+  </div>
+  <div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius-md);overflow:hidden;">
+    <div class="pkg-list-head">
+      <div><div class="pkg-list-title">Clientes devedores</div></div>
+      <input class="search-box" placeholder="🔍 Buscar cliente…">
+    </div>
+    <table class="fin-table">
+      <thead><tr>
+        <th>Cliente</th><th>Total devido</th><th>Cobranças</th><th>Mais antiga</th><th>Ações</th>
+      </tr></thead>
+      <tbody>
+        <tr><td><b>Maria Silva</b><br><span style="color:var(--text-muted);font-size:11px;">••••9823</span></td><td style="font-family:'Outfit',sans-serif;font-weight:700;color:var(--success)">R$ 1.840</td><td>3</td><td><span class="badge badge-red">34d</span></td><td><button style="background:transparent;border:1px solid rgba(255,255,255,0.1);color:var(--text-muted);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px;">▶ Expandir</button></td></tr>
+        <tr><td><b>João Santos</b><br><span style="color:var(--text-muted);font-size:11px;">••••4412</span></td><td style="font-family:'Outfit',sans-serif;font-weight:700;color:var(--success)">R$ 920</td><td>1</td><td><span class="badge badge-orange">22d</span></td><td><button style="background:transparent;border:1px solid rgba(255,255,255,0.1);color:var(--text-muted);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px;">▶ Expandir</button></td></tr>
+        <tr><td><b>Ana Oliveira</b><br><span style="color:var(--text-muted);font-size:11px;">••••7731</span></td><td style="font-family:'Outfit',sans-serif;font-weight:700;color:var(--success)">R$ 680</td><td>2</td><td><span class="badge badge-yellow">11d</span></td><td><button style="background:transparent;border:1px solid rgba(255,255,255,0.1);color:var(--text-muted);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px;">▶ Expandir</button></td></tr>
+        <tr><td><b>Pedro Costa</b><br><span style="color:var(--text-muted);font-size:11px;">••••2209</span></td><td style="font-family:'Outfit',sans-serif;font-weight:700;color:var(--success)">R$ 480</td><td>1</td><td><span class="badge badge-green">4d</span></td><td><button style="background:transparent;border:1px solid rgba(255,255,255,0.1);color:var(--text-muted);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px;">▶ Expandir</button></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function showView(view) {
+  const isFinance = view === 'finance';
+  document.getElementById('finance-view').classList.toggle('visible', isFinance);
+  document.getElementById('packages-view').classList.toggle('hidden', isFinance);
+  document.getElementById('filter-bar').style.display = isFinance ? 'none' : '';
+  document.getElementById('topbar-sub').textContent = isFinance
+    ? 'Gestão de contas a receber'
+    : 'Pacotes em fluxo · 7 etapas';
+  document.querySelectorAll('.view-toggle button').forEach((b,i) => {
+    b.classList.toggle('active', (i===0) === !isFinance);
+  });
+}
+</script>
+</body>
+</html>
