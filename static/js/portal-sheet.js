@@ -39,10 +39,12 @@
     // ── Preencher sheet com dados da API ──────────────────────────────────────
 
     function fillSheet(data) {
+        qrBox.innerHTML = '';
         if (data.qr_code_base64) {
-            qrBox.innerHTML = '<img src="data:image/png;base64,' + data.qr_code_base64 + '" alt="QR Code PIX">';
-        } else {
-            qrBox.innerHTML = '';
+            var img = document.createElement('img');
+            img.src = 'data:image/png;base64,' + data.qr_code_base64;
+            img.alt = 'QR Code PIX';
+            qrBox.appendChild(img);
         }
         _pixPayload = data.pix_payload || '';
         codeText.textContent = _pixPayload || '—';
@@ -91,7 +93,7 @@
 
     // ── Copiar código PIX ─────────────────────────────────────────────────────
 
-    copyBtn.addEventListener('click', function () {
+    if (copyBtn) copyBtn.addEventListener('click', function () {
         if (!_pixPayload) return;
 
         function onCopied() {
@@ -120,11 +122,12 @@
             onCopied();
         }
     });
+    }
 
     // ── Fechar sheet ──────────────────────────────────────────────────────────
 
-    closeBtn.addEventListener('click', closeSheet);
-    overlay.addEventListener('click', closeSheet);
+    if (closeBtn) closeBtn.addEventListener('click', closeSheet);
+    if (overlay) overlay.addEventListener('click', closeSheet);
 
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') closeSheet();
