@@ -88,36 +88,6 @@
         max-height: 800px;
         transition: max-height 0.45s cubic-bezier(0.16,1,0.3,1), opacity 0.35s ease;
     }
-    .rail.collapsed { max-height: 62px; cursor: pointer; }
-    .rail-chevron { font-size: 9px; margin-left: auto; transition: transform 0.35s; }
-    .rail.collapsed .rail-chevron { transform: rotate(-90deg); }
-
-    /* Título do rail — dois modos: expandido (FLUXO) e colapsado (bloco Pacotes) */
-    .rail-title {
-        display: flex; align-items: center; gap: 10px;
-        padding: 4px 2px 6px; transition: padding 0.3s;
-    }
-    .rail.collapsed .rail-title { padding: 2px 2px; }
-    .rail-title-icon {
-        width: 34px; height: 34px; border-radius: 9px; background: var(--accent);
-        color: var(--bg-main); display: none; align-items: center; justify-content: center;
-        font-size: 15px; flex-shrink: 0; transition: transform 0.25s;
-    }
-    .rail.collapsed .rail-title-icon { display: flex; }
-    .rail-title-main { flex: 1; min-width: 0; }
-    .rail-title-fluxo {
-        font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em;
-        font-weight: 700; color: var(--accent);
-    }
-    .rail.collapsed .rail-title-fluxo { display: none; }
-    .rail-title-name {
-        font-size: 13px; font-weight: 700; color: var(--accent); display: none;
-    }
-    .rail.collapsed .rail-title-name { display: block; }
-    .rail-title-sub {
-        font-size: 10px; color: var(--text-muted); margin-top: 2px; display: none;
-    }
-    .rail.collapsed .rail-title-sub { display: block; }
     .rail-step {
         display: grid; grid-template-columns: 28px 1fr auto; gap: 10px;
         align-items: center; padding: 10px 12px; border-radius: var(--radius-sm);
@@ -434,30 +404,6 @@
         transition: transform 0.42s cubic-bezier(0.16,1,0.3,1), opacity 0.32s ease, visibility 0s linear 0s;
     }
 
-    /* Bloco Financeiro — bloco separado do rail de fluxo */
-    .fin-block {
-        display: flex; align-items: center; gap: 12px;
-        padding: 14px 16px; border-radius: var(--radius-lg);
-        background: var(--card-bg); backdrop-filter: blur(14px);
-        border: 1px solid rgba(212,175,55,0.28);
-        cursor: pointer; transition: all 0.2s;
-    }
-    .fin-block:hover { background: rgba(212,175,55,0.07); border-color: rgba(212,175,55,0.5); }
-    .fin-block.active { background: rgba(212,175,55,0.14); border-color: rgba(212,175,55,0.65); }
-    .fin-block-icon {
-        width: 34px; height: 34px; border-radius: 9px; background: var(--accent);
-        display: flex; align-items: center; justify-content: center;
-        font-size: 15px; flex-shrink: 0; color: var(--bg-main);
-        transition: transform 0.25s;
-    }
-    .fin-block.active .fin-block-icon { transform: scale(1.06); }
-    .fin-block-label { font-size: 13px; font-weight: 700; color: var(--accent); line-height: 1.2; }
-    .fin-block-sub { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
-    .fin-block-amount {
-        font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 700;
-        color: var(--accent); margin-left: auto; white-space: nowrap;
-    }
-
     /* ── Finance section: KPIs ── */
     .finance-kpis {
         display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 18px;
@@ -604,19 +550,11 @@
 </div>
 
 <div class="layout">
-    <!-- Sidebar: bloco Fluxo (rail) + bloco Financeiro separados -->
+    <!-- Sidebar: rail com abas Comercial / Estoque / Financeiro -->
     <div class="sidebar">
         <aside class="rail" id="rail">
-            <!-- Steps injetados pelo dashboard_v2.js -->
+            <!-- Tabs + steps injetados pelo dashboard_v2.js -->
         </aside>
-        <div class="fin-block" id="fin-block">
-            <div class="fin-block-icon"><i class="fas fa-coins"></i></div>
-            <div>
-                <div class="fin-block-label">Financeiro</div>
-                <div class="fin-block-sub">Contas a receber</div>
-            </div>
-            <div class="fin-block-amount" id="fin-block-amount">—</div>
-        </div>
     </div>
 
     <!-- Área de conteúdo: pacotes e financeiro empilhados, troca retrátil -->
