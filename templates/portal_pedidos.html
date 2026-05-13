@@ -13,8 +13,7 @@
     <div class="page">
         <header>
             <div class="logo-text">
-                <span class="logo-main">RAYLOOK</span>
-                
+                <span class="logo-main">✦ RAYLOOK</span>
             </div>
             <div class="header-right">
                 <div class="avatar">{{ cliente.nome[0] | upper if cliente.nome else 'C' }}</div>
@@ -23,8 +22,8 @@
         </header>
 
         <div class="welcome">
-            <h1>Ola, {{ cliente.nome.split()[0] if cliente.nome else 'Cliente' }}!</h1>
-            <p>Aqui estao as pecas do seu pedido.</p>
+            <h1>Olá, {{ cliente.nome.split()[0] if cliente.nome else 'Cliente' }}!</h1>
+            <p>Aqui estão as peças do seu pedido.</p>
         </div>
 
         <!-- KPIs -->
@@ -44,28 +43,10 @@
         <!-- Pagar Todos -->
         {% if kpis.pending_count > 1 %}
         <div class="pay-all-section">
-            <button class="btn-pay-all" id="btnPayAll">
+            <button class="btn-pay-all" id="btnPayAll" data-valor="R$ {{ '%.2f' | format(kpis.total_pending) | replace('.', ',') }}">
                 <i class="fas fa-bolt"></i>
                 Pagar todos (R$ {{ "%.2f" | format(kpis.total_pending) | replace('.', ',') }})
             </button>
-            <div class="pix-modal" id="pix-all" style="display: none;">
-                <div class="pix-loading"><i class="fas fa-spinner fa-spin"></i> Gerando PIX...</div>
-                <div class="pix-content" style="display: none;">
-                    <div class="pix-qr"></div>
-                    <div class="pix-code-wrapper">
-                        <label>Codigo PIX (copia e cola)</label>
-                        <div class="pix-code-row">
-                            <input type="text" class="pix-code" readonly>
-                            <button class="btn-copy">
-                                <i class="fas fa-copy"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <a class="pix-link" href="#" target="_blank" style="display: none;">
-                        <i class="fas fa-external-link-alt"></i> Pagar no site do Asaas
-                    </a>
-                </div>
-            </div>
         </div>
         {% endif %}
 
@@ -92,83 +73,52 @@
 
             {% for order in orders %}
             <div class="order-card" data-status="{{ order.status }}" data-venda-id="{{ order.id }}">
-                <div class="order-top">
-                    {% if order.image_url %}
-                    <div class="order-thumb has-image">
-                        <img src="{{ order.image_url }}" alt="{{ order.produto_nome }}" loading="lazy">
-                    </div>
-                    {% else %}
-                    <div class="order-thumb t{{ loop.index0 % 4 + 1 }}">
-                        {{ order.produto_nome.split()[0] | upper | truncate(8, true, '') }}
-                    </div>
-                    {% endif %}
-                    <div class="order-info">
+                <div class="order-banner">{{ (order.enquete_titulo or order.produto_nome) | upper }}</div>
+                <div class="order-body">
+                    <div class="order-top-row">
                         <div class="order-title">{{ order.enquete_titulo or order.produto_nome }}</div>
-                        <div class="order-meta">
-                            {% if order.created_at and order.created_at|length >= 10 %}
-                            {% set d = order.created_at[:10].split('-') %}
-                            <span><i class="far fa-calendar"></i> {{ d[2] }}/{{ d[1] }}/{{ d[0] }}</span>
-                            {% endif %}
-                            <span><i class="fas fa-cube"></i> {{ order.qty }} peca{{ 's' if order.qty != 1 }}</span>
-                        </div>
                         {% if order.status == 'paid' %}
                         <span class="badge paid"><i class="fas fa-check"></i> Pago</span>
                         {% elif order.status == 'cancelled' %}
                         <span class="badge cancelled"><i class="fas fa-ban"></i> Cancelado</span>
                         {% else %}
-                        <span class="badge pending"><i class="fas fa-clock"></i> Aguardando pagamento</span>
+                        <span class="badge pending"><i class="fas fa-clock"></i> Pendente</span>
                         {% endif %}
                     </div>
-                </div>
-                <div class="order-price-row">
-                    <div class="price-block">
-                        <div class="label">{{ 'Total pago' if order.status == 'paid' else 'Total' }}</div>
-                        <div class="value">R$ {{ "%.2f" | format(order.total_amount) | replace('.', ',') }}</div>
-                        <div class="breakdown">{{ order.qty }} x R$ {{ "%.2f" | format(order.unit_price) | replace('.', ',') }}{{ ' + taxa' if order.commission_percent > 0 }}</div>
-                    </div>
-                    {% if order.status == 'cancelled' %}
-                    <div class="cancelled-confirmation">
-                        <i class="fas fa-ban"></i>
-                        <span>Cancelado</span>
-                    </div>
-                    {% elif order.status == 'paid' %}
-                    <div class="paid-confirmation">
-                        <i class="fas fa-check-circle"></i>
-                        {% if order.paid_at and order.paid_at|length >= 10 %}
-                        {% set pd = order.paid_at[:10].split('-') %}
-                        <span>Pago em {{ pd[2] }}/{{ pd[1] }}/{{ pd[0] }}</span>
-                        {% else %}
-                        <span>Pagamento confirmado</span>
+                    <div class="order-meta">
+                        {% if order.created_at and order.created_at|length >= 10 %}
+                        {% set d = order.created_at[:10].split('-') %}
+                        {{ d[2] }}/{{ d[1] }}/{{ d[0] }} ·
                         {% endif %}
+                        {{ order.qty }} peça{{ 's' if order.qty != 1 }}
                     </div>
-                    {% elif order.pagamento_id %}
-                    <button class="btn-pay" data-pagamento="{{ order.pagamento_id }}">
-                        <i class="fas fa-bolt"></i> Pagar
-                    </button>
-                    {% endif %}
-                </div>
-
-                <!-- PIX Modal (hidden by default) -->
-                {% if order.status != 'paid' and order.pagamento_id %}
-                <div class="pix-modal" id="pix-{{ order.pagamento_id }}" style="display: none;">
-                    <div class="pix-loading"><i class="fas fa-spinner fa-spin"></i> Gerando PIX...</div>
-                    <div class="pix-content" style="display: none;">
-                        <div class="pix-qr"></div>
-                        <div class="pix-code-wrapper">
-                            <label>Codigo PIX (copia e cola)</label>
-                            <div class="pix-code-row">
-                                <input type="text" class="pix-code" readonly>
-                                <button class="btn-copy">
-                                    <i class="fas fa-copy"></i>
-                                </button>
-                            </div>
+                    <div class="order-price-row">
+                        <div class="price-block">
+                            <div class="value">R$ {{ "%.2f" | format(order.total_amount) | replace('.', ',') }}</div>
+                            <div class="breakdown">{{ order.qty }} × R$ {{ "%.2f" | format(order.unit_price) | replace('.', ',') }}{{ ' + taxa' if order.commission_percent > 0 }}</div>
                         </div>
-                        <a class="pix-link" href="#" target="_blank" style="display: none;">
-                            <i class="fas fa-external-link-alt"></i> Pagar no site do Asaas
-                        </a>
+                        {% if order.status == 'cancelled' %}
+                        <div class="cancelled-confirmation"><i class="fas fa-ban"></i> <span>Cancelado</span></div>
+                        {% elif order.status == 'paid' %}
+                        <div class="paid-confirmation">
+                            <i class="fas fa-check-circle"></i>
+                            {% if order.paid_at and order.paid_at|length >= 10 %}
+                            {% set pd = order.paid_at[:10].split('-') %}
+                            <span>Pago em {{ pd[2] }}/{{ pd[1] }}/{{ pd[0] }}</span>
+                            {% else %}
+                            <span>Pagamento confirmado</span>
+                            {% endif %}
+                        </div>
+                        {% elif order.pagamento_id %}
+                        <button class="btn-pay"
+                            data-pagamento="{{ order.pagamento_id }}"
+                            data-nome="{{ order.enquete_titulo or order.produto_nome }}"
+                            data-valor="R$ {{ '%.2f' | format(order.total_amount) | replace('.', ',') }}">
+                            <i class="fas fa-bolt"></i> Pagar
+                        </button>
+                        {% endif %}
                     </div>
                 </div>
-                {% endif %}
             </div>
             {% endfor %}
         </div>
@@ -178,6 +128,27 @@
         </div>
     </div>
 
-    <script src="/static/js/portal.js"></script>
+    <!-- PIX Bottom Sheet — singleton global -->
+    <div id="pix-sheet-overlay" class="pix-overlay"></div>
+    <div id="pix-sheet" class="pix-sheet">
+        <div class="pix-sheet-handle"></div>
+        <div class="pix-sheet-header">
+            <div class="pix-sheet-name" id="pix-sheet-name">—</div>
+            <button class="pix-sheet-close" id="pix-sheet-close" type="button">✕</button>
+        </div>
+        <div class="pix-sheet-amount" id="pix-sheet-amount">—</div>
+        <div class="pix-sheet-qr-row">
+            <div class="pix-qr-box" id="pix-qr-img"></div>
+            <div class="pix-qr-side">
+                <div class="pix-qr-label">Código PIX copia e cola</div>
+                <div class="pix-code-box" id="pix-code-text">—</div>
+                <button class="pix-copy-btn" id="pix-copy-btn" type="button">📋 Copiar código</button>
+            </div>
+        </div>
+        <div class="pix-sheet-divider"></div>
+        <div class="pix-sheet-tip">Abra o app do banco, escaneie o QR Code ou cole o código</div>
+    </div>
+
+    <script src="/static/js/portal-sheet.js"></script>
 </body>
 </html>
