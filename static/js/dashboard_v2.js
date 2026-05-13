@@ -7,6 +7,8 @@
     let selectedId = null;
     let search = "";
     let filter = { preset: "all", since: null, until: null };
+    let listPage = 1;
+    const LIST_PAGE_SIZE = 20;
 
     const DESCS = {
         aberto: "Formando", fechado: "Aguardando gerente",
@@ -101,6 +103,7 @@
         filter.until = r.until;
         selectedId = null;
         activeState = null;
+        listPage = 1;
         updateFilterSummary();
         load();
     }
@@ -116,6 +119,7 @@
         filter.until = u;
         selectedId = null;
         activeState = null;
+        listPage = 1;
         updateFilterSummary();
         load();
     });
@@ -132,7 +136,7 @@
 
     function renderRail() {
         const rail = document.getElementById("rail");
-        rail.innerHTML = `<div class="rail-title">Fluxo</div>` +
+        rail.innerHTML = `<div class="rail-title">Fluxo <i class="fas fa-chevron-down rail-chevron"></i></div>` +
             L.STATES.map((s, i) => `
                 <div class="rail-step ${s === activeState ? "active" : ""}" data-state="${s}">
                     <div class="num">${i + 1}</div>
@@ -153,15 +157,28 @@
             el.addEventListener("click", () => {
                 if (window._financeOpen) window.toggleFinanceView();
                 activeState = el.dataset.state;
+                listPage = 1;
                 const pkgs = currentItems();
                 selectedId = pkgs[0] ? pkgs[0].id : null;
                 render();
             })
         );
-
     }
 
     function clientItemKey(c) { return `${c.pacote_id}:${c.cliente_id}`; }
+
+    function renderPagination(total) {
+        const el = document.getElementById("list-pagination");
+        if (!el) return;
+        const totalPages = Math.ceil(total / LIST_PAGE_SIZE);
+        if (totalPages <= 1) { el.innerHTML = ""; return; }
+        el.innerHTML = `
+            <button class="list-pg-btn" id="list-pg-prev" ${listPage <= 1 ? "disabled" : ""}>← Anterior</button>
+            <span class="list-pg-info">Página ${listPage} de ${totalPages}</span>
+            <button class="list-pg-btn" id="list-pg-next" ${listPage >= totalPages ? "disabled" : ""}>Próxima →</button>`;
+        el.querySelector("#list-pg-prev").addEventListener("click", () => { listPage--; renderList(); });
+        el.querySelector("#list-pg-next").addEventListener("click", () => { listPage++; renderList(); });
+    }
 
     function renderList() {
         const q = search.trim().toLowerCase();
@@ -179,15 +196,18 @@
                 || (c.celular || "").includes(q)
                 || (c.produto_name || "").toLowerCase().includes(q)
             ) : all;
+            const totalCount = filtered.length;
+            const paged = filtered.slice((listPage - 1) * LIST_PAGE_SIZE, listPage * LIST_PAGE_SIZE);
             const totalPieces = filtered.reduce((a, c) => a + (c.qty || 0), 0);
             const totalValue = filtered.reduce((a, c) => a + (c.valor || 0), 0);
             summaryEl.textContent =
-                `${filtered.length} cliente${filtered.length === 1 ? "" : "s"} · ${totalPieces} peças · ${L.moneyFull(totalValue)}`;
-            if (!filtered.length) {
+                `${totalCount} cliente${totalCount === 1 ? "" : "s"} · ${totalPieces} peças · ${L.moneyFull(totalValue)}`;
+            if (!totalCount) {
                 wrap.innerHTML = `<div class="empty-state">Nenhum cliente nessa fase.</div>`;
+                renderPagination(0);
                 return;
             }
-            wrap.innerHTML = filtered.map(c => {
+            wrap.innerHTML = paged.map(c => {
                 const meta = L.parsePollTitle(c.produto_name);
                 const thumb = c.image
                     ? `<img src="${L.escapeHtml(c.image)}" alt="" loading="lazy">`
@@ -298,6 +318,7 @@
                     }
                 })
             );
+            renderPagination(totalCount);
             return;
         }
 
@@ -307,15 +328,18 @@
             || (p.clientes || []).some(c => (c.name || "").toLowerCase().includes(q))
             || (p.external_poll_id || "").toLowerCase().includes(q)
         ) : all;
+        const totalCount = filtered.length;
+        const paged = filtered.slice((listPage - 1) * LIST_PAGE_SIZE, listPage * LIST_PAGE_SIZE);
         const totalPieces = filtered.reduce((a, p) => a + (Math.min(p.total_qty, p.capacidade_total) || 0), 0);
         const totalValue = filtered.reduce((a, p) => a + (p.total_value || 0), 0);
         summaryEl.textContent =
-            `${filtered.length} pacote${filtered.length === 1 ? "" : "s"} · ${totalPieces} peças · ${L.moneyFull(totalValue)}`;
-        if (!filtered.length) {
+            `${totalCount} pacote${totalCount === 1 ? "" : "s"} · ${totalPieces} peças · ${L.moneyFull(totalValue)}`;
+        if (!totalCount) {
             wrap.innerHTML = `<div class="empty-state">Nenhum pacote.</div>`;
+            renderPagination(0);
             return;
         }
-        wrap.innerHTML = filtered.map(p => {
+        wrap.innerHTML = paged.map(p => {
             const meta = L.parsePollTitle(p.produto_name);
             const thumb = p.image
                 ? `<img src="${L.escapeHtml(p.image)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${L.productEmoji(meta.item)}'}))">`
@@ -380,6 +404,7 @@
                 await L.doAction(btn.dataset.id, btn.dataset.action, opts);
             })
         );
+        renderPagination(totalCount);
     }
 
     function renderDetail() {
@@ -536,6 +561,7 @@
 
     document.getElementById("search").addEventListener("input", e => {
         search = e.target.value;
+        listPage = 1;
         renderList();
     });
 

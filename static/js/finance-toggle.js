@@ -15,14 +15,14 @@
             pkgsArea?.classList.add('retracted');
             finSection?.classList.add('active');
             finBlock?.classList.add('active');
-            rail?.classList.add('dimmed');
+            rail?.classList.add('collapsed');
             if (filterBar) { filterBar.style.opacity = '0.25'; filterBar.style.pointerEvents = 'none'; }
             window.financeRefresh?.();
         } else {
             pkgsArea?.classList.remove('retracted');
             finSection?.classList.remove('active');
             finBlock?.classList.remove('active');
-            rail?.classList.remove('dimmed');
+            rail?.classList.remove('collapsed');
             if (filterBar) { filterBar.style.opacity = ''; filterBar.style.pointerEvents = ''; }
         }
     };
@@ -30,6 +30,13 @@
     document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('fin-block')?.addEventListener('click', function () {
             window.toggleFinanceView();
+        });
+
+        // Clicar no rail colapsado (título "Fluxo") fecha o financeiro
+        document.getElementById('rail')?.addEventListener('click', function (e) {
+            if (window._financeOpen && !e.target.closest('.rail-step')) {
+                window.toggleFinanceView();
+            }
         });
     });
 })();
