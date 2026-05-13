@@ -134,8 +134,17 @@
         return data.packages_by_state[activeState] || [];
     }
 
+    // Tab ativa do rail: "comercial" ou "estoque"
+    let railTab = "comercial";
+
+    const RAIL_GROUPS = {
+        comercial: ["aberto", "fechado", "confirmado", "pago"],
+        estoque:   ["pago", "pendente", "separado", "enviado"],
+    };
+
     function renderRail() {
         const rail = document.getElementById("rail");
+        const steps = RAIL_GROUPS[railTab];
         rail.innerHTML = `
             <div class="rail-title">
                 <span class="rail-title-icon"><i class="fas fa-box"></i></span>
@@ -145,8 +154,12 @@
                     <span class="rail-title-sub">Fluxo de etapas</span>
                 </span>
                 <i class="fas fa-chevron-down rail-chevron"></i>
+            </div>
+            <div class="rail-tabs">
+                <button class="rail-tab ${railTab === "comercial" ? "active" : ""}" data-tab="comercial">Comercial</button>
+                <button class="rail-tab ${railTab === "estoque" ? "active" : ""}" data-tab="estoque">Estoque</button>
             </div>` +
-            L.STATES.map((s, i) => `
+            steps.map((s, i) => `
                 <div class="rail-step ${s === activeState ? "active" : ""}" data-state="${s}">
                     <div class="num">${i + 1}</div>
                     <div>
@@ -162,6 +175,14 @@
                 <div><div class="label">Cancelados</div><div class="sub">histórico</div></div>
                 <div class="count">${data.counts.cancelled || 0}</div>
              </div>`;
+
+        rail.querySelectorAll(".rail-tab").forEach(btn =>
+            btn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                railTab = btn.dataset.tab;
+                renderRail();
+            })
+        );
         rail.querySelectorAll(".rail-step").forEach(el =>
             el.addEventListener("click", () => {
                 if (window._financeOpen) window.toggleFinanceView();

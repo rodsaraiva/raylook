@@ -146,6 +146,23 @@
     .rail-step.active .count { color: var(--accent); }
     .rail-divider { height: 1px; background: rgba(212,175,55,0.12); margin: 8px 4px; }
 
+    /* Tabs comercial / estoque */
+    .rail-tabs {
+        display: flex; gap: 4px; margin-bottom: 2px;
+    }
+    .rail-tab {
+        flex: 1; padding: 6px 8px; border-radius: var(--radius-sm);
+        background: rgba(255,255,255,0.04); border: 1px solid transparent;
+        color: var(--text-muted); font-size: 11px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.07em;
+        cursor: pointer; transition: var(--transition); text-align: center;
+    }
+    .rail-tab:hover { background: rgba(255,255,255,0.07); }
+    .rail-tab.active {
+        background: var(--accent-soft); border-color: rgba(212,175,55,0.35);
+        color: var(--accent);
+    }
+
     /* Lista (de 05-split-detalhe.html) */
     .pkg-list {
         background: rgba(255,255,255,0.04); border: 1px solid var(--card-border);
@@ -564,7 +581,7 @@
 <header class="topbar">
     <div>
         <h1 id="greeting">Raylook</h1>
-        <div class="sub">Pacotes em fluxo · 7 etapas</div>
+        <div class="sub">Pacotes em fluxo · Comercial e Estoque</div>
     </div>
     <a class="logout" href="/logout">Sair</a>
 </header>
