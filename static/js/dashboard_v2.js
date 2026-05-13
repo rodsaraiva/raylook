@@ -134,32 +134,20 @@
         return data.packages_by_state[activeState] || [];
     }
 
-    // Tab ativa do rail: "comercial" ou "estoque"
-    let railTab = "comercial";
+    // Dropdowns Comercial / Estoque (Financeiro tem header próprio)
+    const RAIL_GROUPS = [
+        { id: "comercial", label: "Comercial", states: ["aberto", "fechado", "confirmado", "pago"] },
+        { id: "estoque",   label: "Estoque",   states: ["pago", "pendente", "separado", "enviado"] },
+    ];
 
-    const RAIL_GROUPS = {
-        comercial: ["aberto", "fechado", "confirmado", "pago"],
-        estoque:   ["pago", "pendente", "separado", "enviado"],
-    };
+    const groupOpen = { comercial: true, estoque: false };
 
     function renderRail() {
         const rail = document.getElementById("rail");
-        const steps = RAIL_GROUPS[railTab];
-        rail.innerHTML = `
-            <div class="rail-title">
-                <span class="rail-title-icon"><i class="fas fa-box"></i></span>
-                <span class="rail-title-main">
-                    <span class="rail-title-fluxo">Fluxo</span>
-                    <span class="rail-title-name">Pacotes</span>
-                    <span class="rail-title-sub">Fluxo de etapas</span>
-                </span>
-                <i class="fas fa-chevron-down rail-chevron"></i>
-            </div>
-            <div class="rail-tabs">
-                <button class="rail-tab ${railTab === "comercial" ? "active" : ""}" data-tab="comercial">Comercial</button>
-                <button class="rail-tab ${railTab === "estoque" ? "active" : ""}" data-tab="estoque">Estoque</button>
-            </div>` +
-            steps.map((s, i) => `
+        const groupsHtml = RAIL_GROUPS.map(g => {
+            const open = groupOpen[g.id];
+            const totalCount = g.states.reduce((sum, s) => sum + (data.counts[s] || 0), 0);
+            const stepsHtml = g.states.map((s, i) => `
                 <div class="rail-step ${s === activeState ? "active" : ""}" data-state="${s}">
                     <div class="num">${i + 1}</div>
                     <div>
@@ -168,18 +156,29 @@
                     </div>
                     <div class="count">${data.counts[s] || 0}</div>
                 </div>
-            `).join("") +
-            `<div class="rail-divider"></div>
-             <div class="rail-step ${activeState === "cancelled" ? "active" : ""}" data-state="cancelled" style="opacity:.85;">
+            `).join("");
+            return `
+                <div class="rail-group ${open ? "open" : ""}" data-group="${g.id}">
+                    <div class="rail-group-header" data-toggle="${g.id}">
+                        <span class="rail-group-label">${g.label}</span>
+                        <span class="rail-group-total">${totalCount}</span>
+                        <i class="fas fa-chevron-down rail-group-chevron"></i>
+                    </div>
+                    <div class="rail-group-body">${stepsHtml}</div>
+                </div>`;
+        }).join("");
+
+        rail.innerHTML = groupsHtml + `
+            <div class="rail-step rail-cancelled ${activeState === "cancelled" ? "active" : ""}" data-state="cancelled">
                 <div class="num" style="background:rgba(248,113,113,0.15);color:var(--danger);">×</div>
                 <div><div class="label">Cancelados</div><div class="sub">histórico</div></div>
                 <div class="count">${data.counts.cancelled || 0}</div>
-             </div>`;
+            </div>`;
 
-        rail.querySelectorAll(".rail-tab").forEach(btn =>
-            btn.addEventListener("click", (e) => {
-                e.stopPropagation();
-                railTab = btn.dataset.tab;
+        rail.querySelectorAll(".rail-group-header").forEach(h =>
+            h.addEventListener("click", () => {
+                const id = h.dataset.toggle;
+                groupOpen[id] = !groupOpen[id];
                 renderRail();
             })
         );
