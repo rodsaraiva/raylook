@@ -73,10 +73,16 @@
 
             {% for order in orders %}
             <div class="order-card" data-status="{{ order.status }}" data-venda-id="{{ order.id }}">
-                <div class="order-banner">{{ (order.enquete_titulo or order.produto_nome) | upper }}</div>
+                <div class="order-banner">
+                    {% if order.image_url %}
+                    <img src="{{ order.image_url }}" alt="{{ order.item or 'Peça' }}" class="order-banner-img" loading="lazy">
+                    {% else %}
+                    <div class="order-banner-placeholder"><i class="fas fa-shirt"></i></div>
+                    {% endif %}
+                </div>
                 <div class="order-body">
                     <div class="order-top-row">
-                        <div class="order-title">{{ order.enquete_titulo or order.produto_nome }}</div>
+                        <div class="order-title">{{ order.item or order.produto_nome or 'Peça' }}</div>
                         {% if order.status == 'paid' %}
                         <span class="badge paid"><i class="fas fa-check"></i> Pago</span>
                         {% elif order.status == 'cancelled' %}
@@ -86,6 +92,7 @@
                         {% endif %}
                     </div>
                     <div class="order-meta">
+                        {% if order.tecido %}{{ order.tecido }} · {% endif %}
                         {% if order.created_at and order.created_at|length >= 10 %}
                         {% set d = order.created_at[:10].split('-') %}
                         {{ d[2] }}/{{ d[1] }}/{{ d[0] }} ·

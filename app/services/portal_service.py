@@ -18,6 +18,7 @@ import bcrypt
 import qrcode  # type: ignore
 from PIL import Image  # type: ignore
 
+from app.services.enquete_title_parser import parse_enquete_title
 from app.services.supabase_service import SupabaseRestClient, supabase_domain_enabled
 
 logger = logging.getLogger("raylook.portal")
@@ -336,6 +337,8 @@ def get_client_orders(cliente_id: str) -> List[Dict[str, Any]]:
         drive_id = enquete.get("drive_file_id") or produto.get("drive_file_id")
         image_url = f"/files/{drive_id}" if drive_id else ""
 
+        parsed = parse_enquete_title(enquete.get("titulo") or "")
+
         orders.append({
             "id": str(venda["id"]),
             "pagamento_id": str(pagamento["id"]) if pagamento.get("id") else None,
@@ -343,6 +346,9 @@ def get_client_orders(cliente_id: str) -> List[Dict[str, Any]]:
             "produto_tamanho": produto.get("tamanho") or "",
             "enquete_titulo": enquete.get("titulo") or "",
             "image_url": image_url,
+            "item": parsed["item"],
+            "tecido": parsed["tecido"],
+            "valor_extraido": parsed["valor"],
             "qty": int(venda.get("qty") or 0),
             "unit_price": float(venda.get("unit_price") or 0),
             "subtotal": float(venda.get("subtotal") or 0),

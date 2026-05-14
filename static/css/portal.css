@@ -182,15 +182,19 @@ header {
 .order-card[data-status="cancelled"] { opacity: 0.5; }
 
 .order-banner {
-    height: 52px;
+    height: 140px;
     background: linear-gradient(135deg, rgba(212,175,55,0.16) 0%, rgba(180,100,50,0.09) 100%);
     border-bottom: 1px solid rgba(232,197,106,0.13);
+    overflow: hidden;
+    position: relative;
+}
+.order-banner-img {
+    width: 100%; height: 100%; object-fit: cover;
+}
+.order-banner-placeholder {
     display: flex; align-items: center; justify-content: center;
-    font-family: 'Outfit', sans-serif; font-weight: 700;
-    color: rgba(232,197,106,0.55); font-size: 10px;
-    letter-spacing: 0.18em; text-transform: uppercase;
-    padding: 0 12px; text-align: center;
-    overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+    width: 100%; height: 100%;
+    color: rgba(232,197,106,0.4); font-size: 2.5rem;
 }
 
 .order-body { padding: 12px 14px; }
