@@ -276,11 +276,42 @@ async def _process_job(job: Dict[str, Any]) -> None:
             item_name = payload.get("item_name") or "Peça"
             pkg_id = package_id or "pacote"
 
-            # Asaas: cria customer → cria payment pix
+            # Asaas exige CPF/CNPJ do cliente final. Se o cliente ainda não
+            # cadastrou no portal, deixa o job na fila e tenta de novo — quando
+            # ele se cadastrar, o re-processamento pega. Sem CPF a cobrança não
+            # pode ser criada (default agruparia tudo no CPF da Raylook).
+            cpf_cliente = ""
+            try:
+                from app.services.portal_service import _phone_variants, _normalize_phone
+                sb_cli = SupabaseRestClient.from_settings()
+                for variant in _phone_variants(_normalize_phone(phone or "")):
+                    rows = sb_cli.select(
+                        "clientes", columns="cpf_cnpj",
+                        filters=[("celular", "eq", variant)], limit=1,
+                    )
+                    if rows and (rows[0].get("cpf_cnpj") or "").strip():
+                        cpf_cliente = rows[0]["cpf_cnpj"].strip()
+                        break
+            except Exception:
+                cpf_cliente = ""
+
+            if not cpf_cliente:
+                logger.warning(
+                    "Job %s sem CPF do cliente phone=%s — cobrança será criada quando o cliente "
+                    "pagar pelo portal (modal de contingência captura o CPF).",
+                    job_id, phone,
+                )
+                if package_id is not None and vote_idx is not None:
+                    update_vote_state(str(package_id), int(vote_idx), {
+                        "asaas_payment_status": "pending_cpf",
+                    })
+                return
+
             customer = await asyncio.to_thread(
                 asaas.create_customer,
                 name=customer_name_clean,
                 phone=phone or "",
+                cpf_cnpj=cpf_cliente,
             )
             asaas_customer_id = customer.get("id")
             if not asaas_customer_id:
