@@ -554,6 +554,64 @@
         .packages-area { grid-template-columns: 1fr; }
         #section-finance .finance-kpis { grid-template-columns: repeat(2,1fr); }
     }
+
+    /* Modal de senha admin */
+    .admin-pwd-overlay {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+        opacity: 0; pointer-events: none; transition: opacity 0.18s ease;
+        z-index: 9000;
+    }
+    .admin-pwd-overlay.open { opacity: 1; pointer-events: auto; }
+    .admin-pwd-modal {
+        position: fixed; left: 50%; top: 50%;
+        transform: translate(-50%, -45%) scale(0.96);
+        opacity: 0; pointer-events: none;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+        width: calc(100% - 2rem); max-width: 380px;
+        background: var(--card-bg); border: 1px solid var(--card-border);
+        border-radius: 14px; padding: 1.4rem 1.2rem;
+        z-index: 9001;
+    }
+    .admin-pwd-modal.open {
+        opacity: 1; pointer-events: auto;
+        transform: translate(-50%, -50%) scale(1);
+    }
+    .admin-pwd-modal h3 {
+        margin: 0 0 0.5rem 0; font-size: 1rem;
+        color: var(--text-primary);
+    }
+    .admin-pwd-help {
+        font-size: 0.82rem; color: var(--text-muted);
+        margin: 0 0 0.9rem 0; line-height: 1.4;
+    }
+    .admin-pwd-modal input {
+        width: 100%; padding: 0.65rem 0.85rem;
+        background: var(--bg, #0c0a09); border: 1px solid var(--card-border);
+        border-radius: 10px; color: var(--text-primary);
+        font-size: 0.95rem; letter-spacing: 0.05em;
+    }
+    .admin-pwd-modal input:focus {
+        outline: none; border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(232,197,106,0.15);
+    }
+    .admin-pwd-error {
+        min-height: 1rem; margin: 0.4rem 0 0.8rem;
+        font-size: 0.78rem; color: var(--danger);
+    }
+    .admin-pwd-actions {
+        display: flex; gap: 0.6rem; justify-content: flex-end;
+    }
+    .admin-pwd-actions .btn-primary,
+    .admin-pwd-actions .btn-ghost {
+        padding: 0.55rem 1rem; border-radius: 10px;
+        font-size: 0.85rem; font-weight: 600; cursor: pointer;
+        border: 1px solid var(--card-border); background: transparent;
+        color: var(--text-primary);
+    }
+    .admin-pwd-actions .btn-primary {
+        background: var(--accent); color: #0c0a09; border-color: var(--accent);
+    }
+    .admin-pwd-actions .btn-primary:hover { filter: brightness(1.08); }
 </style>
 </head>
 <body>
@@ -683,6 +741,19 @@
         </div><!-- /section-finance -->
     </div><!-- /content-area -->
 </div><!-- /layout -->
+
+<!-- Modal de senha admin (regress de estoque/logística) -->
+<div id="admin-pwd-overlay" class="admin-pwd-overlay"></div>
+<div id="admin-pwd-modal" class="admin-pwd-modal" role="dialog" aria-labelledby="admin-pwd-title">
+    <h3 id="admin-pwd-title">Senha de administrador</h3>
+    <p class="admin-pwd-help">Voltar etapas de estoque ou logística exige autorização.</p>
+    <input type="password" id="admin-pwd-input" placeholder="••••••••" autocomplete="off">
+    <div id="admin-pwd-error" class="admin-pwd-error"></div>
+    <div class="admin-pwd-actions">
+        <button type="button" class="btn-ghost" id="admin-pwd-cancel">Cancelar</button>
+        <button type="button" class="btn-primary" id="admin-pwd-ok">Confirmar</button>
+    </div>
+</div>
 
 <script src="/static/dashboard/lib.js"></script>
 <script src="/static/dashboard/modal.js"></script>

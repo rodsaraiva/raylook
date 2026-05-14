@@ -19,6 +19,9 @@
         separado: "Pronto pra despachar", enviado: "Finalizado",
     };
 
+    // Estados em estoque/logística — voltar deles exige senha de admin.
+    const STOCK_LOG_STATES = new Set(["pago", "pendente", "separado", "enviado"]);
+
     function greeting() {
         const h = new Date().getHours();
         if (h < 12) return "Bom dia";
@@ -278,12 +281,21 @@
             const state = p.state || activeState;
             const action = L.primaryActionFor(state);
             const confirmAttr = action.confirmText ? ` data-confirm="${L.escapeHtml(action.confirmText)}"` : "";
-            const actionBtn = (state === "aberto" || !action.action)
-                ? ""
-                : `<button class="row-action" data-action="${action.action}" data-id="${p.id}"${confirmAttr}>${L.escapeHtml(action.label)}</button>`;
+            // "Pago" tem duas ações: Marcar pendente (advance 1 step) e Gerar etiqueta
+            // (advance pulando pra "separado"). As demais fases usam a ação primária única.
+            let actionBtn;
+            if (state === "pago") {
+                actionBtn = `
+                    <button class="row-action" data-action="advance" data-to="pendente" data-id="${p.id}" title="Validar pagamento e mover pra fila Pendente">Marcar pendente</button>
+                    <button class="row-action" data-action="advance" data-to="separado" data-id="${p.id}" title="Gerar etiqueta e pular pra Separado">Gerar etiqueta</button>`;
+            } else if (state === "aberto" || !action.action) {
+                actionBtn = "";
+            } else {
+                actionBtn = `<button class="row-action" data-action="${action.action}" data-id="${p.id}"${confirmAttr}>${L.escapeHtml(action.label)}</button>`;
+            }
             const backBtn = (state === "aberto" || state === "fechado" || state === "cancelled")
                 ? ""
-                : `<button class="row-back" data-action="regress" data-id="${p.id}" title="Voltar pra etapa anterior">←</button>`;
+                : `<button class="row-back" data-action="regress" data-state="${state}" data-id="${p.id}" title="Voltar pra etapa anterior">←</button>`;
             const valueLabel = p.total_value ? L.moneyFull(p.total_value)
                 : (meta.valor != null ? `${L.money(meta.valor)} <span class="row-unit">/un</span>` : "—");
             // "Cancelar pacote" aparece em fechado/confirmado (não em aberto, cancelled).
@@ -333,12 +345,15 @@
                 if (btn.dataset.confirm) {
                     opts = { confirmText: btn.dataset.confirm };
                 } else if (btn.dataset.action === "regress") {
+                    const rowState = btn.dataset.state || activeState;
                     opts = { confirmText: "Voltar esse pacote pra etapa anterior?" };
+                    if (STOCK_LOG_STATES.has(rowState)) opts.requireAdminPassword = true;
                 } else if (btn.dataset.action === "cancel") {
                     opts = { confirmText: "Cancelar esse pacote inteiro? Não pode ser desfeito.", okLabel: "Cancelar pacote", danger: true };
                 } else if (btn.dataset.action === "restore") {
                     opts = { confirmText: "Restaurar esse pacote pra 'fechado'?", okLabel: "Restaurar" };
                 }
+                if (btn.dataset.to) opts.to = btn.dataset.to;
                 await L.doAction(btn.dataset.id, btn.dataset.action, opts);
             })
         );
@@ -398,22 +413,29 @@
             </div>
             ${isCancelled ? "" : `<div class="vtl-title">Jornada do pacote</div><div class="vtl">${stepsHtml}</div>`}
             <div class="detail-actions">
-                ${canAdvance ? `<button class="btn-primary" data-advance>${primaryLabel(state)}</button>` : ""}
+                ${state === "pago" ? `
+                    <button class="btn-primary" data-advance data-to="pendente">⏭️ Marcar pendente</button>
+                    <button class="btn-primary" data-advance data-to="separado">🏷️ Gerar etiqueta</button>
+                ` : (canAdvance ? `<button class="btn-primary" data-advance>${primaryLabel(state)}</button>` : "")}
                 ${canRegress ? `<button class="btn-ghost" data-regress>← Voltar pra etapa anterior</button>` : ""}
                 <button class="btn-ghost" data-drill>Ver detalhes completos</button>
                 ${canAdvance ? `<button class="btn-ghost" data-cancel style="color:var(--danger);">Cancelar pacote</button>` : ""}
             </div>`;
 
-        detail.querySelector("[data-advance]")?.addEventListener("click", async () => {
+        detail.querySelectorAll("[data-advance]").forEach(btn => btn.addEventListener("click", async () => {
             const action = L.primaryActionFor(state);
-            if (action.action === "drill") {
+            if (action.action === "drill" && !btn.dataset.to) {
                 window.RaylookModal?.open(p.id);
                 return;
             }
-            await L.doAction(p.id, "advance", action.confirmText ? { confirmText: action.confirmText } : {});
-        });
+            const opts = action.confirmText ? { confirmText: action.confirmText } : {};
+            if (btn.dataset.to) opts.to = btn.dataset.to;
+            await L.doAction(p.id, "advance", opts);
+        }));
         detail.querySelector("[data-regress]")?.addEventListener("click", async () => {
-            await L.doAction(p.id, "regress", { confirmText: "Voltar esse pacote pra etapa anterior?" });
+            const opts = { confirmText: "Voltar esse pacote pra etapa anterior?" };
+            if (STOCK_LOG_STATES.has(state)) opts.requireAdminPassword = true;
+            await L.doAction(p.id, "regress", opts);
         });
         detail.querySelector("[data-drill]")?.addEventListener("click", () => window.RaylookModal?.open(p.id));
         detail.querySelector("[data-cancel]")?.addEventListener("click", async () => {

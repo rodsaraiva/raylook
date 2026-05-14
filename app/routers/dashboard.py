@@ -25,7 +25,9 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from fastapi import APIRouter, HTTPException
+import os
+
+from fastapi import APIRouter, Header, HTTPException
 
 from app.config import settings
 from app.services.supabase_service import SupabaseRestClient
@@ -626,15 +628,36 @@ def advance_package(pacote_id: str, to: Optional[str] = None) -> Dict[str, Any]:
     raise HTTPException(400, f"Estado desconhecido: {state}")
 
 
+_STOCK_LOG_REGRESS_STATES = {"pago", "pendente", "separado", "enviado"}
+
+
+def _require_admin_password(state: str, password: Optional[str]) -> None:
+    """Estoque e logística (pago→enviado) exigem senha de admin pra regredir.
+    A senha é a mesma do dashboard (DASHBOARD_AUTH_PASS). Pulado em testes
+    com DASHBOARD_AUTH_DISABLED=true."""
+    if state not in _STOCK_LOG_REGRESS_STATES:
+        return
+    if (os.getenv("DASHBOARD_AUTH_DISABLED") or "").lower() == "true":
+        return
+    expected = (os.getenv("DASHBOARD_AUTH_PASS") or "").strip()
+    if not expected:
+        raise HTTPException(503, "Senha de admin não configurada no servidor (DASHBOARD_AUTH_PASS).")
+    if (password or "").strip() != expected:
+        raise HTTPException(403, "Senha de admin inválida.")
+
+
 @router.post("/packages/{pacote_id}/regress")
-def regress_package(pacote_id: str) -> Dict[str, Any]:
-    """Reverte o pacote pro estado anterior do fluxo. Operação só válida em
-    sandbox — desfaz timestamps e, no caso confirmado→fechado, apaga as
-    vendas/pagamentos criados na confirmação.
-    """
+def regress_package(
+    pacote_id: str,
+    x_admin_password: Optional[str] = Header(None, alias="X-Admin-Password"),
+) -> Dict[str, Any]:
+    """Reverte o pacote pro estado anterior do fluxo. Estados de estoque
+    (pago/pendente/separado) e logística (enviado) só voltam mediante
+    senha de admin enviada no header X-Admin-Password."""
     client = SupabaseRestClient.from_settings()
     pkg, vendas, pags = _load_pkg_and_pags(client, pacote_id)
     state = _derive_state(pkg, pags)
+    _require_admin_password(state, x_admin_password)
     now = client.now_iso()
 
     if state == "aberto":

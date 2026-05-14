@@ -141,16 +141,23 @@ const RaylookDashboard = (() => {
     // Ações: chama endpoint, toast de feedback, chama reload global.
     // -----------------------------------------------------------------
     async function doAction(pacoteId, action, opts = {}) {
-        const { confirmText, successText, danger, okLabel } = opts;
+        const { confirmText, successText, danger, okLabel, to, requireAdminPassword } = opts;
         if (confirmText) {
             const ask = window.RaylookModal?.confirm
                 ? window.RaylookModal.confirm(confirmText, { danger: danger || action === "cancel", okLabel })
                 : Promise.resolve(window.confirm(confirmText));
             if (!await ask) return false;
         }
+        let adminPwd = "";
+        if (requireAdminPassword) {
+            adminPwd = await promptAdminPassword();
+            if (adminPwd === null) return false;  // cancelado
+        }
         try {
-            const resp = await fetch(`/api/dashboard/packages/${pacoteId}/${action}`,
-                { method: "POST", credentials: "include" });
+            const qs = to ? `?to=${encodeURIComponent(to)}` : "";
+            const headers = adminPwd ? { "X-Admin-Password": adminPwd } : {};
+            const resp = await fetch(`/api/dashboard/packages/${pacoteId}/${action}${qs}`,
+                { method: "POST", credentials: "include", headers });
             if (!resp.ok) {
                 const e = await resp.json().catch(() => ({ detail: `HTTP ${resp.status}` }));
                 throw new Error(e.detail || "Falha");
@@ -165,6 +172,52 @@ const RaylookDashboard = (() => {
             if (window.RaylookModal) window.RaylookModal.toast(`Erro: ${err.message}`, "error");
             return false;
         }
+    }
+
+    // Modal de senha admin pra ações restritas (regress de estoque/logística).
+    // Retorna a senha digitada, ou null se o usuário cancelou.
+    function promptAdminPassword() {
+        return new Promise((resolve) => {
+            const ov = document.getElementById("admin-pwd-overlay");
+            const md = document.getElementById("admin-pwd-modal");
+            const inp = document.getElementById("admin-pwd-input");
+            const err = document.getElementById("admin-pwd-error");
+            const ok = document.getElementById("admin-pwd-ok");
+            const cancel = document.getElementById("admin-pwd-cancel");
+            if (!ov || !md || !inp || !ok || !cancel) {
+                resolve(window.prompt("Senha de administrador:") || null);
+                return;
+            }
+            inp.value = "";
+            err.textContent = "";
+            ov.classList.add("open");
+            md.classList.add("open");
+            setTimeout(() => inp.focus(), 30);
+
+            function cleanup() {
+                ov.classList.remove("open");
+                md.classList.remove("open");
+                ok.removeEventListener("click", onOk);
+                cancel.removeEventListener("click", onCancel);
+                ov.removeEventListener("click", onCancel);
+                inp.removeEventListener("keydown", onKey);
+            }
+            function onOk() {
+                const v = inp.value || "";
+                if (!v) { err.textContent = "Digite a senha."; return; }
+                cleanup();
+                resolve(v);
+            }
+            function onCancel() { cleanup(); resolve(null); }
+            function onKey(e) {
+                if (e.key === "Enter") { e.preventDefault(); onOk(); }
+                if (e.key === "Escape") onCancel();
+            }
+            ok.addEventListener("click", onOk);
+            cancel.addEventListener("click", onCancel);
+            ov.addEventListener("click", onCancel);
+            inp.addEventListener("keydown", onKey);
+        });
     }
 
     function msgForAction(action, payload) {
@@ -195,7 +248,7 @@ const RaylookDashboard = (() => {
         money, moneyFull, age, agingBucket,
         pill, productEmoji, clientesShort, initials, escapeHtml,
         parsePollTitle,
-        doAction, primaryActionFor,
+        doAction, primaryActionFor, promptAdminPassword,
     };
 })();
 
