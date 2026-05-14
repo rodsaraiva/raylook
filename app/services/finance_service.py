@@ -2,7 +2,7 @@
 
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List
 from zoneinfo import ZoneInfo
 
@@ -879,22 +879,52 @@ def _now_dt(now_iso: str | None) -> datetime:
     return datetime.now(tz=tz)
 
 
-def build_receivables_by_client(now_iso: str | None = None) -> List[Dict[str, Any]]:
+def _date_range_iso(since: str | None, until: str | None) -> tuple[str | None, str | None]:
+    """Converte YYYY-MM-DD (BRT) em ISO UTC com sufixo Z."""
+    tz = _finance_timezone()
+    since_iso = until_iso = None
+    if since:
+        try:
+            dt = datetime.fromisoformat(since).replace(tzinfo=tz) if tz else datetime.fromisoformat(since)
+            since_iso = dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        except Exception:
+            since_iso = None
+    if until:
+        try:
+            dt = datetime.fromisoformat(until).replace(tzinfo=tz) if tz else datetime.fromisoformat(until)
+            # inclui o dia inteiro até 23:59:59
+            dt = dt.replace(hour=23, minute=59, second=59)
+            until_iso = dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        except Exception:
+            until_iso = None
+    return since_iso, until_iso
+
+
+def build_receivables_by_client(
+    now_iso: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+) -> List[Dict[str, Any]]:
     """Agrega pagamentos pendentes (created/sent) por cliente.
 
-    Retorna lista ordenada por idade do débito mais antigo desc.
-    Cada item: {cliente_id, nome, celular_last4, total, count, oldest_age_days,
-                bucket, charges:[{pagamento_id, pacote_id, enquete_titulo, valor,
-                                  age_days, status}]}.
+    Filtros opcionais since/until (YYYY-MM-DD BRT) restringem por
+    pagamentos.created_at. Retorna lista ordenada por idade do débito
+    mais antigo desc.
     """
     if not supabase_domain_enabled():
         return []
 
     client = SupabaseRestClient.from_settings()
+    pag_filters: List[tuple] = [("status", "in", list(PENDING_RECEIVABLE_STATUSES))]
+    since_iso, until_iso = _date_range_iso(since, until)
+    if since_iso:
+        pag_filters.append(("created_at", "gte", since_iso))
+    if until_iso:
+        pag_filters.append(("created_at", "lte", until_iso))
     pagamentos = client.select_all(
         "pagamentos",
         columns="id,venda_id,status,created_at",
-        filters=[("status", "in", list(PENDING_RECEIVABLE_STATUSES))],
+        filters=pag_filters,
         order="created_at.asc",
     )
     if not pagamentos:
@@ -986,13 +1016,16 @@ def build_receivables_by_client(now_iso: str | None = None) -> List[Dict[str, An
     return rows
 
 
-def build_aging_summary(now_iso: str | None = None) -> Dict[str, Any]:
+def build_aging_summary(
+    now_iso: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+) -> Dict[str, Any]:
     """KPIs de aging: total a receber, distribuição em buckets,
     idade média ponderada e taxa de conversão 30d.
 
-    Retorna: {total_receivable, count, clients_count,
-              buckets:{"0-7":{amount,count}, ...},
-              avg_age_days, paid_rate_30d}.
+    Filtros opcionais since/until (YYYY-MM-DD BRT) restringem o conjunto
+    de pendentes considerados (não afeta paid_rate_30d, que é rolling).
     """
     empty_buckets = {label: {"amount": 0, "count": 0} for label, _, _ in AGING_BUCKETS}
     empty = {
@@ -1005,10 +1038,17 @@ def build_aging_summary(now_iso: str | None = None) -> Dict[str, Any]:
     client = SupabaseRestClient.from_settings()
     now = _now_dt(now_iso)
 
+    pag_filters: List[tuple] = [("status", "in", list(PENDING_RECEIVABLE_STATUSES))]
+    since_iso, until_iso = _date_range_iso(since, until)
+    if since_iso:
+        pag_filters.append(("created_at", "gte", since_iso))
+    if until_iso:
+        pag_filters.append(("created_at", "lte", until_iso))
+
     pagamentos_pendentes = client.select_all(
         "pagamentos",
         columns="id,venda_id,status,created_at",
-        filters=[("status", "in", list(PENDING_RECEIVABLE_STATUSES))],
+        filters=pag_filters,
     )
     if not pagamentos_pendentes:
         empty_with_paid_rate = dict(empty)

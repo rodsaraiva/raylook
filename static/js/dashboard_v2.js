@@ -7,6 +7,8 @@
     let selectedId = null;
     let search = "";
     let filter = { preset: "all", since: null, until: null };
+    // Expõe pro finance.js consumir nos fetches (since/until da barra de cima).
+    window.dashboardFilter = filter;
     let listPage = 1;
     const LIST_PAGE_SIZE = 20;
 
@@ -106,6 +108,7 @@
         listPage = 1;
         updateFilterSummary();
         load();
+        if (window._financeOpen) window.financeRefresh?.();
     }
     document.querySelectorAll(".filter-pill").forEach(btn =>
         btn.addEventListener("click", () => setFilterPreset(btn.dataset.filter))
@@ -122,6 +125,7 @@
         listPage = 1;
         updateFilterSummary();
         load();
+        if (window._financeOpen) window.financeRefresh?.();
     });
 
     function currentItems() {
@@ -149,6 +153,12 @@
     ];
 
     const groupOpen = { comercial: true, estoque: false };
+
+    // Exposto pro finance-toggle.js fechar os dropdowns ao abrir o financeiro.
+    window._railCollapseGroups = function () {
+        Object.keys(groupOpen).forEach(k => { groupOpen[k] = false; });
+        renderRail();
+    };
 
     function renderRail() {
         const rail = document.getElementById("rail");
@@ -196,6 +206,8 @@
                 // Acordeon: só um grupo aberto por vez.
                 Object.keys(groupOpen).forEach(k => { groupOpen[k] = false; });
                 groupOpen[id] = willOpen;
+                // Abrir um dropdown comercial/estoque deve fechar o financeiro.
+                if (willOpen && window._financeOpen) window.toggleFinanceView();
                 renderRail();
             })
         );

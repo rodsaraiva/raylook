@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import Dict, Any, List
+from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
 from collections import defaultdict
 import logging
@@ -86,20 +86,30 @@ class WriteOffRequest(BaseModel):
 
 
 @router.get("/receivables")
-async def get_receivables() -> List[Dict[str, Any]]:
-    """Contas a receber agregadas por cliente."""
+async def get_receivables(
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Contas a receber agregadas por cliente.
+
+    Filtros opcionais ?since=YYYY-MM-DD&until=YYYY-MM-DD — restringem por
+    pagamentos.created_at (BRT). Sem filtros, retorna tudo.
+    """
     try:
-        return build_receivables_by_client()
+        return build_receivables_by_client(since=since, until=until)
     except Exception:
         logger.exception("Erro ao agregar receivables")
         return JSONResponse(status_code=500, content={"error": "internal"})
 
 
 @router.get("/aging-summary")
-async def get_aging_summary() -> Dict[str, Any]:
-    """KPIs de aging para o topo da aba."""
+async def get_aging_summary(
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+) -> Dict[str, Any]:
+    """KPIs de aging para o topo da aba (com mesmo filtro de receivables)."""
     try:
-        return build_aging_summary()
+        return build_aging_summary(since=since, until=until)
     except Exception:
         logger.exception("Erro ao construir aging summary")
         return JSONResponse(status_code=500, content={"error": "internal"})

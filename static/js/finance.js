@@ -22,9 +22,18 @@
 
     function el(id) { return document.getElementById(id); }
 
+    function _filterQS() {
+        const f = window.dashboardFilter || {};
+        const p = new URLSearchParams();
+        if (f.since) p.set("since", f.since);
+        if (f.until) p.set("until", f.until);
+        const s = p.toString();
+        return s ? "?" + s : "";
+    }
+
     // ---- KPIs ----
     async function loadAgingSummary() {
-        const res = await fetch("/api/finance/aging-summary", { credentials: "same-origin" });
+        const res = await fetch("/api/finance/aging-summary" + _filterQS(), { credentials: "same-origin" });
         if (!res.ok) return;
         const s = await res.json();
 
@@ -55,7 +64,7 @@
 
     // ---- Receivables ----
     async function loadReceivables() {
-        const res = await fetch("/api/finance/receivables", { credentials: "same-origin" });
+        const res = await fetch("/api/finance/receivables" + _filterQS(), { credentials: "same-origin" });
         if (!res.ok) return;
         state.receivables = await res.json();
         render();
