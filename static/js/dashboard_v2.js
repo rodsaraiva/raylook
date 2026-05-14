@@ -133,10 +133,12 @@
         return data.packages_by_state[activeState] || [];
     }
 
-    // Dropdowns Comercial / Estoque (Financeiro tem header próprio).
+    // Dropdowns Comercial / Estoque / Logística (Financeiro tem header próprio).
     // `labels` sobrescreve L.STATE_LABELS dentro daquele grupo apenas.
     // `extras` injeta items depois dos states do grupo — usado pra colocar
     // "Cancelados" dentro do Comercial só visualmente; o fluxo continua igual.
+    // Mesmo estado pode aparecer em mais de um grupo (ex: "separado" em
+    // Estoque e Logística): é apenas re-exposição visual, o estado é o mesmo.
     const RAIL_GROUPS = [
         {
             id: "comercial",
@@ -147,12 +149,17 @@
         {
             id: "estoque",
             label: "Estoque",
-            states: ["pago", "pendente", "separado", "enviado"],
+            states: ["pago", "pendente", "separado"],
             labels: { pago: "Fila de separação" },
+        },
+        {
+            id: "logistica",
+            label: "Logística",
+            states: ["separado", "enviado"],
         },
     ];
 
-    const groupOpen = { comercial: true, estoque: false };
+    const groupOpen = { comercial: true, estoque: false, logistica: false };
 
     // Exposto pro finance-toggle.js fechar os dropdowns ao abrir o financeiro.
     window._railCollapseGroups = function () {
