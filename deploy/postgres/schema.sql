@@ -184,7 +184,9 @@ CREATE TABLE IF NOT EXISTS pacotes (
     shipped_by text,
     custom_title text,
     fornecedor text,
-    payment_validated_at timestamptz
+    payment_validated_at timestamptz,
+    pending_reasons jsonb,
+    pending_observations text
 );
 CREATE UNIQUE INDEX IF NOT EXISTS pacotes_enquete_id_sequence_no_key
     ON pacotes (enquete_id, sequence_no);

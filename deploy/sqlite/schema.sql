@@ -183,7 +183,11 @@ CREATE TABLE IF NOT EXISTS pacotes (
     fornecedor TEXT,
     -- payment_validated_at: gate manual entre "pago" (todos pagamentos paid) e
     -- "pendente" (liberado pra estoque separar). Operador valida o pagamento.
-    payment_validated_at TEXT
+    payment_validated_at TEXT,
+    -- Motivos pelos quais o pacote foi pra pendente (JSON array de códigos)
+    -- + observação livre quando reasons inclui "outros".
+    pending_reasons TEXT,
+    pending_observations TEXT
 );
 CREATE UNIQUE INDEX IF NOT EXISTS pacotes_enquete_id_sequence_no_key
     ON pacotes (enquete_id, sequence_no);

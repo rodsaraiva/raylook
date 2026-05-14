@@ -40,6 +40,54 @@
     // Estados em estoque/logística — voltar deles exige senha de admin.
     const STOCK_LOG_STATES = new Set(["pago", "pendente", "separado", "enviado"]);
 
+    // Modal de motivos pra Pendente. Retorna {reasons, observations} ou null.
+    function promptPendingReasons() {
+        return new Promise((resolve) => {
+            const ov = document.getElementById("pending-reasons-overlay");
+            const md = document.getElementById("pending-reasons-modal");
+            const ok = document.getElementById("pending-reasons-ok");
+            const cancel = document.getElementById("pending-reasons-cancel");
+            const err = document.getElementById("pending-reasons-error");
+            const obs = document.getElementById("pending-reasons-obs");
+            const checkboxes = md.querySelectorAll('input[name="pending_reason"]');
+            const outrosCb = document.getElementById("pending-reason-outros");
+            if (!ov || !md || !ok) { resolve(null); return; }
+
+            checkboxes.forEach(c => c.checked = false);
+            obs.value = ""; obs.style.display = "none";
+            err.textContent = "";
+            ov.classList.add("open"); md.classList.add("open");
+
+            function onOutrosChange() {
+                obs.style.display = outrosCb.checked ? "block" : "none";
+                if (outrosCb.checked) setTimeout(() => obs.focus(), 30);
+            }
+            function cleanup() {
+                ov.classList.remove("open"); md.classList.remove("open");
+                ok.removeEventListener("click", onOk);
+                cancel.removeEventListener("click", onCancel);
+                ov.removeEventListener("click", onCancel);
+                outrosCb.removeEventListener("change", onOutrosChange);
+            }
+            function onOk() {
+                const reasons = Array.from(checkboxes).filter(c => c.checked).map(c => c.value);
+                if (!reasons.length) { err.textContent = "Selecione pelo menos um motivo."; return; }
+                const observations = obs.value.trim();
+                if (reasons.includes("outros") && !observations) {
+                    err.textContent = "Descreva o motivo no campo de observação.";
+                    return;
+                }
+                cleanup();
+                resolve({ reasons, observations });
+            }
+            function onCancel() { cleanup(); resolve(null); }
+            outrosCb.addEventListener("change", onOutrosChange);
+            ok.addEventListener("click", onOk);
+            cancel.addEventListener("click", onCancel);
+            ov.addEventListener("click", onCancel);
+        });
+    }
+
     // RBAC frontend (espelho de auth_service.can_advance no backend).
     function canDoAdvance(fromState, toState) {
         if (currentRole === "admin") return true;
@@ -389,6 +437,13 @@
                     opts = { confirmText: "Restaurar esse pacote pra 'fechado'?", okLabel: "Restaurar" };
                 }
                 if (btn.dataset.to) opts.to = btn.dataset.to;
+                // Mover pra pendente exige modal de motivos (estoque clicou "Marcar pendente").
+                if (opts.to === "pendente") {
+                    const result = await promptPendingReasons();
+                    if (!result) { btn.disabled = false; return; }
+                    opts.body = result;
+                    delete opts.confirmText;  // já tem o modal de motivos
+                }
                 await L.doAction(btn.dataset.id, btn.dataset.action, opts);
             })
         );
@@ -431,6 +486,21 @@
         const chipsHtml = chips.length
             ? `<div class="meta-chips">${chips.map(c => `<span class="meta-chip"><b>${c.l}</b> ${L.escapeHtml(c.v)}</span>`).join("")}</div>`
             : "";
+        const REASON_LABELS = {
+            faltando_pecas: "Faltando peças",
+            tamanhos_trocados: "Tamanhos trocados",
+            cores_trocadas: "Cores trocadas",
+            modelo_errado: "Modelo errado",
+            cancelado_fornecedor: "Cancelado pelo fornecedor",
+            outros: "Outros",
+        };
+        const pendingReasons = Array.isArray(p.pending_reasons) ? p.pending_reasons : [];
+        const pendingHtml = (state === "pendente" && pendingReasons.length) ? `
+            <div class="meta-chips" style="margin-top:8px;">
+                ${pendingReasons.map(r => `<span class="meta-chip" style="background:rgba(248,113,113,0.10);color:#f87171;border-color:rgba(248,113,113,0.25);">${L.escapeHtml(REASON_LABELS[r] || r)}</span>`).join("")}
+            </div>
+            ${p.pending_observations ? `<div style="margin-top:6px;font-size:0.78rem;color:var(--text-muted);font-style:italic;">"${L.escapeHtml(p.pending_observations)}"</div>` : ""}
+        ` : "";
         const valorUnit = meta.valor != null ? `${L.money(meta.valor)} <span class="unit-tag">/un</span>` : "—";
         const canRegress = isAdmin && state !== "aberto" && state !== "fechado" && state !== "cancelled";
 
@@ -440,6 +510,7 @@
                 <h2>${L.escapeHtml(meta.item)} <span class="seq">#${p.sequence_no ?? "?"}</span></h2>
                 <div class="subtitle">${L.pill(state)} · ${L.escapeHtml(p.external_poll_id || "")}</div>
                 ${chipsHtml}
+                ${pendingHtml}
             </div>
             <div class="summary-grid">
                 <div class="summary-cell"><div class="l">Peças</div><div class="v">${Math.min(p.total_qty, p.capacidade_total)}/${p.capacidade_total}</div></div>
@@ -466,6 +537,12 @@
             }
             const opts = action.confirmText ? { confirmText: action.confirmText } : {};
             if (btn.dataset.to) opts.to = btn.dataset.to;
+            if (opts.to === "pendente") {
+                const result = await promptPendingReasons();
+                if (!result) return;
+                opts.body = result;
+                delete opts.confirmText;
+            }
             await L.doAction(p.id, "advance", opts);
         }));
         detail.querySelector("[data-regress]")?.addEventListener("click", async () => {

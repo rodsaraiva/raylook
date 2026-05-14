@@ -742,6 +742,40 @@
     </div><!-- /content-area -->
 </div><!-- /layout -->
 
+<!-- Modal de motivos pra mover pacote pra Pendente -->
+<div id="pending-reasons-overlay" class="admin-pwd-overlay"></div>
+<div id="pending-reasons-modal" class="admin-pwd-modal" role="dialog" aria-labelledby="pending-reasons-title" style="max-width:460px;">
+    <h3 id="pending-reasons-title">Por que esse pacote vai pra Pendente?</h3>
+    <p class="admin-pwd-help">Selecione um ou mais motivos. Esse registro fica anexado ao pacote.</p>
+    <div id="pending-reasons-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;color:var(--text-primary);">
+            <input type="checkbox" name="pending_reason" value="faltando_pecas"> Pacote chegou faltando peças
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;color:var(--text-primary);">
+            <input type="checkbox" name="pending_reason" value="tamanhos_trocados"> Pacote com tamanhos trocados
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;color:var(--text-primary);">
+            <input type="checkbox" name="pending_reason" value="cores_trocadas"> Pacote com cores trocadas
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;color:var(--text-primary);">
+            <input type="checkbox" name="pending_reason" value="modelo_errado"> Pacote chegou com modelo errado
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;color:var(--text-primary);">
+            <input type="checkbox" name="pending_reason" value="cancelado_fornecedor"> Pedido cancelado pelo fornecedor
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;color:var(--text-primary);">
+            <input type="checkbox" name="pending_reason" value="outros" id="pending-reason-outros"> Outros (observações)
+        </label>
+    </div>
+    <textarea id="pending-reasons-obs" placeholder="Descreva o motivo..." rows="3"
+              style="width:100%;background:var(--bg,#0c0a09);border:1px solid var(--card-border);border-radius:10px;padding:0.6rem 0.85rem;color:var(--text-primary);font-family:inherit;font-size:0.9rem;resize:vertical;display:none;"></textarea>
+    <div id="pending-reasons-error" class="admin-pwd-error"></div>
+    <div class="admin-pwd-actions">
+        <button type="button" class="btn-ghost" id="pending-reasons-cancel">Cancelar</button>
+        <button type="button" class="btn-primary" id="pending-reasons-ok">Confirmar</button>
+    </div>
+</div>
+
 <!-- Modal de senha admin (regress de estoque/logística) -->
 <div id="admin-pwd-overlay" class="admin-pwd-overlay"></div>
 <div id="admin-pwd-modal" class="admin-pwd-modal" role="dialog" aria-labelledby="admin-pwd-title">

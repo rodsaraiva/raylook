@@ -141,7 +141,7 @@ const RaylookDashboard = (() => {
     // Ações: chama endpoint, toast de feedback, chama reload global.
     // -----------------------------------------------------------------
     async function doAction(pacoteId, action, opts = {}) {
-        const { confirmText, successText, danger, okLabel, to } = opts;
+        const { confirmText, successText, danger, okLabel, to, body } = opts;
         if (confirmText) {
             const ask = window.RaylookModal?.confirm
                 ? window.RaylookModal.confirm(confirmText, { danger: danger || action === "cancel", okLabel })
@@ -150,8 +150,12 @@ const RaylookDashboard = (() => {
         }
         try {
             const qs = to ? `?to=${encodeURIComponent(to)}` : "";
-            const resp = await fetch(`/api/dashboard/packages/${pacoteId}/${action}${qs}`,
-                { method: "POST", credentials: "include" });
+            const init = { method: "POST", credentials: "include" };
+            if (body !== undefined) {
+                init.headers = { "Content-Type": "application/json" };
+                init.body = JSON.stringify(body);
+            }
+            const resp = await fetch(`/api/dashboard/packages/${pacoteId}/${action}${qs}`, init);
             if (!resp.ok) {
                 const e = await resp.json().catch(() => ({ detail: `HTTP ${resp.status}` }));
                 throw new Error(e.detail || "Falha");

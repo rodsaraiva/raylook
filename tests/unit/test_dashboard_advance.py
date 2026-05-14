@@ -89,12 +89,46 @@ def test_advance_pago_to_pendente_sets_validated_at(fake_client):
         "id": "pag1", "venda_id": "v1", "status": "paid",
         "paid_at": "2026-05-10T09:00:00+00:00",
     })
-    # Estado derivado = pago (todos paid, sem validated_at)
-    res = client.post("/api/dashboard/packages/p1/advance")
+    # Estado derivado = pago. Pago→Pendente exige motivos (body JSON).
+    res = client.post("/api/dashboard/packages/p1/advance",
+                      json={"reasons": ["faltando_pecas"]})
     assert res.status_code == 200
     assert res.json()["previous"] == "pago"
     assert res.json()["new_state"] == "pendente"
     assert fake.tables["pacotes"][0]["payment_validated_at"] == fake.now_iso()
+    assert fake.tables["pacotes"][0]["pending_reasons"] == ["faltando_pecas"]
+
+
+def test_advance_pago_to_pendente_rejeita_sem_motivo(fake_client):
+    client, fake = fake_client
+    fake.tables["pacotes"].append({"id": "p1", "status": "approved", "enquete_id": "e1"})
+    fake.tables["vendas"].append({"id": "v1", "pacote_id": "p1", "pacote_cliente_id": "pc1"})
+    fake.tables["pagamentos"].append({
+        "id": "pag1", "venda_id": "v1", "status": "paid",
+        "paid_at": "2026-05-10T09:00:00+00:00",
+    })
+    res = client.post("/api/dashboard/packages/p1/advance")
+    assert res.status_code == 400
+    assert "motivo" in res.json()["detail"].lower()
+
+
+def test_advance_pago_to_pendente_outros_exige_obs(fake_client):
+    client, fake = fake_client
+    fake.tables["pacotes"].append({"id": "p1", "status": "approved", "enquete_id": "e1"})
+    fake.tables["vendas"].append({"id": "v1", "pacote_id": "p1", "pacote_cliente_id": "pc1"})
+    fake.tables["pagamentos"].append({
+        "id": "pag1", "venda_id": "v1", "status": "paid",
+        "paid_at": "2026-05-10T09:00:00+00:00",
+    })
+    # "outros" sem observation deve falhar
+    res = client.post("/api/dashboard/packages/p1/advance",
+                      json={"reasons": ["outros"]})
+    assert res.status_code == 400
+    # com observation passa
+    res = client.post("/api/dashboard/packages/p1/advance",
+                      json={"reasons": ["outros"], "observations": "veio molhado"})
+    assert res.status_code == 200
+    assert fake.tables["pacotes"][0]["pending_observations"] == "veio molhado"
 
 
 def test_advance_pendente_to_separado_generates_pdf_name(fake_client):

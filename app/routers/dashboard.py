@@ -308,6 +308,8 @@ def list_packages_by_state(
             "pagamentos": pags_summary,
             "pdf_sent_at": pkg.get("pdf_sent_at"),
             "shipped_at": pkg.get("shipped_at"),
+            "pending_reasons": pkg.get("pending_reasons") or [],
+            "pending_observations": pkg.get("pending_observations") or "",
             "state_since": pkg.get(state_ts_field) or pkg.get("updated_at"),
             "age": _age_str(pkg.get(state_ts_field) or pkg.get("updated_at")),
             "created_at": pkg.get("created_at"),
@@ -515,16 +517,52 @@ def _load_pkg_and_pags(client: SupabaseRestClient, pacote_id: str):
     return pkg, vendas, pags
 
 
+VALID_PENDING_REASONS = {
+    "faltando_pecas", "tamanhos_trocados", "cores_trocadas",
+    "modelo_errado", "cancelado_fornecedor", "outros",
+}
+
+
+async def _persist_pending_reasons(
+    request: Request,
+    client: SupabaseRestClient,
+    pacote_id: str,
+) -> None:
+    """Lê motivos do body e grava nas colunas do pacote. Exigido sempre que
+    o pacote vai parar em pendente via clique manual ('Marcar pendente').
+    Pulos como 'Gerar etiqueta' (to=separado) marcam request.state.skip_pending_reasons."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    reasons_raw = body.get("reasons") or []
+    if not isinstance(reasons_raw, list):
+        raise HTTPException(400, "Campo 'reasons' deve ser uma lista.")
+    reasons = [str(r).strip() for r in reasons_raw if r]
+    if not reasons:
+        raise HTTPException(400, "Selecione pelo menos um motivo pra mover o pacote pra pendente.")
+    invalid = [r for r in reasons if r not in VALID_PENDING_REASONS]
+    if invalid:
+        raise HTTPException(400, f"Motivo(s) inválido(s): {invalid}")
+    observations = str(body.get("observations") or "").strip()
+    if "outros" in reasons and not observations:
+        raise HTTPException(400, "Observação obrigatória quando 'Outros' é selecionado.")
+    client.update("pacotes", {
+        "pending_reasons": reasons,
+        "pending_observations": observations or None,
+    }, filters=[("id", "eq", pacote_id)])
+
+
 @router.post("/packages/{pacote_id}/advance")
-def advance_package(pacote_id: str, request: Request, to: Optional[str] = None) -> Dict[str, Any]:
+async def advance_package(pacote_id: str, request: Request, to: Optional[str] = None) -> Dict[str, Any]:
     """Avança o pacote para o próximo estado do fluxo linear (feature #5).
 
     aberto → fechado → confirmado → pago → pendente → separado → enviado.
-    Cria vendas/pagamentos quando necessário. Em dev, simula transições
-    sem tocar em APIs externas.
 
-    Aceita query param `to=<estado>` pra pular várias etapas de uma vez
-    (ex: `?to=separado` em pacote \"pago\" valida + gera pdf de uma vez).
+    Aceita query param `to=<estado>` pra pular várias etapas de uma vez.
+
+    Quando o destino imediato é 'pendente' (Estoque clicou 'Marcar pendente'),
+    exige body JSON com `{reasons: [...], observations?: '...'}`.
     """
     client = SupabaseRestClient.from_settings()
     pkg, vendas, pags = _load_pkg_and_pags(client, pacote_id)
@@ -532,6 +570,15 @@ def advance_package(pacote_id: str, request: Request, to: Optional[str] = None) 
     role = _role_from(request)
     if not _auth.can_advance(role, state, to):
         raise HTTPException(403, f"Role '{role}' não pode avançar de '{state}'" + (f" pra '{to}'" if to else ""))
+
+    # Motivos obrigatórios quando o pacote vai *parar* em pendente.
+    # Pulos (to != pendente que passam por pendente como intermediário) marcam
+    # skip_pending_reasons no request.state pra que a recursão não exija.
+    skip_reasons = getattr(request.state, "skip_pending_reasons", False)
+    going_to_pendente = (to == "pendente") or (to is None and state == "pago")
+    if going_to_pendente and not skip_reasons:
+        await _persist_pending_reasons(request, client, pacote_id)
+
     now = client.now_iso()
 
     if to:
@@ -545,8 +592,11 @@ def advance_package(pacote_id: str, request: Request, to: Optional[str] = None) 
             raise HTTPException(400, f"Pacote já está em \"{state}\" — não pode pular pra trás")
         previous = state
         steps = 0
+        # to != pendente passando por pendente é intermediário — pula o check.
+        if to != "pendente":
+            request.state.skip_pending_reasons = True
         while cur_idx < target_idx and steps < len(FLOW_STATES):
-            advance_package(pacote_id, request, to=None)  # avança 1 step
+            await advance_package(pacote_id, request, to=None)  # avança 1 step
             pkg, vendas, pags = _load_pkg_and_pags(client, pacote_id)
             state = _derive_state(pkg, pags)
             if state not in FLOW_STATES:
