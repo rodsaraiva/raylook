@@ -33,6 +33,5 @@ docs/
 /tmp/
 .pytest_cache/
 
-# Tools de dev (não rodam em prod)
-tools/
+# Tests não vão pra image (tools/ vai — usado pra backfill/ops)
 tests/

@@ -1,57 +1,43 @@
-# CLAUDE.md — raylook (sandbox local)
+# CLAUDE.md — raylook
 
-Contexto e convenções deste projeto. Instruções globais do VPS estão em `/root/.claude/CLAUDE.md`.
+Contexto e convenções deste projeto. Instruções globais do VPS em `/root/.claude/CLAUDE.md`.
 
 ---
 
-## ⚠️ INVARIANTE PRINCIPAL — Não impactar a Alana
-
-**raylook é sandbox de dev local.** A prod da Alana (`alana.v4smc.com`, container `alana_dashboard`, Postgres `alana_staging`, repo `V4MarcosPaulo/projeto_alana`) **deve ficar intocável a todo tempo**. Em qualquer dúvida, default = não toca.
-
-Salvaguardas já implementadas:
-- Sem `git remote` configurado → `git push` é impossível.
-- Sem `.github/workflows/` → não há CI.
-- `RAYLOOK_SANDBOX=true` (default) → Asaas/Resend são stub, Evolution removido.
-- `DATA_BACKEND=sqlite` (default) + lockout em sandbox → nunca conecta no Postgres compartilhado, mesmo se alguém setar `SUPABASE_URL`.
-
-**Não desfazer essas salvaguardas sem aprovação explícita.**
-
 ## O que é
 
-Sandbox local derivado do Alana Dashboard. Mesma lógica de domínio (vendas por enquetes WhatsApp → pacotes via subset-sum → cobrança PIX), mas rodando 100% local com SQLite e integrações em stub.
+Raylook Dashboard — gerencia vendas via enquetes do WhatsApp (subset-sum em pacotes de 24 peças → cobrança PIX via Asaas). **Está em produção** em `https://raylook.v4smc.com`.
 
-Em uso ativo agora: refator UI v2 (`docs/ui-mockups/`, `static/ui-mockups/`), experimentação livre.
+Stack em prod:
+- FastAPI + Jinja2 (`main.py` ainda monolito ~3k linhas — tech debt herdado)
+- Postgres 16 dedicado (stack `raylook_*` no Swarm, volume próprio)
+- PostgREST 14 como camada REST
+- Frontend admin: JS vanilla (`static/js/dashboard_v2.js`)
+- Frontend cliente: portal em `templates/portal_*.html`
+- Asaas (PIX cobrança real), WHAPI (WhatsApp Cloud), Resend (email)
+- CI/CD: GitHub Actions builda + faz `docker stack deploy` via SSH
 
-## Stack
+## ⚠️ Isolamento total
 
-- FastAPI (`main.py` monolito ~3000 linhas — tech debt herdado)
-- SQLite local (`data/raylook.db`, schema em `deploy/sqlite/schema.sql`)
-- Acesso via `SQLiteRestClient` (mesma interface do `SupabaseRestClient`, em `app/services/sqlite_service.py`)
-- Stubs: Asaas, Resend (nunca batem em API real em sandbox)
-- Removidos: Evolution API, MercadoPago, n8n, Docker stacks, deploy/postgres/
+Tudo do raylook fica em containers `raylook_*` (postgres, postgrest, dashboard). **Não compartilha banco com Alana, N8N, Evolution ou outros projetos do VPS.** Cualquer mudança aqui não pode afetá-los.
 
-## Arquivos críticos
+Antes de qualquer migration em prod:
+- `BEGIN; ... COMMIT;` com pré-check de violação
+- `pg_get_constraintdef()` pra confirmar nomes
+- ROLLBACK fácil se algo errar
 
-| Path | Por quê |
-|------|---------|
-| `app/config.py` | `RAYLOOK_SANDBOX`, `DATA_BACKEND` — flags de blindagem |
-| `app/services/supabase_service.py` | `from_settings()` faz lockout pra SQLite em sandbox |
-| `app/services/sqlite_service.py` | Backend SQLite com interface PostgREST |
-| `deploy/sqlite/schema.sql` | Schema fonte da verdade |
-| `main.py` | Endpoints + middleware auth + startup |
-| `app/services/whatsapp_domain_service.py` | Ingestion webhook + subset-sum |
-| `static/js/dashboard.js` | Frontend admin (~2700 linhas) |
-| `templates/index.html` | Template principal admin |
+## Flags de runtime (env vars no Swarm)
 
-## Convenções herdadas (ainda valem)
+| Var | Prod | Função |
+|---|---|---|
+| `RAYLOOK_SANDBOX` | `false` | `true` faz Asaas + sync rodarem como stub |
+| `RESEND_EMAIL_STUB` | `true` | `true` mantém envio de email (Resend) só logado — desacopla de `RAYLOOK_SANDBOX` |
+| `DATA_BACKEND` | `postgres` | `sqlite` é só pra dev local |
+| `ASAAS_PROD_TOKEN` | setado | Token de produção da conta Raylook no Asaas |
 
-- **Datas em URL PostgREST:** sufixo `Z`, não `+00:00`.
-- **Filtros múltiplos no mesmo campo:** lista de tuples em `select_all`.
-- **Phones:** só dígitos; `_phone_variants` pra comparar com/sem DDI 55.
-- **Nomes de cliente:** `_sanitize_name` remove `\n\r\t` e colapsa espaços.
-- **Testes CI:** `DASHBOARD_AUTH_DISABLED=true` no env.
+`deploy/.env` (gitignored) guarda esses valores e é lido pelo CI no `docker stack deploy`.
 
-## Como rodar localmente
+## Dev local
 
 ```bash
 cd /root/rodrigo/raylook
@@ -60,7 +46,7 @@ PYTHONPATH=.venv/lib/python3.12/site-packages:. python3 main.py
 .venv/bin/uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-`data/raylook.db` é criado automaticamente do schema na primeira execução.
+Local roda com SQLite (`data/raylook.db`) e `RAYLOOK_SANDBOX=true` (default). Nada bate em APIs externas reais.
 
 ## Testes
 
@@ -68,23 +54,38 @@ PYTHONPATH=.venv/lib/python3.12/site-packages:. python3 main.py
 DASHBOARD_AUTH_DISABLED=true pytest tests/unit/ -v
 ```
 
-Testes de Evolution/Notifications/Estoque foram removidos junto com o código.
+Convenções herdadas:
+- **Integração > mock** — especialmente DB. Mocked tests passam enquanto migration quebra em prod.
+- Type-check (`mypy`) e lint não garantem UX — UI precisa ser aberta no browser.
 
-## Pendências do desvinculamento (ver `docs/superpowers/specs/` quando existir)
+## Arquivos críticos
 
-- 2.5 — WHAPI próprio do raylook (precisa token + grupo provisionados)
-- 2.6 — Google Drive próprio do raylook (precisa Service Account + pasta)
-- 6 — Verificação ponta a ponta (subir app, testar fluxo completo)
+| Path | Por quê |
+|------|---------|
+| `app/config.py` | Flags (`RAYLOOK_SANDBOX`, `DATA_BACKEND`, `RESEND_EMAIL_STUB`) |
+| `app/services/supabase_service.py` | Cliente PostgREST + lockout |
+| `app/services/whatsapp_domain_service.py` | Webhook ingest + subset-sum + dedup via `webhook_inbox` |
+| `app/services/portal_service.py` | Portal do cliente |
+| `app/routers/dashboard.py` | API admin (`/api/dashboard/*`) |
+| `integrations/asaas/client.py` | Cliente Asaas (gated por `_sandbox_enabled()`) |
+| `deploy/postgres/schema.sql` | Schema canônico Postgres |
+| `deploy/sqlite/schema.sql` | Schema canônico SQLite (espelha o Postgres) |
+| `deploy/docker-stack.yml` | Service definitions Swarm |
+| `deploy/.env` | Env vars de prod (gitignored, no host) |
+| `tools/backfill_whapi.py` | Backfill polls + votos via WHAPI (dentro da imagem agora) |
 
-## ⚠️ Segredos vazados em git history (ações fora do código)
+## Deploy
 
-Estavam no código antes da limpeza. **Devem ser revogados no painel de cada serviço:**
+**Sempre via GitHub Actions.** Push em `main` → CI builda imagem `ghcr.io/rodsaraiva/raylook:<sha>` + `:latest` → SSH no servidor → `docker stack deploy`. Tempo total: 40-90s.
 
-- Resend API key: `re_MdJMdtW2_FWLJ3T7AFB1Kq5ZXQqFARKbw`
-- Evolution API tokens: `EA80B304B771-...`, `B2141A40B331-...`, `580E7D47FF7B-...`
-- N8N JWT (era `n8n_Alana/mcp_n8n.json`)
+Nunca rodar `docker service update --force` ou similar fora do CI sem autorização — sobrescrita do `--env-add` é fácil de perder se feita manual.
 
-Recomendado: rodar `gitleaks detect --source . -v` ou `trufflehog filesystem .` pra varrer histórico.
+## Convenções herdadas
+
+- **Datas em URL PostgREST:** sufixo `Z`, não `+00:00`.
+- **Filtros múltiplos no mesmo campo:** lista de tuples em `select_all()`.
+- **Phones:** só dígitos; `_phone_variants` pra comparar com/sem DDI 55.
+- **Nomes de cliente:** `_sanitize_name` remove `\n\r\t` e colapsa espaços.
 
 ## Comunicação
 

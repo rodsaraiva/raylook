@@ -80,6 +80,7 @@ services:
     environment:
       DATA_BACKEND: postgres
       RAYLOOK_SANDBOX: ${RAYLOOK_SANDBOX:-false}
+      RESEND_EMAIL_STUB: ${RESEND_EMAIL_STUB:-true}
 
       SUPABASE_URL: http://raylook-postgrest:3000
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:?gere com tools/gen_pgrst_jwt.py}
