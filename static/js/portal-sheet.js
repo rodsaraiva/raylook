@@ -76,14 +76,19 @@
         }
     }
 
-    // ── Modal de CPF (contingência) ───────────────────────────────────────────
+    // ── Modal de CPF/CNPJ (contingência) ──────────────────────────────────────
 
-    function maskCpf(raw) {
-        const d = String(raw || '').replace(/\D/g, '').slice(0, 11);
-        if (d.length <= 3) return d;
-        if (d.length <= 6) return d.slice(0, 3) + '.' + d.slice(3);
-        if (d.length <= 9) return d.slice(0, 3) + '.' + d.slice(3, 6) + '.' + d.slice(6);
-        return d.slice(0, 3) + '.' + d.slice(3, 6) + '.' + d.slice(6, 9) + '-' + d.slice(9);
+    function maskCpfCnpj(raw) {
+        const d = String(raw || '').replace(/\D/g, '').slice(0, 14);
+        if (!d) return '';
+        if (d.length <= 11) {
+            if (d.length <= 3) return d;
+            if (d.length <= 6) return d.slice(0, 3) + '.' + d.slice(3);
+            if (d.length <= 9) return d.slice(0, 3) + '.' + d.slice(3, 6) + '.' + d.slice(6);
+            return d.slice(0, 3) + '.' + d.slice(3, 6) + '.' + d.slice(6, 9) + '-' + d.slice(9);
+        }
+        if (d.length <= 12) return d.slice(0, 2) + '.' + d.slice(2, 5) + '.' + d.slice(5, 8) + '/' + d.slice(8);
+        return d.slice(0, 2) + '.' + d.slice(2, 5) + '.' + d.slice(5, 8) + '/' + d.slice(8, 12) + '-' + d.slice(12);
     }
 
     let _cpfRetry = null;
@@ -116,9 +121,9 @@
         const inp = document.getElementById('cpf-modal-input');
         const err = document.getElementById('cpf-modal-error');
         const btn = document.getElementById('cpf-modal-submit');
-        const cpfDigits = String(inp.value || '').replace(/\D/g, '');
-        if (cpfDigits.length !== 11) {
-            err.textContent = 'CPF inválido. Use 11 dígitos.';
+        const digits = String(inp.value || '').replace(/\D/g, '');
+        if (digits.length !== 11 && digits.length !== 14) {
+            err.textContent = 'CPF (11 dígitos) ou CNPJ (14 dígitos) inválido.';
             return;
         }
         btn.disabled = true;
@@ -128,7 +133,7 @@
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ cpf: cpfDigits }),
+                body: JSON.stringify({ cpf_cnpj: digits }),
             });
             if (resp.status === 401) { window.location.href = '/portal'; return; }
             const data = await resp.json();
@@ -148,7 +153,7 @@
 
     document.addEventListener('input', function (e) {
         if (e.target && e.target.id === 'cpf-modal-input') {
-            e.target.value = maskCpf(e.target.value);
+            e.target.value = maskCpfCnpj(e.target.value);
         }
     });
     document.addEventListener('click', function (e) {

@@ -209,7 +209,7 @@ class TestPortalSetupSubmit:
         res = client.post("/portal/setup", data={
             "phone": "5511999990001",
             "email": "ana@exemplo.com",
-            "cpf": "39053344705",
+            "cpf_cnpj": "39053344705",
             "password": "abc123",
             "password_confirm": "xyz999",
         })
@@ -221,7 +221,7 @@ class TestPortalSetupSubmit:
         res = client.post("/portal/setup", data={
             "phone": "5511999990001",
             "email": "ana@exemplo.com",
-            "cpf": "39053344705",
+            "cpf_cnpj": "39053344705",
             "password": "123",
             "password_confirm": "123",
         })
@@ -233,7 +233,7 @@ class TestPortalSetupSubmit:
         res = client.post("/portal/setup", data={
             "phone": "5511999990001",
             "email": "email-invalido",
-            "cpf": "39053344705",
+            "cpf_cnpj": "39053344705",
             "password": "senha123",
             "password_confirm": "senha123",
         })
@@ -245,7 +245,7 @@ class TestPortalSetupSubmit:
         res = client.post("/portal/setup", data={
             "phone": "5511999990001",
             "email": "ana@exemplo.com",
-            "cpf": "12345678900",  # inválido (checksum não bate)
+            "cpf_cnpj": "12345678900",  # inválido (checksum não bate)
             "password": "senha123",
             "password_confirm": "senha123",
         })
@@ -258,7 +258,7 @@ class TestPortalSetupSubmit:
         res = client.post("/portal/setup", data={
             "phone": "5511999990001",
             "email": "ana@exemplo.com",
-            "cpf": "39053344705",  # CPF válido (checksum bate)
+            "cpf_cnpj": "39053344705",  # CPF válido (checksum bate)
             "password": "senha123",
             "password_confirm": "senha123",
         })
@@ -270,7 +270,7 @@ class TestPortalSetupSubmit:
         res = client.post("/portal/setup", data={
             "phone": "5511000000000",
             "email": "x@x.com",
-            "cpf": "39053344705",
+            "cpf_cnpj": "39053344705",
             "password": "senha123",
             "password_confirm": "senha123",
         })

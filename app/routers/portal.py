@@ -61,6 +61,32 @@ def _is_valid_cpf(raw: str) -> bool:
     return True
 
 
+def _is_valid_cnpj(raw: str) -> bool:
+    """Valida CNPJ brasileiro: 14 dígitos + dois dígitos verificadores."""
+    digits = _re_email.sub(r"\D", "", str(raw or ""))
+    if len(digits) != 14 or digits == digits[0] * 14:
+        return False
+    weights1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+    weights2 = [6] + weights1
+    for idx, weights in ((12, weights1), (13, weights2)):
+        total = sum(int(digits[j]) * weights[j] for j in range(idx))
+        rest = total % 11
+        check = 0 if rest < 2 else 11 - rest
+        if check != int(digits[idx]):
+            return False
+    return True
+
+
+def _is_valid_cpf_cnpj(raw: str) -> bool:
+    """Aceita CPF (11 dígitos) ou CNPJ (14 dígitos), valida checksum."""
+    digits = _re_email.sub(r"\D", "", str(raw or ""))
+    if len(digits) == 11:
+        return _is_valid_cpf(digits)
+    if len(digits) == 14:
+        return _is_valid_cnpj(digits)
+    return False
+
+
 def _templates():
     """Lazy import para evitar circular."""
     from main import templates
@@ -174,11 +200,11 @@ async def portal_setup_submit(
     request: Request,
     phone: str = Form(...),
     email: str = Form(...),
-    cpf: str = Form(...),
+    cpf_cnpj: str = Form(...),
     password: str = Form(...),
     password_confirm: str = Form(...),
 ):
-    """Salva senha + email + CPF e cria sessão."""
+    """Salva senha + email + CPF/CNPJ e cria sessão."""
     client = ps.get_client_by_phone(phone)
     if not client:
         return RedirectResponse("/portal", status_code=302)
@@ -190,19 +216,19 @@ async def portal_setup_submit(
         errors.append("As senhas não conferem.")
     if not _is_valid_email(email):
         errors.append("Email inválido. Exemplo: nome@dominio.com")
-    if not _is_valid_cpf(cpf):
-        errors.append("CPF inválido. Use 11 dígitos no formato 000.000.000-00.")
+    if not _is_valid_cpf_cnpj(cpf_cnpj):
+        errors.append("CPF/CNPJ inválido. Use 11 dígitos para CPF ou 14 para CNPJ.")
 
     if errors:
         return _templates().TemplateResponse(request, "portal_setup.html", {
             "phone": phone,
             "nome": client.get("nome") or "",
             "email": email,
-            "cpf": cpf,
+            "cpf_cnpj": cpf_cnpj,
             "errors": errors,
         })
 
-    token = ps.setup_client(client["id"], password, email, cpf)
+    token = ps.setup_client(client["id"], password, email, cpf_cnpj)
     resp = RedirectResponse("/portal/pedidos", status_code=302)
     return _set_session_cookie(resp, token)
 
@@ -431,8 +457,8 @@ async def portal_pay(request: Request, pagamento_id: str):
 
 @router.post("/api/cpf")
 async def portal_set_cpf(request: Request):
-    """Salva CPF do cliente logado. Usado pelo modal de contingência
-    quando o pagamento é bloqueado por falta de CPF (412 cpf_required)."""
+    """Salva CPF/CNPJ do cliente logado. Usado pelo modal de contingência
+    quando o pagamento é bloqueado por falta de CPF/CNPJ (412 cpf_required)."""
     client = await _get_current_client(request)
     if not client:
         return JSONResponse({"error": "Sessão expirada"}, status_code=401)
@@ -440,10 +466,10 @@ async def portal_set_cpf(request: Request):
         body = await request.json()
     except Exception:
         body = {}
-    cpf = str(body.get("cpf") or "").strip()
-    if not _is_valid_cpf(cpf):
-        return JSONResponse({"error": "CPF inválido"}, status_code=400)
-    ps.update_cpf(client["id"], cpf)
+    cpf_cnpj = str(body.get("cpf") or body.get("cpf_cnpj") or "").strip()
+    if not _is_valid_cpf_cnpj(cpf_cnpj):
+        return JSONResponse({"error": "CPF/CNPJ inválido"}, status_code=400)
+    ps.update_cpf(client["id"], cpf_cnpj)
     return JSONResponse({"ok": True})
 
 

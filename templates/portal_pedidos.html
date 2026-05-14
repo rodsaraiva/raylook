@@ -162,15 +162,15 @@
     <div id="cpf-modal-overlay" class="cpf-modal-overlay"></div>
     <div id="cpf-modal" class="cpf-modal" role="dialog" aria-labelledby="cpf-modal-title">
         <div class="cpf-modal-header">
-            <h3 id="cpf-modal-title">Confirmar CPF</h3>
+            <h3 id="cpf-modal-title">Confirmar CPF ou CNPJ</h3>
             <button class="cpf-modal-close" id="cpf-modal-close" type="button" aria-label="Fechar">✕</button>
         </div>
-        <p class="cpf-modal-help">Pra emitir a cobrança PIX a gente precisa do seu CPF.</p>
+        <p class="cpf-modal-help">Pra emitir a cobrança PIX a gente precisa do seu CPF ou CNPJ.</p>
         <div class="cpf-modal-field">
             <input type="text" id="cpf-modal-input"
-                   placeholder="000.000.000-00"
+                   placeholder="000.000.000-00 ou 00.000.000/0000-00"
                    inputmode="numeric" autocomplete="off"
-                   maxlength="14">
+                   maxlength="18">
         </div>
         <div id="cpf-modal-error" class="cpf-modal-error" role="alert"></div>
         <button type="button" class="cpf-modal-submit" id="cpf-modal-submit">
