@@ -223,8 +223,7 @@ app.add_middleware(GZipMiddleware, minimum_size=1024)
 #     --env-add DASHBOARD_AUTH_USER=admin \
 #     --env-add DASHBOARD_AUTH_PASS=... \
 #     raylook_raylook-dashboard
-import base64 as _b64_auth
-import hmac as _hmac_auth
+from app.services import auth_service as _auth
 
 _AUTH_PUBLIC_PREFIXES = (
     "/health",
@@ -236,16 +235,12 @@ _AUTH_PUBLIC_PREFIXES = (
     "/portal",   # portal do cliente (auth próprio via sessão)
 )
 
-
-_DASH_PASSWORD = os.getenv("DASHBOARD_AUTH_PASS", "R@ylook")
 _DASH_COOKIE = "dash_session"
-_DASH_TOKEN = _hmac_auth.new(_DASH_PASSWORD.encode(), b"raylook-dash-session", "sha256").hexdigest()
 
 
 @app.get("/login", response_class=HTMLResponse)
 async def dash_login_page(request: Request):
-    # Se já tem sessão válida, redireciona pro dashboard
-    if request.cookies.get(_DASH_COOKIE) == _DASH_TOKEN:
+    if _auth.read_session_token(request.cookies.get(_DASH_COOKIE, "")):
         return RedirectResponse("/", status_code=302)
     error = request.query_params.get("error", "")
     return templates.TemplateResponse(request, "dash_login.html", {"error": error})
@@ -254,20 +249,23 @@ async def dash_login_page(request: Request):
 @app.post("/login")
 async def dash_login_submit(request: Request):
     form = await request.form()
+    username = str(form.get("username", "")).strip().lower()
     password = str(form.get("password", "")).strip()
-    if _hmac_auth.compare_digest(password, _DASH_PASSWORD):
-        resp = RedirectResponse("/", status_code=302)
-        resp.set_cookie(
-            key=_DASH_COOKIE,
-            value=_DASH_TOKEN,
-            max_age=90 * 24 * 3600,  # 90 dias
-            httponly=True,
-            secure=os.getenv("PORTAL_SECURE_COOKIES", "true").lower() in ("true", "1", "yes"),
-            samesite="lax",
-            path="/",
-        )
-        return resp
-    return RedirectResponse("/login?error=1", status_code=302)
+    role = _auth.verify_credentials(username, password)
+    if not role:
+        return RedirectResponse("/login?error=1", status_code=302)
+    token = _auth.make_session_token(role)
+    resp = RedirectResponse("/", status_code=302)
+    resp.set_cookie(
+        key=_DASH_COOKIE,
+        value=token,
+        max_age=_auth.SESSION_MAX_AGE,
+        httponly=True,
+        secure=os.getenv("PORTAL_SECURE_COOKIES", "true").lower() in ("true", "1", "yes"),
+        samesite="lax",
+        path="/",
+    )
+    return resp
 
 
 @app.get("/logout")
@@ -277,10 +275,25 @@ async def dash_logout(request: Request):
     return resp
 
 
+@app.get("/api/me")
+async def dash_me(request: Request):
+    """Frontend consome pra saber qual role usar pra filtrar UI."""
+    role = getattr(request.state, "role", None)
+    if not role:
+        role = _auth.read_session_token(request.cookies.get(_DASH_COOKIE, ""))
+    if not role:
+        if os.getenv("DASHBOARD_AUTH_DISABLED", "").strip().lower() in ("true", "1", "yes"):
+            role = "admin"
+        else:
+            return JSONResponse(status_code=401, content={"detail": "not authenticated"})
+    return {"username": role, "role": role, "visible_groups": list(_auth.visible_groups(role))}
+
+
 @app.middleware("http")
 async def dashboard_auth_middleware(request: Request, call_next):
     # Bypass pra testes automatizados e ambientes que não precisam de auth
     if os.getenv("DASHBOARD_AUTH_DISABLED", "").strip().lower() in ("true", "1", "yes"):
+        request.state.role = "admin"
         return await call_next(request)
 
     path = request.url.path or "/"
@@ -291,11 +304,11 @@ async def dashboard_auth_middleware(request: Request, call_next):
     if path in ("/login", "/logout"):
         return await call_next(request)
 
-    # Verificar cookie de sessão
-    if request.cookies.get(_DASH_COOKIE) == _DASH_TOKEN:
+    role = _auth.read_session_token(request.cookies.get(_DASH_COOKIE, ""))
+    if role:
+        request.state.role = role
         return await call_next(request)
 
-    # API calls retornam 401 JSON, páginas redirecionam pro login
     if path.startswith("/api/"):
         return JSONResponse(status_code=401, content={"detail": "Authentication required"})
     return RedirectResponse("/login", status_code=302)

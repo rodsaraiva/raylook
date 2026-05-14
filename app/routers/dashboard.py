@@ -27,10 +27,15 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 import os
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from app.config import settings
+from app.services import auth_service as _auth
 from app.services.supabase_service import SupabaseRestClient
+
+
+def _role_from(request: Request) -> str:
+    return getattr(request.state, "role", None) or "admin"
 
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -511,7 +516,7 @@ def _load_pkg_and_pags(client: SupabaseRestClient, pacote_id: str):
 
 
 @router.post("/packages/{pacote_id}/advance")
-def advance_package(pacote_id: str, to: Optional[str] = None) -> Dict[str, Any]:
+def advance_package(pacote_id: str, request: Request, to: Optional[str] = None) -> Dict[str, Any]:
     """Avança o pacote para o próximo estado do fluxo linear (feature #5).
 
     aberto → fechado → confirmado → pago → pendente → separado → enviado.
@@ -524,6 +529,9 @@ def advance_package(pacote_id: str, to: Optional[str] = None) -> Dict[str, Any]:
     client = SupabaseRestClient.from_settings()
     pkg, vendas, pags = _load_pkg_and_pags(client, pacote_id)
     state = _derive_state(pkg, pags)
+    role = _role_from(request)
+    if not _auth.can_advance(role, state, to):
+        raise HTTPException(403, f"Role '{role}' não pode avançar de '{state}'" + (f" pra '{to}'" if to else ""))
     now = client.now_iso()
 
     if to:
@@ -538,7 +546,7 @@ def advance_package(pacote_id: str, to: Optional[str] = None) -> Dict[str, Any]:
         previous = state
         steps = 0
         while cur_idx < target_idx and steps < len(FLOW_STATES):
-            advance_package(pacote_id, to=None)  # avança 1 step
+            advance_package(pacote_id, request, to=None)  # avança 1 step
             pkg, vendas, pags = _load_pkg_and_pags(client, pacote_id)
             state = _derive_state(pkg, pags)
             if state not in FLOW_STATES:
@@ -628,36 +636,15 @@ def advance_package(pacote_id: str, to: Optional[str] = None) -> Dict[str, Any]:
     raise HTTPException(400, f"Estado desconhecido: {state}")
 
 
-_STOCK_LOG_REGRESS_STATES = {"pago", "pendente", "separado", "enviado"}
-
-
-def _require_admin_password(state: str, password: Optional[str]) -> None:
-    """Estoque e logística (pago→enviado) exigem senha de admin pra regredir.
-    A senha é a mesma do dashboard (DASHBOARD_AUTH_PASS). Pulado em testes
-    com DASHBOARD_AUTH_DISABLED=true."""
-    if state not in _STOCK_LOG_REGRESS_STATES:
-        return
-    if (os.getenv("DASHBOARD_AUTH_DISABLED") or "").lower() == "true":
-        return
-    expected = (os.getenv("DASHBOARD_AUTH_PASS") or "").strip()
-    if not expected:
-        raise HTTPException(503, "Senha de admin não configurada no servidor (DASHBOARD_AUTH_PASS).")
-    if (password or "").strip() != expected:
-        raise HTTPException(403, "Senha de admin inválida.")
-
-
 @router.post("/packages/{pacote_id}/regress")
-def regress_package(
-    pacote_id: str,
-    x_admin_password: Optional[str] = Header(None, alias="X-Admin-Password"),
-) -> Dict[str, Any]:
-    """Reverte o pacote pro estado anterior do fluxo. Estados de estoque
-    (pago/pendente/separado) e logística (enviado) só voltam mediante
-    senha de admin enviada no header X-Admin-Password."""
+def regress_package(pacote_id: str, request: Request) -> Dict[str, Any]:
+    """Reverte o pacote pro estado anterior do fluxo. Exclusivo do role admin."""
+    role = _role_from(request)
+    if not _auth.can_regress(role):
+        raise HTTPException(403, "Apenas o administrador pode reverter etapas.")
     client = SupabaseRestClient.from_settings()
     pkg, vendas, pags = _load_pkg_and_pags(client, pacote_id)
     state = _derive_state(pkg, pags)
-    _require_admin_password(state, x_admin_password)
     now = client.now_iso()
 
     if state == "aberto":
@@ -708,7 +695,10 @@ def regress_package(
 
 
 @router.post("/packages/{pacote_id}/cancel")
-def cancel_package(pacote_id: str) -> Dict[str, Any]:
+def cancel_package(pacote_id: str, request: Request) -> Dict[str, Any]:
+    role = _role_from(request)
+    if not _auth.can_cancel(role):
+        raise HTTPException(403, "Apenas o administrador pode cancelar pacotes.")
     client = SupabaseRestClient.from_settings()
     pkg = client.select("pacotes", filters=[("id", "eq", pacote_id)], single=True)
     if not pkg:
@@ -725,8 +715,11 @@ def cancel_package(pacote_id: str) -> Dict[str, Any]:
 
 
 @router.post("/packages/{pacote_id}/restore")
-def restore_package(pacote_id: str) -> Dict[str, Any]:
-    """Restaura um pacote cancelado para 'fechado' (status=closed)."""
+def restore_package(pacote_id: str, request: Request) -> Dict[str, Any]:
+    """Restaura um pacote cancelado para 'fechado' (status=closed). Admin only."""
+    role = _role_from(request)
+    if not _auth.can_restore(role):
+        raise HTTPException(403, "Apenas o administrador pode restaurar pacotes.")
     client = SupabaseRestClient.from_settings()
     pkg = client.select("pacotes", filters=[("id", "eq", pacote_id)], single=True)
     if not pkg:

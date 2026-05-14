@@ -12,6 +12,24 @@
     let listPage = 1;
     const LIST_PAGE_SIZE = 20;
 
+    // Role do usuário logado (filtra rail e botões). Default admin se /api/me falhar.
+    let currentRole = "admin";
+    let visibleGroups = new Set(["comercial", "estoque", "logistica", "financeiro"]);
+    try {
+        const r = await fetch("/api/me", { credentials: "same-origin" });
+        if (r.ok) {
+            const me = await r.json();
+            currentRole = me.role || "admin";
+            visibleGroups = new Set(me.visible_groups || []);
+        }
+    } catch (_) { /* mantém admin */ }
+    window.currentRole = currentRole;
+
+    // Esconde o bloco Financeiro pra não-admin (só admin enxerga).
+    if (!visibleGroups.has("financeiro")) {
+        document.getElementById("fin-block")?.style.setProperty("display", "none");
+    }
+
     const DESCS = {
         aberto: "Formando", fechado: "Aguardando gerente",
         confirmado: "PIX em aberto", pago: "Validar pagamento",
@@ -21,6 +39,22 @@
 
     // Estados em estoque/logística — voltar deles exige senha de admin.
     const STOCK_LOG_STATES = new Set(["pago", "pendente", "separado", "enviado"]);
+
+    // RBAC frontend (espelho de auth_service.can_advance no backend).
+    function canDoAdvance(fromState, toState) {
+        if (currentRole === "admin") return true;
+        const target = toState || null;
+        if (currentRole === "estoque") {
+            if (fromState === "pago" && (target === null || target === "pendente" || target === "separado")) return true;
+            if (fromState === "pendente" && (target === null || target === "separado")) return true;
+            return false;
+        }
+        if (currentRole === "logistica") {
+            if (fromState === "separado" && (target === null || target === "enviado")) return true;
+            return false;
+        }
+        return false;
+    }
 
     function greeting() {
         const h = new Date().getHours();
@@ -162,7 +196,11 @@
         },
     ];
 
-    const groupOpen = { comercial: true, estoque: false, logistica: false };
+    // Estado inicial: abre o primeiro grupo visível pro role.
+    const groupOpen = { comercial: false, estoque: false, logistica: false };
+    if (visibleGroups.has("comercial")) groupOpen.comercial = true;
+    else if (visibleGroups.has("estoque")) groupOpen.estoque = true;
+    else if (visibleGroups.has("logistica")) groupOpen.logistica = true;
 
     // Exposto pro finance-toggle.js fechar os dropdowns ao abrir o financeiro.
     window._railCollapseGroups = function () {
@@ -172,7 +210,7 @@
 
     function renderRail() {
         const rail = document.getElementById("rail");
-        const groupsHtml = RAIL_GROUPS.map(g => {
+        const groupsHtml = RAIL_GROUPS.filter(g => visibleGroups.has(g.id)).map(g => {
             const open = groupOpen[g.id];
             const totalCount = g.states.reduce((sum, s) => sum + (data.counts[s] || 0), 0);
             const stepsHtml = g.states.map((s, i) => {
@@ -283,27 +321,26 @@
             const confirmAttr = action.confirmText ? ` data-confirm="${L.escapeHtml(action.confirmText)}"` : "";
             // "Pago" tem duas ações: Marcar pendente (advance 1 step) e Gerar etiqueta
             // (advance pulando pra "separado"). As demais fases usam a ação primária única.
-            let actionBtn;
+            let actionBtn = "";
             if (state === "pago") {
-                actionBtn = `
-                    <button class="row-action" data-action="advance" data-to="pendente" data-id="${p.id}" title="Validar pagamento e mover pra fila Pendente">Marcar pendente</button>
-                    <button class="row-action" data-action="advance" data-to="separado" data-id="${p.id}" title="Gerar etiqueta e pular pra Separado">Gerar etiqueta</button>`;
-            } else if (state === "aberto" || !action.action) {
-                actionBtn = "";
-            } else {
+                if (canDoAdvance("pago", "pendente"))
+                    actionBtn += `<button class="row-action" data-action="advance" data-to="pendente" data-id="${p.id}" title="Validar pagamento e mover pra fila Pendente">Marcar pendente</button>`;
+                if (canDoAdvance("pago", "separado"))
+                    actionBtn += `<button class="row-action" data-action="advance" data-to="separado" data-id="${p.id}" title="Gerar etiqueta e pular pra Separado">Gerar etiqueta</button>`;
+            } else if (state !== "aberto" && action.action && canDoAdvance(state, null)) {
                 actionBtn = `<button class="row-action" data-action="${action.action}" data-id="${p.id}"${confirmAttr}>${L.escapeHtml(action.label)}</button>`;
             }
-            const backBtn = (state === "aberto" || state === "fechado" || state === "cancelled")
+            // Voltar / Cancelar / Restaurar são exclusivos do admin.
+            const isAdmin = currentRole === "admin";
+            const backBtn = (!isAdmin || state === "aberto" || state === "fechado" || state === "cancelled")
                 ? ""
                 : `<button class="row-back" data-action="regress" data-state="${state}" data-id="${p.id}" title="Voltar pra etapa anterior">←</button>`;
             const valueLabel = p.total_value ? L.moneyFull(p.total_value)
                 : (meta.valor != null ? `${L.money(meta.valor)} <span class="row-unit">/un</span>` : "—");
-            // "Cancelar pacote" aparece em fechado/confirmado (não em aberto, cancelled).
-            const cancelBtn = (state === "fechado" || state === "confirmado")
+            const cancelBtn = (isAdmin && (state === "fechado" || state === "confirmado"))
                 ? `<button class="row-action danger" data-action="cancel" data-id="${p.id}" title="Cancelar pacote inteiro">Cancelar</button>`
                 : "";
-            // "Restaurar" aparece apenas em cancelled — volta o pacote pra fechado.
-            const restoreBtn = (state === "cancelled")
+            const restoreBtn = (isAdmin && state === "cancelled")
                 ? `<button class="row-action" data-action="restore" data-id="${p.id}" title="Voltar pra fechado">Restaurar</button>`
                 : "";
             return `
@@ -345,9 +382,7 @@
                 if (btn.dataset.confirm) {
                     opts = { confirmText: btn.dataset.confirm };
                 } else if (btn.dataset.action === "regress") {
-                    const rowState = btn.dataset.state || activeState;
                     opts = { confirmText: "Voltar esse pacote pra etapa anterior?" };
-                    if (STOCK_LOG_STATES.has(rowState)) opts.requireAdminPassword = true;
                 } else if (btn.dataset.action === "cancel") {
                     opts = { confirmText: "Cancelar esse pacote inteiro? Não pode ser desfeito.", okLabel: "Cancelar pacote", danger: true };
                 } else if (btn.dataset.action === "restore") {
@@ -386,6 +421,7 @@
         const headImg = p.image
             ? `<img src="${L.escapeHtml(p.image)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${L.productEmoji(meta.item)}'}))">`
             : `<span>${L.productEmoji(meta.item)}</span>`;
+        const isAdmin = currentRole === "admin";
         const canAdvance = state !== "enviado" && state !== "cancelled";
         const chips = [
             meta.tecido && { l: "Tecido", v: meta.tecido },
@@ -396,7 +432,7 @@
             ? `<div class="meta-chips">${chips.map(c => `<span class="meta-chip"><b>${c.l}</b> ${L.escapeHtml(c.v)}</span>`).join("")}</div>`
             : "";
         const valorUnit = meta.valor != null ? `${L.money(meta.valor)} <span class="unit-tag">/un</span>` : "—";
-        const canRegress = state !== "aberto" && state !== "fechado" && state !== "cancelled";
+        const canRegress = isAdmin && state !== "aberto" && state !== "fechado" && state !== "cancelled";
 
         detail.innerHTML = `
             <div class="head">
@@ -414,12 +450,12 @@
             ${isCancelled ? "" : `<div class="vtl-title">Jornada do pacote</div><div class="vtl">${stepsHtml}</div>`}
             <div class="detail-actions">
                 ${state === "pago" ? `
-                    <button class="btn-primary" data-advance data-to="pendente">⏭️ Marcar pendente</button>
-                    <button class="btn-primary" data-advance data-to="separado">🏷️ Gerar etiqueta</button>
-                ` : (canAdvance ? `<button class="btn-primary" data-advance>${primaryLabel(state)}</button>` : "")}
+                    ${canDoAdvance("pago", "pendente") ? `<button class="btn-primary" data-advance data-to="pendente">⏭️ Marcar pendente</button>` : ""}
+                    ${canDoAdvance("pago", "separado") ? `<button class="btn-primary" data-advance data-to="separado">🏷️ Gerar etiqueta</button>` : ""}
+                ` : ((canAdvance && canDoAdvance(state, null)) ? `<button class="btn-primary" data-advance>${primaryLabel(state)}</button>` : "")}
                 ${canRegress ? `<button class="btn-ghost" data-regress>← Voltar pra etapa anterior</button>` : ""}
                 <button class="btn-ghost" data-drill>Ver detalhes completos</button>
-                ${canAdvance ? `<button class="btn-ghost" data-cancel style="color:var(--danger);">Cancelar pacote</button>` : ""}
+                ${(isAdmin && canAdvance) ? `<button class="btn-ghost" data-cancel style="color:var(--danger);">Cancelar pacote</button>` : ""}
             </div>`;
 
         detail.querySelectorAll("[data-advance]").forEach(btn => btn.addEventListener("click", async () => {
@@ -433,9 +469,7 @@
             await L.doAction(p.id, "advance", opts);
         }));
         detail.querySelector("[data-regress]")?.addEventListener("click", async () => {
-            const opts = { confirmText: "Voltar esse pacote pra etapa anterior?" };
-            if (STOCK_LOG_STATES.has(state)) opts.requireAdminPassword = true;
-            await L.doAction(p.id, "regress", opts);
+            await L.doAction(p.id, "regress", { confirmText: "Voltar esse pacote pra etapa anterior?" });
         });
         detail.querySelector("[data-drill]")?.addEventListener("click", () => window.RaylookModal?.open(p.id));
         detail.querySelector("[data-cancel]")?.addEventListener("click", async () => {

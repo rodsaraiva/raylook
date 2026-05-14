@@ -82,6 +82,12 @@ services:
       RAYLOOK_SANDBOX: ${RAYLOOK_SANDBOX:-false}
       RESEND_EMAIL_STUB: ${RESEND_EMAIL_STUB:-true}
 
+      # Auth multi-usuário (3 usuários fixos via bcrypt hash)
+      RAYLOOK_USER_ADMIN_HASH: ${RAYLOOK_USER_ADMIN_HASH:?obrigatório}
+      RAYLOOK_USER_ESTOQUE_HASH: ${RAYLOOK_USER_ESTOQUE_HASH:?obrigatório}
+      RAYLOOK_USER_LOGISTICA_HASH: ${RAYLOOK_USER_LOGISTICA_HASH:?obrigatório}
+      SESSION_SECRET: ${SESSION_SECRET:?obrigatório}
+
       SUPABASE_URL: http://raylook-postgrest:3000
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:?gere com tools/gen_pgrst_jwt.py}
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-${SUPABASE_SERVICE_ROLE_KEY}}

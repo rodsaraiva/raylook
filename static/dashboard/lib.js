@@ -141,23 +141,17 @@ const RaylookDashboard = (() => {
     // Ações: chama endpoint, toast de feedback, chama reload global.
     // -----------------------------------------------------------------
     async function doAction(pacoteId, action, opts = {}) {
-        const { confirmText, successText, danger, okLabel, to, requireAdminPassword } = opts;
+        const { confirmText, successText, danger, okLabel, to } = opts;
         if (confirmText) {
             const ask = window.RaylookModal?.confirm
                 ? window.RaylookModal.confirm(confirmText, { danger: danger || action === "cancel", okLabel })
                 : Promise.resolve(window.confirm(confirmText));
             if (!await ask) return false;
         }
-        let adminPwd = "";
-        if (requireAdminPassword) {
-            adminPwd = await promptAdminPassword();
-            if (adminPwd === null) return false;  // cancelado
-        }
         try {
             const qs = to ? `?to=${encodeURIComponent(to)}` : "";
-            const headers = adminPwd ? { "X-Admin-Password": adminPwd } : {};
             const resp = await fetch(`/api/dashboard/packages/${pacoteId}/${action}${qs}`,
-                { method: "POST", credentials: "include", headers });
+                { method: "POST", credentials: "include" });
             if (!resp.ok) {
                 const e = await resp.json().catch(() => ({ detail: `HTTP ${resp.status}` }));
                 throw new Error(e.detail || "Falha");
