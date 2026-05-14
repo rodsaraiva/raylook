@@ -311,73 +311,13 @@ def list_packages_by_state(
         else:
             grouped[state].append(item)
 
-    # Granularidade por cliente a partir de "pago": cada pacote_cliente vira
-    # uma linha na fase correspondente. "pago" pode incluir clientes de
-    # pacotes ainda em "confirmado" (1 cliente pagou, outros não).
-    clients_grouped: Dict[str, List[Dict[str, Any]]] = {
-        "pago": [], "pendente": [], "separado": [], "enviado": []
-    }
-    for pkg in pacotes:
-        pags = pagamentos_by_pacote.get(pkg["id"], [])
-        pkg_state = _derive_state(pkg, pags)
-        if pkg_state in ("aberto", "fechado", "cancelled"):
-            continue
-        enq = enquete_map.get(pkg["enquete_id"], {})
-        prod = produto_map.get(enq.get("produto_id"))
-        drive_id = enq.get("drive_file_id") or (prod.get("drive_file_id") if prod else None)
-        image = f"/files/{drive_id}" if drive_id else None
-        produto_name = prod.get("nome") if prod else None
-
-        for pc in pc_by_pacote.get(pkg["id"], []):
-            c = cliente_map.get(pc["cliente_id"], {})
-            venda = next(
-                (v for v in vendas_by_pacote.get(pkg["id"], [])
-                 if v.get("pacote_cliente_id") == pc["id"]),
-                None,
-            )
-            pag = pagamentos_by_venda.get(venda["id"]) if venda else None
-            pag_status = pag.get("status") if pag else None
-
-            cli_state = _derive_client_state(pkg, pc, pag)
-            if not cli_state:
-                continue
-
-            cli_state_ts = (
-                pag.get("paid_at") if cli_state == "pago" and pag else
-                (pc.get("payment_validated_at") or pkg.get("payment_validated_at")) if cli_state == "pendente" else
-                (pc.get("pdf_sent_at") or pkg.get("pdf_sent_at")) if cli_state == "separado" else
-                (pc.get("shipped_at") or pkg.get("shipped_at")) if cli_state == "enviado" else
-                pkg.get("updated_at")
-            )
-
-            clients_grouped[cli_state].append({
-                "cliente_id": pc["cliente_id"],
-                "nome": c.get("nome"),
-                "celular": c.get("celular"),
-                "qty": pc["qty"],
-                "valor": pc.get("total_amount"),
-                "pagamento_status": pag_status,
-                "paid_at": pag.get("paid_at") if pag else None,
-                "pacote_id": pkg["id"],
-                "pacote_state": pkg_state,
-                "pacote_sequence_no": pkg.get("sequence_no"),
-                "produto_name": produto_name,
-                "image": image,
-                "external_poll_id": enq.get("external_poll_id"),
-                "state_since": cli_state_ts,
-            })
-
     counts = {s: len(grouped[s]) for s in FLOW_STATES}
-    # Counts dos estados per-cliente vêm do agrupamento de clientes
-    for s in ("pago", "pendente", "separado", "enviado"):
-        counts[s] = len(clients_grouped[s])
     counts["cancelled"] = len(cancelled)
 
     return {
         "states": FLOW_STATES,
         "counts": counts,
         "packages_by_state": grouped,
-        "clients_by_state": clients_grouped,
         "cancelled": cancelled,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }

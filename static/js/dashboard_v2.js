@@ -124,13 +124,8 @@
         load();
     });
 
-    const CLIENT_STATES = new Set(["pago", "pendente", "separado", "enviado"]);
-
-    function isClientState(state) { return CLIENT_STATES.has(state); }
-
     function currentItems() {
         if (activeState === "cancelled") return data.cancelled || [];
-        if (isClientState(activeState)) return data.clients_by_state?.[activeState] || [];
         return data.packages_by_state[activeState] || [];
     }
 
@@ -194,8 +189,6 @@
         );
     }
 
-    function clientItemKey(c) { return `${c.pacote_id}:${c.cliente_id}`; }
-
     function renderPagination(total) {
         const el = document.getElementById("list-pagination");
         if (!el) return;
@@ -218,140 +211,7 @@
 
         titleEl.textContent = activeState === "cancelled" ? "Cancelados" : L.STATE_LABELS[activeState];
 
-        if (isClientState(activeState)) {
-            // Linha = cliente individual
-            const filtered = q ? all.filter(c =>
-                (c.nome || "").toLowerCase().includes(q)
-                || (c.celular || "").includes(q)
-                || (c.produto_name || "").toLowerCase().includes(q)
-            ) : all;
-            const totalCount = filtered.length;
-            const paged = filtered.slice((listPage - 1) * LIST_PAGE_SIZE, listPage * LIST_PAGE_SIZE);
-            const totalPieces = filtered.reduce((a, c) => a + (c.qty || 0), 0);
-            const totalValue = filtered.reduce((a, c) => a + (c.valor || 0), 0);
-            summaryEl.textContent =
-                `${totalCount} cliente${totalCount === 1 ? "" : "s"} · ${totalPieces} peças · ${L.moneyFull(totalValue)}`;
-            if (!totalCount) {
-                wrap.innerHTML = `<div class="empty-state">Nenhum cliente nessa fase.</div>`;
-                renderPagination(0);
-                return;
-            }
-            wrap.innerHTML = paged.map(c => {
-                const meta = L.parsePollTitle(c.produto_name);
-                const thumb = c.image
-                    ? `<img src="${L.escapeHtml(c.image)}" alt="" loading="lazy">`
-                    : `<span>${L.productEmoji(meta.item)}</span>`;
-                const key = clientItemKey(c);
-                // Em "pago", botões de transição. Avanço aplica no pacote inteiro
-                // (granularidade fina exigiria coluna por cliente — fora do escopo).
-                let actionsHtml = "<span></span>";
-                const cliAttrs = `data-pkg="${c.pacote_id}" data-cli="${c.cliente_id}"`;
-                const nomeAttrs = `data-cliente-nome="${L.escapeHtml(c.nome || '')}" data-cliente-celular="${L.escapeHtml(c.celular || '')}"`;
-                const cancelBtn = `<button class="row-action danger" data-cli-cancel ${cliAttrs} ${nomeAttrs} title="Cancelar esse cliente do pacote">Cancelar</button>`;
-                if (activeState === "pago") {
-                    actionsHtml = `<div class="pkg-row-actions">
-                        <button class="row-action warning" data-cli-advance ${cliAttrs} data-to="separado" title="Validar e gerar etiqueta">→ Separar</button>
-                        <button class="row-action ghost" data-cli-advance ${cliAttrs} data-to="pendente" title="Validar pagamento">Validar</button>
-                        ${cancelBtn}
-                    </div>`;
-                } else if (activeState === "pendente") {
-                    actionsHtml = `<div class="pkg-row-actions">
-                        <button class="row-action" data-cli-advance ${cliAttrs} data-to="separado" title="Gerar etiqueta de separação">Gerar etiqueta</button>
-                        ${cancelBtn}
-                    </div>`;
-                } else if (activeState === "separado") {
-                    actionsHtml = `<div class="pkg-row-actions">
-                        <button class="row-action" data-cli-advance ${cliAttrs} data-to="enviado" title="Marcar como despachado">Marcar enviado</button>
-                        ${cancelBtn}
-                    </div>`;
-                } else if (activeState === "enviado") {
-                    actionsHtml = `<div class="pkg-row-actions">${cancelBtn}</div>`;
-                }
-                return `
-                <div class="pkg-row ${key === selectedId ? "selected" : ""}" data-id="${key}" data-pacote-id="${c.pacote_id}">
-                    <div class="pkg-thumb">${thumb}</div>
-                    <div class="pkg-row-main">
-                        <div class="name">${L.escapeHtml(c.nome || "?")}</div>
-                        <div class="sub">${L.escapeHtml(c.celular || "")} · ${c.qty} peças · ${L.escapeHtml(meta.item)} #${c.pacote_sequence_no ?? "?"}</div>
-                    </div>
-                    <div class="pkg-row-meta">${L.moneyFull(c.valor)}<div class="sub">há ${L.age(c.state_since)}</div></div>
-                    ${actionsHtml}
-                </div>`;
-            }).join("");
-            wrap.querySelectorAll(".pkg-row").forEach(row =>
-                row.addEventListener("click", (e) => {
-                    if (e.target.closest("[data-cli-advance]") || e.target.closest("[data-cli-cancel]")) return;
-                    selectedId = row.dataset.id;
-                    render();
-                })
-            );
-            wrap.querySelectorAll("[data-cli-cancel]").forEach(btn =>
-                btn.addEventListener("click", async (e) => {
-                    e.stopPropagation();
-                    const pkgId = btn.dataset.pkg;
-                    const cliId = btn.dataset.cli;
-                    const nome = btn.dataset.clienteNome || "esse cliente";
-                    const celular = btn.dataset.clienteCelular || "";
-                    const label = celular ? `${nome} (${celular})` : nome;
-                    if (!await (window.RaylookModal?.confirm(
-                            `Cancelar ${label} do pacote? A venda e o pagamento desse cliente serão apagados.`,
-                            { okLabel: "Cancelar cliente", danger: true }
-                        ) ?? Promise.resolve(window.confirm(`Cancelar ${label}?`)))) return;
-                    btn.disabled = true;
-                    try {
-                        const resp = await fetch(`/api/dashboard/packages/${pkgId}/clients/${cliId}`,
-                            { method: "DELETE", credentials: "include" });
-                        if (!resp.ok) {
-                            const err = await resp.json().catch(() => ({ detail: "Falha" }));
-                            throw new Error(err.detail || "Falha");
-                        }
-                        window.RaylookModal?.toast("Cliente removido do pacote", "success");
-                        if (window.RaylookReload) await window.RaylookReload();
-                    } catch (err) {
-                        window.RaylookModal?.toast(`Erro: ${err.message}`, "error");
-                        btn.disabled = false;
-                    }
-                })
-            );
-            wrap.querySelectorAll("[data-cli-advance]").forEach(btn =>
-                btn.addEventListener("click", async (e) => {
-                    e.stopPropagation();
-                    const pkgId = btn.dataset.pkg;
-                    const cliId = btn.dataset.cli;
-                    const to = btn.dataset.to;
-                    const confirms = {
-                        pendente: { msg: "Validar pagamento desse cliente?", ok: "Validar" },
-                        separado: { msg: "Gerar etiqueta de separação desse cliente?", ok: "Gerar etiqueta" },
-                        enviado: { msg: "Marcar esse cliente como despachado?", ok: "Marcar enviado" },
-                    };
-                    const c = confirms[to] || { msg: "Avançar esse cliente?", ok: "Avançar" };
-                    const confirmText = c.msg;
-                    const okLabel = c.ok;
-                    if (!await (window.RaylookModal?.confirm(confirmText, { okLabel })
-                                ?? Promise.resolve(window.confirm(confirmText)))) return;
-                    btn.disabled = true;
-                    try {
-                        const path = `clients/${cliId}/advance${to ? `?to=${encodeURIComponent(to)}` : ""}`;
-                        const resp = await fetch(`/api/dashboard/packages/${pkgId}/${path}`,
-                            { method: "POST", credentials: "include" });
-                        if (!resp.ok) {
-                            const err = await resp.json().catch(() => ({ detail: "Falha" }));
-                            throw new Error(err.detail || "Falha");
-                        }
-                        const payload = await resp.json();
-                        window.RaylookModal?.toast(`Cliente agora em "${payload.new_state}"`, "success");
-                        if (window.RaylookReload) await window.RaylookReload();
-                    } catch (err) {
-                        window.RaylookModal?.toast(`Erro: ${err.message}`, "error");
-                        btn.disabled = false;
-                    }
-                })
-            );
-            renderPagination(totalCount);
-            return;
-        }
-
-        // Linha = pacote (estados aberto/fechado/confirmado/cancelled)
+        // Linha = pacote (todos os estados)
         const filtered = q ? all.filter(p =>
             (p.produto_name || "").toLowerCase().includes(q)
             || (p.clientes || []).some(c => (c.name || "").toLowerCase().includes(q))
@@ -438,11 +298,6 @@
 
     function renderDetail() {
         const detail = document.getElementById("detail");
-        if (isClientState(activeState)) {
-            const c = currentItems().find(x => clientItemKey(x) === selectedId);
-            renderClientDetail(detail, c);
-            return;
-        }
         const p = currentItems().find(x => x.id === selectedId);
         if (!p) {
             detail.innerHTML = `<div class="empty-state">Selecione um pacote</div>`;
@@ -515,47 +370,6 @@
         detail.querySelector("[data-cancel]")?.addEventListener("click", async () => {
             await L.doAction(p.id, "cancel", { confirmText: "Cancelar esse pacote?", okLabel: "Cancelar pacote", danger: true });
         });
-    }
-
-    function renderClientDetail(detail, c) {
-        if (!c) {
-            detail.innerHTML = `<div class="empty-state">Selecione um cliente</div>`;
-            return;
-        }
-        const meta = L.parsePollTitle(c.produto_name);
-        const headImg = c.image
-            ? `<img src="${L.escapeHtml(c.image)}" alt="" loading="lazy">`
-            : `<span>${L.productEmoji(meta.item)}</span>`;
-        const idx = L.STATES.indexOf(activeState);
-        const stepsHtml = L.STATES.map((s, i) => {
-            let cls = "";
-            if (i < idx) cls = "done";
-            else if (i === idx) cls = "current";
-            return `
-            <div class="vtl-step ${cls}">
-                <div><span class="dot-ck">✓</span><div class="label">${i + 1} · ${L.STATE_LABELS[s]}</div></div>
-            </div>`;
-        }).join("");
-        detail.innerHTML = `
-            <div class="head">
-                <div class="head-img">${headImg}</div>
-                <h2>${L.escapeHtml(c.nome || "?")}</h2>
-                <div class="subtitle">${L.escapeHtml(c.celular || "")} · ${L.pill(activeState)}</div>
-            </div>
-            <div class="summary-grid">
-                <div class="summary-cell"><div class="l">Peças</div><div class="v">${c.qty}</div></div>
-                <div class="summary-cell"><div class="l">Valor</div><div class="v money">${L.moneyFull(c.valor)}</div></div>
-                <div class="summary-cell"><div class="l">Produto</div><div class="v" style="font-size:13px;">${L.escapeHtml(meta.item)}</div></div>
-                <div class="summary-cell"><div class="l">No estado há</div><div class="v">${L.age(c.state_since)}</div></div>
-            </div>
-            <div class="vtl-title">Pacote pai</div>
-            <div class="meta-chips" style="margin-bottom:18px;">
-                <span class="meta-chip"><b>Pacote</b> #${c.pacote_sequence_no ?? "?"}</span>
-                <span class="meta-chip"><b>Estado</b> ${L.STATE_LABELS[c.pacote_state] || c.pacote_state}</span>
-            </div>
-            <div class="vtl-title">Jornada</div>
-            <div class="vtl">${stepsHtml}</div>
-            `;
     }
 
     function primaryLabel(state) {

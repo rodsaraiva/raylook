@@ -117,8 +117,7 @@ def test_filter_since_greater_than_until_returns_400(client_with_fake):
 def test_response_shape_has_expected_keys(client_with_fake):
     client, _ = client_with_fake
     body = client.get("/api/dashboard/packages").json()
-    for key in ("states", "counts", "packages_by_state", "clients_by_state",
-                "cancelled", "generated_at"):
+    for key in ("states", "counts", "packages_by_state", "cancelled", "generated_at"):
         assert key in body
     assert body["states"] == [
         "aberto", "fechado", "confirmado", "pago", "pendente", "separado", "enviado",
