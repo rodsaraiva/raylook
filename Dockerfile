@@ -25,6 +25,7 @@ COPY finance/ finance/
 COPY images/ images/
 COPY integrations/ integrations/
 COPY deploy/ deploy/
+COPY tools/ tools/
 
 RUN mkdir -p data data/images
 
