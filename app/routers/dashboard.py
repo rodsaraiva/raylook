@@ -25,9 +25,12 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+import logging
 import os
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
+
+logger = logging.getLogger(__name__)
 
 from app.config import settings
 from app.services import auth_service as _auth
@@ -782,6 +785,65 @@ def restore_package(pacote_id: str, request: Request) -> Dict[str, Any]:
         "cancelled_by": None,
     }, filters=[("id", "eq", pacote_id)])
     return {"status": "ok", "new_state": "fechado"}
+
+
+@router.get("/packages/{pacote_id}/etiqueta.pdf")
+def get_package_etiqueta_pdf(pacote_id: str, request: Request) -> Response:
+    """Gera o PDF de etiqueta do pacote on-demand pra download no dashboard.
+
+    Disponível a partir do estado 'separado' (quando estoque clicou 'Gerar
+    etiqueta' e pdf_sent_at foi setado). Qualquer role logado pode baixar —
+    estoque/logística precisam pra trabalhar.
+    """
+    # Imports lazy pra evitar custo no boot do módulo
+    from estoque.pdf_builder import build_pdf
+
+    client = SupabaseRestClient.from_settings()
+    pkg = client.select("pacotes", filters=[("id", "eq", pacote_id)], single=True)
+    if not pkg:
+        raise HTTPException(404, "Pacote não encontrado")
+    if not pkg.get("pdf_sent_at"):
+        raise HTTPException(409, "Etiqueta ainda não gerada — avance o pacote pra 'Separado' primeiro.")
+
+    enq = {}
+    if pkg.get("enquete_id"):
+        enq = client.select("enquetes", filters=[("id", "eq", pkg["enquete_id"])], single=True) or {}
+
+    pcs = client.select("pacote_clientes", filters=[("pacote_id", "eq", pacote_id)]) or []
+    cliente_ids = list({pc["cliente_id"] for pc in pcs if pc.get("cliente_id")})
+    clientes = client.select_all(
+        "clientes", columns="id,nome,celular",
+        filters=[("id", "in", cliente_ids)],
+    ) if cliente_ids else []
+    cliente_by_id = {c["id"]: c for c in clientes}
+
+    votes = []
+    for pc in pcs:
+        c = cliente_by_id.get(pc.get("cliente_id"), {})
+        votes.append({
+            "name": c.get("nome") or "Cliente",
+            "phone": c.get("celular") or "",
+            "qty": int(pc.get("qty") or 0),
+        })
+
+    package = {
+        "id": pacote_id,
+        "poll_title": enq.get("titulo") or pkg.get("custom_title") or "Pedido",
+        "votes": votes,
+    }
+
+    try:
+        pdf_bytes = build_pdf(package, settings.COMMISSION_PER_PIECE)
+    except Exception:
+        logger.exception("Falha ao gerar etiqueta on-demand pkg=%s", pacote_id)
+        raise HTTPException(500, "Erro ao gerar PDF da etiqueta")
+
+    filename = pkg.get("pdf_file_name") or f"etiqueta-{pkg.get('sequence_no') or pacote_id[:8]}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 _CLIENT_FLOW = ["pago", "pendente", "separado", "enviado"]

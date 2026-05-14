@@ -379,6 +379,11 @@
                 actionBtn = `<button class="row-action" data-action="${action.action}" data-id="${p.id}"${confirmAttr}>${L.escapeHtml(action.label)}</button>`;
             }
             // Voltar / Cancelar / Restaurar são exclusivos do admin.
+            // Botão de download da etiqueta — aparece quando pdf_sent_at está set
+            // (a partir de "separado"). Qualquer role logado pode baixar.
+            const etiquetaBtn = p.pdf_sent_at
+                ? `<a class="row-action" href="/api/dashboard/packages/${p.id}/etiqueta.pdf" target="_blank" rel="noopener" title="Baixar PDF da etiqueta">📄 Etiqueta</a>`
+                : "";
             const isAdmin = currentRole === "admin";
             const backBtn = (!isAdmin || state === "aberto" || state === "fechado" || state === "cancelled")
                 ? ""
@@ -399,7 +404,7 @@
                     <div class="sub">${L.escapeHtml(subBits || L.clientesShort(p.clientes, 2))} · ${p.total_qty}/${p.capacidade_total}</div>
                 </div>
                 <div class="pkg-row-meta">${valueLabel}<div class="sub">há ${L.age(p.state_since)}</div></div>
-                <div class="pkg-row-actions">${backBtn}${actionBtn}${cancelBtn}${restoreBtn}</div>
+                <div class="pkg-row-actions">${backBtn}${etiquetaBtn}${actionBtn}${cancelBtn}${restoreBtn}</div>
             </div>`;
         }).join("");
         wrap.querySelectorAll(".pkg-row").forEach(row => {
@@ -525,6 +530,7 @@
                     ${canDoAdvance("pago", "separado") ? `<button class="btn-primary" data-advance data-to="separado">🏷️ Gerar etiqueta</button>` : ""}
                 ` : ((canAdvance && canDoAdvance(state, null)) ? `<button class="btn-primary" data-advance>${primaryLabel(state)}</button>` : "")}
                 ${canRegress ? `<button class="btn-ghost" data-regress>← Voltar pra etapa anterior</button>` : ""}
+                ${p.pdf_sent_at ? `<a class="btn-ghost" href="/api/dashboard/packages/${p.id}/etiqueta.pdf" target="_blank" rel="noopener" style="text-decoration:none;">📄 Baixar etiqueta</a>` : ""}
                 <button class="btn-ghost" data-drill>Ver detalhes completos</button>
                 ${(isAdmin && canAdvance) ? `<button class="btn-ghost" data-cancel style="color:var(--danger);">Cancelar pacote</button>` : ""}
             </div>`;
