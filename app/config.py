@@ -44,6 +44,11 @@ if _USE_PYDANTIC:
         # Default True pra que rodar sem .env nunca conecte em serviços externos reais.
         RAYLOOK_SANDBOX: bool = True
 
+        # Mantém o stub de envio de email (Resend) independente de RAYLOOK_SANDBOX.
+        # True = email é só logado, nada sai. Útil pra rodar Asaas em prod e
+        # ainda assim segurar comunicação por email enquanto não está validada.
+        RESEND_EMAIL_STUB: bool = True
+
         BASEROW_API_URL: str = "https://base.v4smc.com"
         BASEROW_API_TOKEN: Optional[str] = None
         BASEROW_TABLE_ENQUETES: str = "18"
@@ -134,6 +139,7 @@ else:
 
     class Settings:
         RAYLOOK_SANDBOX: bool = os.getenv("RAYLOOK_SANDBOX", "true").strip().lower() not in ("0", "false", "no")
+        RESEND_EMAIL_STUB: bool = os.getenv("RESEND_EMAIL_STUB", "true").strip().lower() not in ("0", "false", "no")
 
         BASEROW_API_URL: str = os.getenv("BASEROW_API_URL", "https://base.v4smc.com")
         BASEROW_API_TOKEN: Optional[str] = os.getenv("BASEROW_API_TOKEN")

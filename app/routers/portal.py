@@ -234,7 +234,7 @@ async def portal_reset_submit(request: Request, phone: str = Form(...)):
         from app.config import settings
         nome = (client.get("nome") or "").split()[0] if client.get("nome") else "Cliente"
 
-        if getattr(settings, "RAYLOOK_SANDBOX", True):
+        if getattr(settings, "RESEND_EMAIL_STUB", True):
             logger.info("[resend-stub] reset email to=%s nome=%s link=%s", email, nome, reset_link)
             return _templates().TemplateResponse(request, "portal_reset.html", {
                 "success": True,
