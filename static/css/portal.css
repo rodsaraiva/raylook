@@ -466,6 +466,70 @@ header {
 }
 .footer-note i { color: var(--accent); margin-right: 0.3rem; }
 
+/* ── Modal CPF (contingência de pagamento) ── */
+.cpf-modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    opacity: 0; pointer-events: none; transition: opacity 0.18s ease;
+    z-index: 200;
+}
+.cpf-modal-overlay.open { opacity: 1; pointer-events: auto; }
+.cpf-modal {
+    position: fixed; left: 50%; top: 50%;
+    transform: translate(-50%, -45%) scale(0.96);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    width: calc(100% - 2rem); max-width: 380px;
+    background: var(--card-bg); border: 1px solid var(--card-border);
+    border-radius: 14px; padding: 1.4rem 1.2rem;
+    z-index: 201;
+}
+.cpf-modal.open {
+    opacity: 1; pointer-events: auto;
+    transform: translate(-50%, -50%) scale(1);
+}
+.cpf-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 0.4rem;
+}
+.cpf-modal-header h3 {
+    font-family: 'Outfit', sans-serif; font-size: 1.05rem;
+    font-weight: 700; color: var(--text-primary); margin: 0;
+}
+.cpf-modal-close {
+    background: transparent; border: none; color: var(--text-muted);
+    font-size: 1rem; cursor: pointer; padding: 0.2rem 0.4rem;
+}
+.cpf-modal-close:hover { color: var(--text-primary); }
+.cpf-modal-help {
+    font-size: 0.82rem; color: var(--text-muted);
+    margin: 0 0 0.9rem 0; line-height: 1.4;
+}
+.cpf-modal-field input {
+    width: 100%; padding: 0.7rem 0.9rem;
+    background: var(--bg); border: 1px solid var(--card-border);
+    border-radius: 10px; color: var(--text-primary);
+    font-family: 'Inter', sans-serif; font-size: 0.95rem;
+    letter-spacing: 0.02em;
+}
+.cpf-modal-field input:focus {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(232,197,106,0.15);
+}
+.cpf-modal-error {
+    min-height: 1rem; margin: 0.4rem 0 0.6rem;
+    font-size: 0.78rem; color: var(--danger);
+}
+.cpf-modal-submit {
+    width: 100%; padding: 0.7rem 1rem;
+    background: var(--accent-gradient); color: #0c0a09;
+    border: none; border-radius: 11px;
+    font-family: 'Outfit', sans-serif; font-size: 0.9rem; font-weight: 700;
+    cursor: pointer; transition: var(--transition);
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+}
+.cpf-modal-submit:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
+.cpf-modal-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* ── Desktop ── */
 @media (min-width: 720px) {
     .page { max-width: 600px; padding-top: 2rem; }

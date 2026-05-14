@@ -393,6 +393,8 @@ async def portal_pay_all(request: Request):
     try:
         result = ps.create_combined_pix(client["id"])
         return JSONResponse(result)
+    except ps.CpfMissingError:
+        return JSONResponse({"error": "cpf_required"}, status_code=412)
     except ValueError as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)
     except Exception as exc:
@@ -416,6 +418,8 @@ async def portal_pay(request: Request, pagamento_id: str):
         except Exception:
             pass
         return JSONResponse(result)
+    except ps.CpfMissingError:
+        return JSONResponse({"error": "cpf_required"}, status_code=412)
     except PermissionError:
         return JSONResponse({"error": "Acesso negado"}, status_code=403)
     except ValueError as exc:
@@ -423,6 +427,24 @@ async def portal_pay(request: Request, pagamento_id: str):
     except Exception as exc:
         logger.error("Erro ao criar PIX: %s", exc, exc_info=True)
         return JSONResponse({"error": "Erro ao processar pagamento"}, status_code=500)
+
+
+@router.post("/api/cpf")
+async def portal_set_cpf(request: Request):
+    """Salva CPF do cliente logado. Usado pelo modal de contingência
+    quando o pagamento é bloqueado por falta de CPF (412 cpf_required)."""
+    client = await _get_current_client(request)
+    if not client:
+        return JSONResponse({"error": "Sessão expirada"}, status_code=401)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    cpf = str(body.get("cpf") or "").strip()
+    if not _is_valid_cpf(cpf):
+        return JSONResponse({"error": "CPF inválido"}, status_code=400)
+    ps.update_cpf(client["id"], cpf)
+    return JSONResponse({"ok": True})
 
 
 # ---------------------------------------------------------------------------

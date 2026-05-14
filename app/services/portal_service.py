@@ -32,6 +32,14 @@ PAID_STATUSES = {"paid"}
 CANCELLED_STATUSES = {"cancelled", "cancelado"}
 
 
+class CpfMissingError(Exception):
+    """Cliente sem CPF cadastrado — bloqueia criação de cobrança no Asaas.
+
+    Frontend deve capturar via 412 e abrir modal pra coletar CPF antes
+    de re-tentar o pagamento.
+    """
+
+
 def _normalize_phone(phone: str) -> str:
     return re.sub(r"\D", "", str(phone or ""))
 
@@ -139,6 +147,19 @@ def get_client_by_session(token: str) -> Optional[Dict[str, Any]]:
 def _normalize_cpf_cnpj(value: str) -> str:
     """Remove tudo que não for dígito."""
     return re.sub(r"\D", "", str(value or ""))
+
+
+def update_cpf(cliente_id: str, cpf: str) -> None:
+    """Atualiza CPF do cliente (usado pelo modal de contingência no portal).
+
+    Validação de formato/checksum é responsabilidade do handler — o service
+    só normaliza e grava.
+    """
+    _client().update(
+        "clientes",
+        {"cpf_cnpj": _normalize_cpf_cnpj(cpf), "updated_at": _now().isoformat()},
+        filters=[("id", "eq", cliente_id)],
+    )
 
 
 def setup_client(
@@ -455,14 +476,18 @@ def get_or_create_pix(pagamento_id: str, cliente_id: str) -> Dict[str, Any]:
     # Precisa criar pagamento no Asaas
     cliente_rows = client.select(
         "clientes",
-        columns="nome,celular",
+        columns="nome,celular,cpf_cnpj",
         filters=[("id", "eq", cliente_id)],
         limit=1,
     )
     cliente_info = cliente_rows[0] if isinstance(cliente_rows, list) and cliente_rows else {}
+    cpf = (cliente_info.get("cpf_cnpj") or "").strip()
+    if not cpf:
+        raise CpfMissingError("cliente sem CPF cadastrado")
     customer = asaas.create_customer(
         name=cliente_info.get("nome") or "Cliente",
         phone=cliente_info.get("celular") or "",
+        cpf_cnpj=cpf,
     )
 
     from datetime import date
@@ -549,11 +574,14 @@ def create_combined_pix(cliente_id: str) -> Dict[str, Any]:
     client = _client()
     cliente_rows = client.select(
         "clientes",
-        columns="nome,celular",
+        columns="nome,celular,cpf_cnpj",
         filters=[("id", "eq", cliente_id)],
         limit=1,
     )
     cliente_info = cliente_rows[0] if isinstance(cliente_rows, list) and cliente_rows else {}
+    cpf = (cliente_info.get("cpf_cnpj") or "").strip()
+    if not cpf:
+        raise CpfMissingError("cliente sem CPF cadastrado")
 
     # Criar pagamento único no Asaas
     from integrations.asaas.client import AsaasClient
@@ -563,6 +591,7 @@ def create_combined_pix(cliente_id: str) -> Dict[str, Any]:
     customer = asaas.create_customer(
         name=cliente_info.get("nome") or "Cliente",
         phone=cliente_info.get("celular") or "",
+        cpf_cnpj=cpf,
     )
 
     due = date.today().isoformat()

@@ -62,6 +62,12 @@
         try {
             const resp = await fetch(url, { method: 'POST', credentials: 'same-origin' });
             if (resp.status === 401) { window.location.href = '/portal'; return; }
+            if (resp.status === 412) {
+                // CPF obrigatório no Asaas — fluxo de contingência
+                closeSheet();
+                openCpfModal(function () { fetchAndOpen(url, name, amount); });
+                return;
+            }
             const data = await resp.json();
             if (data.error) { showSheetError(data.error); return; }
             fillSheet(data);
@@ -69,6 +75,93 @@
             showSheetError('Erro ao gerar PIX. Tente novamente.');
         }
     }
+
+    // ── Modal de CPF (contingência) ───────────────────────────────────────────
+
+    function maskCpf(raw) {
+        const d = String(raw || '').replace(/\D/g, '').slice(0, 11);
+        if (d.length <= 3) return d;
+        if (d.length <= 6) return d.slice(0, 3) + '.' + d.slice(3);
+        if (d.length <= 9) return d.slice(0, 3) + '.' + d.slice(3, 6) + '.' + d.slice(6);
+        return d.slice(0, 3) + '.' + d.slice(3, 6) + '.' + d.slice(6, 9) + '-' + d.slice(9);
+    }
+
+    let _cpfRetry = null;
+
+    function openCpfModal(onSuccess) {
+        _cpfRetry = onSuccess || null;
+        const ov = document.getElementById('cpf-modal-overlay');
+        const md = document.getElementById('cpf-modal');
+        const inp = document.getElementById('cpf-modal-input');
+        const err = document.getElementById('cpf-modal-error');
+        if (!ov || !md || !inp) return;
+        inp.value = '';
+        err.textContent = '';
+        ov.classList.add('open');
+        md.classList.add('open');
+        document.body.style.overflow = 'hidden';
+        setTimeout(function () { inp.focus(); }, 50);
+    }
+
+    function closeCpfModal() {
+        const ov = document.getElementById('cpf-modal-overlay');
+        const md = document.getElementById('cpf-modal');
+        if (ov) ov.classList.remove('open');
+        if (md) md.classList.remove('open');
+        document.body.style.overflow = '';
+        _cpfRetry = null;
+    }
+
+    async function submitCpf() {
+        const inp = document.getElementById('cpf-modal-input');
+        const err = document.getElementById('cpf-modal-error');
+        const btn = document.getElementById('cpf-modal-submit');
+        const cpfDigits = String(inp.value || '').replace(/\D/g, '');
+        if (cpfDigits.length !== 11) {
+            err.textContent = 'CPF inválido. Use 11 dígitos.';
+            return;
+        }
+        btn.disabled = true;
+        err.textContent = '';
+        try {
+            const resp = await fetch('/portal/api/cpf', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cpf: cpfDigits }),
+            });
+            if (resp.status === 401) { window.location.href = '/portal'; return; }
+            const data = await resp.json();
+            if (!resp.ok || data.error) {
+                err.textContent = data.error || 'Erro ao salvar CPF.';
+                btn.disabled = false;
+                return;
+            }
+            const retry = _cpfRetry;
+            closeCpfModal();
+            if (typeof retry === 'function') retry();
+        } catch (e) {
+            err.textContent = 'Erro de conexão. Tente novamente.';
+            btn.disabled = false;
+        }
+    }
+
+    document.addEventListener('input', function (e) {
+        if (e.target && e.target.id === 'cpf-modal-input') {
+            e.target.value = maskCpf(e.target.value);
+        }
+    });
+    document.addEventListener('click', function (e) {
+        if (e.target && e.target.id === 'cpf-modal-submit') submitCpf();
+        if (e.target && e.target.id === 'cpf-modal-close') closeCpfModal();
+        if (e.target && e.target.id === 'cpf-modal-overlay') closeCpfModal();
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            const md = document.getElementById('cpf-modal');
+            if (md && md.classList.contains('open')) submitCpf();
+        }
+    });
 
     // ── Botões Pagar (por card) ───────────────────────────────────────────────
 

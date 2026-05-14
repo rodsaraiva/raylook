@@ -151,15 +151,38 @@ async def payments_worker(package_snapshot: Dict[str, Any], concurrency: int = 5
                     if not customer_name:
                         customer_name = "Cliente"
 
-                    # F-040 — Asaas: create_customer + create_payment_pix
-                    # O customer_id do Asaas é buscado/criado por cpfCnpj,
-                    # mas como não temos CPF real no staging, usamos o default
-                    # (24971563792) do AsaasClient. Em produção, passar o
-                    # CPF real se disponível.
+                    # Asaas exige CPF do cliente final pra create_customer.
+                    # Se o cliente não cadastrou CPF (caso raro, já que CPF é
+                    # obrigatório no portal), pulamos a criação aqui — a
+                    # cobrança será gerada quando ele clicar Pagar no portal,
+                    # momento em que o modal de contingência capta o CPF.
+                    cpf_cliente = ""
+                    try:
+                        from app.services.supabase_service import SupabaseRestClient
+                        from app.services.portal_service import _phone_variants, _normalize_phone
+                        sb = SupabaseRestClient.from_settings()
+                        for variant in _phone_variants(_normalize_phone(vote_phone or "")):
+                            rows = sb.select("clientes", columns="cpf_cnpj",
+                                             filters=[("celular", "eq", variant)], limit=1)
+                            if rows and (rows[0].get("cpf_cnpj") or "").strip():
+                                cpf_cliente = rows[0]["cpf_cnpj"].strip()
+                                break
+                    except Exception:
+                        cpf_cliente = ""
+
+                    if not cpf_cliente:
+                        logger.warning(
+                            "[asaas] vote idx=%s sem CPF — cobrança Asaas será criada quando o cliente pagar pelo portal",
+                            idx,
+                        )
+                        update_vote_state(pkg_id, idx, {"asaas_payment_status": "pending_cpf"})
+                        return {"status": "skipped_no_cpf"}
+
                     customer = await asyncio.to_thread(
                         asaas.create_customer,
                         name=customer_name,
                         phone=vote_phone or "",
+                        cpf_cnpj=cpf_cliente,
                     )
                     asaas_customer_id = customer.get("id")
                     if not asaas_customer_id:

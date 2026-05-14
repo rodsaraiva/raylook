@@ -95,9 +95,16 @@ class AsaasClient:
         resp.raise_for_status()
         return resp.json() if resp.text.strip() else {}
 
-    def create_customer(self, name: str, phone: str, cpf_cnpj: str = "24971563792") -> Dict[str, Any]:
-        """Find or create a customer in Asaas."""
-        # Try to find existing customer by cpf_cnpj first
+    def create_customer(self, name: str, phone: str, cpf_cnpj: str) -> Dict[str, Any]:
+        """Find or create a customer in Asaas.
+
+        cpf_cnpj é obrigatório — sem ele, o Asaas agruparia todos os
+        clientes no mesmo customer (bug crônico). Callers que ainda não
+        têm CPF devem tratar via fluxo de contingência (modal no portal).
+        """
+        cpf_cnpj = (cpf_cnpj or "").strip()
+        if not cpf_cnpj:
+            raise ValueError("cpf_cnpj obrigatório para criar customer no Asaas")
         try:
             existing = self._request("GET", f"customers?cpfCnpj={cpf_cnpj}")
             data = existing.get("data", [])
