@@ -145,9 +145,13 @@ def setup_client(
     cliente_id: str,
     password: str,
     email: str,
-    cpf_cnpj: Optional[str] = None,
+    cpf: str,
 ) -> str:
-    """Primeiro acesso: salva senha, email, cpf/cnpj e cria sessão."""
+    """Primeiro acesso: salva senha, email, CPF e cria sessão.
+
+    CPF é obrigatório — validação já foi feita pelo handler (_is_valid_cpf).
+    Coluna no banco continua chamada `cpf_cnpj` (legado).
+    """
     pw_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(BCRYPT_ROUNDS)).decode("utf-8")
     session_token = secrets.token_urlsafe(32)
     expires = _now() + timedelta(days=SESSION_DURATION_DAYS)
@@ -155,14 +159,11 @@ def setup_client(
     payload: Dict[str, Any] = {
         "password_hash": pw_hash,
         "email": email.strip(),
+        "cpf_cnpj": _normalize_cpf_cnpj(cpf),
         "session_token": session_token,
         "session_expires_at": expires.isoformat(),
         "updated_at": _now().isoformat(),
     }
-    if cpf_cnpj:
-        normalized = _normalize_cpf_cnpj(cpf_cnpj)
-        if normalized:
-            payload["cpf_cnpj"] = normalized
 
     _client().update("clientes", payload, filters=[("id", "eq", cliente_id)])
     return session_token

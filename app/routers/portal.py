@@ -48,6 +48,19 @@ def _is_valid_email(raw: str) -> bool:
     return bool(_EMAIL_RE.match(email))
 
 
+def _is_valid_cpf(raw: str) -> bool:
+    """Valida CPF brasileiro: 11 dígitos + checksum. Rejeita 111.111.111-11 etc."""
+    digits = _re_email.sub(r"\D", "", str(raw or ""))
+    if len(digits) != 11 or digits == digits[0] * 11:
+        return False
+    for i in (9, 10):
+        total = sum(int(digits[j]) * (i + 1 - j) for j in range(i))
+        check = (total * 10 % 11) % 10
+        if check != int(digits[i]):
+            return False
+    return True
+
+
 def _templates():
     """Lazy import para evitar circular."""
     from main import templates
@@ -161,12 +174,11 @@ async def portal_setup_submit(
     request: Request,
     phone: str = Form(...),
     email: str = Form(...),
-    cpf_cnpj: str = Form(""),
+    cpf: str = Form(...),
     password: str = Form(...),
     password_confirm: str = Form(...),
 ):
-    """Salva senha + email + cpf/cnpj e cria sessão."""
-    import re as _re
+    """Salva senha + email + CPF e cria sessão."""
     client = ps.get_client_by_phone(phone)
     if not client:
         return RedirectResponse("/portal", status_code=302)
@@ -178,23 +190,19 @@ async def portal_setup_submit(
         errors.append("As senhas não conferem.")
     if not _is_valid_email(email):
         errors.append("Email inválido. Exemplo: nome@dominio.com")
-
-    # CPF (11) ou CNPJ (14) — opcional, mas se preencher precisa ser válido
-    if cpf_cnpj.strip():
-        only_digits = _re.sub(r"\D", "", cpf_cnpj)
-        if len(only_digits) not in (11, 14):
-            errors.append("CPF ou CNPJ inválido. Use 11 dígitos para CPF ou 14 para CNPJ.")
+    if not _is_valid_cpf(cpf):
+        errors.append("CPF inválido. Use 11 dígitos no formato 000.000.000-00.")
 
     if errors:
         return _templates().TemplateResponse(request, "portal_setup.html", {
             "phone": phone,
             "nome": client.get("nome") or "",
             "email": email,
-            "cpf_cnpj": cpf_cnpj,
+            "cpf": cpf,
             "errors": errors,
         })
 
-    token = ps.setup_client(client["id"], password, email, cpf_cnpj or None)
+    token = ps.setup_client(client["id"], password, email, cpf)
     resp = RedirectResponse("/portal/pedidos", status_code=302)
     return _set_session_cookie(resp, token)
 

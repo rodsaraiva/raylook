@@ -236,33 +236,26 @@ class TestGetClientBySession:
 # ---------------------------------------------------------------------------
 
 class TestSetupClient:
-    def test_salva_senha_e_email_retorna_token(self, monkeypatch):
+    def test_salva_senha_email_cpf_retorna_token(self, monkeypatch):
         row = _make_cliente()
         fake = FakeSupabaseClient({"clientes": [row]})
         _install_fake(monkeypatch, fake)
-        token = ps.setup_client("cli-1", "nova-senha", "ana@ex.com")
+        token = ps.setup_client("cli-1", "nova-senha", "ana@ex.com", "39053344705")
         assert isinstance(token, str) and len(token) > 20
         stored = fake.tables["clientes"][0]
         assert stored["email"] == "ana@ex.com"
+        assert stored["cpf_cnpj"] == "39053344705"
         assert stored["session_token"] == token
         # senha deve estar hasheada
         assert bcrypt.checkpw(b"nova-senha", stored["password_hash"].encode())
 
-    def test_cpf_cnpj_normalizado(self, monkeypatch):
+    def test_cpf_mascarado_e_normalizado(self, monkeypatch):
         row = _make_cliente()
         fake = FakeSupabaseClient({"clientes": [row]})
         _install_fake(monkeypatch, fake)
-        ps.setup_client("cli-1", "senha", "x@x.com", cpf_cnpj="123.456.789-00")
+        ps.setup_client("cli-1", "senha", "x@x.com", "390.533.447-05")
         stored = fake.tables["clientes"][0]
-        assert stored["cpf_cnpj"] == "12345678900"
-
-    def test_cpf_vazio_nao_salva_campo(self, monkeypatch):
-        row = _make_cliente()
-        fake = FakeSupabaseClient({"clientes": [row]})
-        _install_fake(monkeypatch, fake)
-        ps.setup_client("cli-1", "senha", "x@x.com", cpf_cnpj="")
-        stored = fake.tables["clientes"][0]
-        assert "cpf_cnpj" not in stored or stored.get("cpf_cnpj") is None
+        assert stored["cpf_cnpj"] == "39053344705"
 
 
 # ---------------------------------------------------------------------------

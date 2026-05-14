@@ -63,36 +63,28 @@ document.querySelectorAll('form').forEach(form => {
 });
 
 // ---------------------------------------------------------------------------
-// CPF / CNPJ — máscara dinâmica baseada no número de dígitos
-// CPF (até 11): 000.000.000-00
-// CNPJ (12-14): 00.000.000/0000-00
+// CPF — máscara 000.000.000-00
 // ---------------------------------------------------------------------------
-function formatCpfCnpj(raw) {
-    const d = String(raw || '').replace(/\D/g, '').slice(0, 14);
+function formatCpf(raw) {
+    const d = String(raw || '').replace(/\D/g, '').slice(0, 11);
     if (!d) return '';
-    if (d.length <= 11) {
-        // CPF: 000.000.000-00
-        if (d.length <= 3) return d;
-        if (d.length <= 6) return `${d.slice(0,3)}.${d.slice(3)}`;
-        if (d.length <= 9) return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6)}`;
-        return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}`;
-    }
-    // CNPJ: 00.000.000/0000-00
-    if (d.length <= 12) return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}/${d.slice(8)}`;
-    return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}/${d.slice(8,12)}-${d.slice(12)}`;
+    if (d.length <= 3) return d;
+    if (d.length <= 6) return `${d.slice(0,3)}.${d.slice(3)}`;
+    if (d.length <= 9) return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6)}`;
+    return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}`;
 }
 
-document.querySelectorAll('input.cpf-cnpj').forEach(input => {
-    if (input.value) input.value = formatCpfCnpj(input.value);
+document.querySelectorAll('input.cpf').forEach(input => {
+    if (input.value) input.value = formatCpf(input.value);
     input.addEventListener('input', (e) => {
-        e.target.value = formatCpfCnpj(e.target.value);
+        e.target.value = formatCpf(e.target.value);
     });
 });
 
 // Antes do submit, manda só os dígitos (backend normaliza, mas evita problema)
 document.querySelectorAll('form').forEach(form => {
     form.addEventListener('submit', () => {
-        form.querySelectorAll('input.cpf-cnpj').forEach(input => {
+        form.querySelectorAll('input.cpf').forEach(input => {
             input.value = String(input.value || '').replace(/\D/g, '');
         });
     });
