@@ -129,10 +129,23 @@
         return data.packages_by_state[activeState] || [];
     }
 
-    // Dropdowns Comercial / Estoque (Financeiro tem header próprio)
+    // Dropdowns Comercial / Estoque (Financeiro tem header próprio).
+    // `labels` sobrescreve L.STATE_LABELS dentro daquele grupo apenas.
+    // `extras` injeta items depois dos states do grupo — usado pra colocar
+    // "Cancelados" dentro do Comercial só visualmente; o fluxo continua igual.
     const RAIL_GROUPS = [
-        { id: "comercial", label: "Comercial", states: ["aberto", "fechado", "confirmado", "pago"] },
-        { id: "estoque",   label: "Estoque",   states: ["pago", "pendente", "separado", "enviado"] },
+        {
+            id: "comercial",
+            label: "Comercial",
+            states: ["aberto", "fechado", "confirmado", "pago"],
+            extras: ["cancelled"],
+        },
+        {
+            id: "estoque",
+            label: "Estoque",
+            states: ["pago", "pendente", "separado", "enviado"],
+            labels: { pago: "Fila de separação" },
+        },
     ];
 
     const groupOpen = { comercial: true, estoque: false };
@@ -142,16 +155,27 @@
         const groupsHtml = RAIL_GROUPS.map(g => {
             const open = groupOpen[g.id];
             const totalCount = g.states.reduce((sum, s) => sum + (data.counts[s] || 0), 0);
-            const stepsHtml = g.states.map((s, i) => `
+            const stepsHtml = g.states.map((s, i) => {
+                const label = g.labels?.[s] ?? L.STATE_LABELS[s];
+                return `
                 <div class="rail-step ${s === activeState ? "active" : ""}" data-state="${s}">
                     <div class="num">${i + 1}</div>
                     <div>
-                        <div class="label">${L.STATE_LABELS[s]}</div>
+                        <div class="label">${label}</div>
                         <div class="sub">${DESCS[s]}</div>
                     </div>
                     <div class="count">${data.counts[s] || 0}</div>
-                </div>
-            `).join("");
+                </div>`;
+            }).join("");
+            const extrasHtml = (g.extras || []).map(s => {
+                if (s !== "cancelled") return "";
+                return `
+                <div class="rail-step rail-cancelled ${activeState === "cancelled" ? "active" : ""}" data-state="cancelled">
+                    <div class="num" style="background:rgba(248,113,113,0.15);color:var(--danger);">×</div>
+                    <div><div class="label">Cancelados</div><div class="sub">histórico</div></div>
+                    <div class="count">${data.counts.cancelled || 0}</div>
+                </div>`;
+            }).join("");
             return `
                 <div class="rail-group ${open ? "open" : ""}" data-group="${g.id}">
                     <div class="rail-group-header" data-toggle="${g.id}">
@@ -159,16 +183,11 @@
                         <span class="rail-group-total">${totalCount}</span>
                         <i class="fas fa-chevron-down rail-group-chevron"></i>
                     </div>
-                    <div class="rail-group-body">${stepsHtml}</div>
+                    <div class="rail-group-body">${stepsHtml}${extrasHtml}</div>
                 </div>`;
         }).join("");
 
-        rail.innerHTML = groupsHtml + `
-            <div class="rail-step rail-cancelled ${activeState === "cancelled" ? "active" : ""}" data-state="cancelled">
-                <div class="num" style="background:rgba(248,113,113,0.15);color:var(--danger);">×</div>
-                <div><div class="label">Cancelados</div><div class="sub">histórico</div></div>
-                <div class="count">${data.counts.cancelled || 0}</div>
-            </div>`;
+        rail.innerHTML = groupsHtml;
 
         rail.querySelectorAll(".rail-group-header").forEach(h =>
             h.addEventListener("click", () => {

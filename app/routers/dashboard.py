@@ -311,6 +311,13 @@ def list_packages_by_state(
         else:
             grouped[state].append(item)
 
+    # Fechado é ordenado pela data de fechamento (mais recente encima);
+    # demais estados herdam o order=updated_at.desc da query.
+    grouped["fechado"].sort(
+        key=lambda it: it.get("state_since") or "",
+        reverse=True,
+    )
+
     counts = {s: len(grouped[s]) for s in FLOW_STATES}
     counts["cancelled"] = len(cancelled)
 
