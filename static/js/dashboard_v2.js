@@ -192,7 +192,10 @@
         rail.querySelectorAll(".rail-group-header").forEach(h =>
             h.addEventListener("click", () => {
                 const id = h.dataset.toggle;
-                groupOpen[id] = !groupOpen[id];
+                const willOpen = !groupOpen[id];
+                // Acordeon: só um grupo aberto por vez.
+                Object.keys(groupOpen).forEach(k => { groupOpen[k] = false; });
+                groupOpen[id] = willOpen;
                 renderRail();
             })
         );
