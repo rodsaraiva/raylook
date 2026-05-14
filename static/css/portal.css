@@ -182,7 +182,7 @@ header {
 .order-card[data-status="cancelled"] { opacity: 0.5; }
 
 .order-banner {
-    height: 140px;
+    height: 220px;
     background: linear-gradient(135deg, rgba(212,175,55,0.16) 0%, rgba(180,100,50,0.09) 100%);
     border-bottom: 1px solid rgba(232,197,106,0.13);
     overflow: hidden;

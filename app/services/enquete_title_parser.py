@@ -15,6 +15,8 @@ class ParsedEnquete(TypedDict):
     item: Optional[str]
     tecido: Optional[str]
     valor: Optional[float]
+    tamanho: Optional[str]
+    categoria: Optional[str]
 
 
 def _normalize(text: str) -> str:
@@ -52,31 +54,45 @@ def _parse_valor(raw: Optional[str]) -> Optional[float]:
         return None
 
 
+_EMPTY: ParsedEnquete = {
+    "item": None, "tecido": None, "valor": None, "tamanho": None, "categoria": None
+}
+
+
 def parse_enquete_title(title: str) -> ParsedEnquete:
     if not title or not title.strip():
-        return {"item": None, "tecido": None, "valor": None}
+        return _EMPTY.copy()
 
     normalized = _normalize(title)
 
     item_raw = _extract_field(normalized, "ITEM")
     tecido_raw = _extract_field(normalized, "TECIDO")
     valor_raw = _extract_field(normalized, "VALOR")
+    tamanho_raw = _extract_field(normalized, "TAMANHOS?")
+    categoria_raw = _extract_field(normalized, "CATEGORIA")
 
     # Formato estruturado: pelo menos ITEM= ou VALOR= encontrado
     if item_raw is not None or valor_raw is not None:
-        item = item_raw.upper() if item_raw else None
-        tecido = tecido_raw.upper() if tecido_raw else None
-        valor = _parse_valor(valor_raw)
-        return {"item": item, "tecido": tecido, "valor": valor}
+        return {
+            "item": item_raw.upper() if item_raw else None,
+            "tecido": tecido_raw.upper() if tecido_raw else None,
+            "valor": _parse_valor(valor_raw),
+            "tamanho": tamanho_raw.upper() if tamanho_raw else None,
+            "categoria": categoria_raw.upper() if categoria_raw else None,
+        }
 
     # Formato curto: tenta extrair preço com $N e resto vira item
     m = re.search(r"\$\s*(\d+(?:[.,]\d+)?)", title)
     if m:
         valor = _parse_valor(m.group(1))
-        # Remove o trecho do preço do título pra obter item
         item_text = re.sub(r"\$\s*\d+(?:[.,]\d+)?", "", title).strip()
         item_text = re.sub(r" {2,}", " ", item_text).strip()
-        item = item_text.upper() if item_text else None
-        return {"item": item, "tecido": None, "valor": valor}
+        return {
+            "item": item_text.upper() if item_text else None,
+            "tecido": None,
+            "valor": valor,
+            "tamanho": None,
+            "categoria": None,
+        }
 
-    return {"item": None, "tecido": None, "valor": None}
+    return _EMPTY.copy()

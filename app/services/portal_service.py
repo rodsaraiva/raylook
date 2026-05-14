@@ -349,6 +349,8 @@ def get_client_orders(cliente_id: str) -> List[Dict[str, Any]]:
             "item": parsed["item"],
             "tecido": parsed["tecido"],
             "valor_extraido": parsed["valor"],
+            "tamanho": parsed["tamanho"],
+            "categoria": parsed["categoria"],
             "qty": int(venda.get("qty") or 0),
             "unit_price": float(venda.get("unit_price") or 0),
             "subtotal": float(venda.get("subtotal") or 0),

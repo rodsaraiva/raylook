@@ -93,6 +93,8 @@
                     </div>
                     <div class="order-meta">
                         {% if order.tecido %}{{ order.tecido }} · {% endif %}
+                        {% if order.tamanho %}{{ order.tamanho }} · {% endif %}
+                        {% if order.categoria %}{{ order.categoria }} · {% endif %}
                         {% if order.created_at and order.created_at|length >= 10 %}
                         {% set d = order.created_at[:10].split('-') %}
                         {{ d[2] }}/{{ d[1] }}/{{ d[0] }} ·

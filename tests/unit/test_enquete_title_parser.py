@@ -4,11 +4,16 @@ from app.services.enquete_title_parser import parse_enquete_title
 
 def test_structured_with_spaces():
     """Formato estruturado com espaços entre = e valor."""
-    title = "📝 *ITEM=* BLUSAS\n💰 *VALOR=$* 26\n🔖 *TECIDO=* MODAL"
+    title = (
+        "📝 *ITEM=* BLUSAS\n💰 *VALOR=$* 26\n🔖 *TECIDO=* MODAL\n"
+        "📏 *TAMANHOS=* M G GG\n📍  *CATEGORIA=* IMPORTADO"
+    )
     result = parse_enquete_title(title)
     assert result["item"] == "BLUSAS"
     assert result["tecido"] == "MODAL"
     assert result["valor"] == 26.0
+    assert result["tamanho"] == "M G GG"
+    assert result["categoria"] == "IMPORTADO"
 
 
 def test_structured_without_spaces():
