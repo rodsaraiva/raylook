@@ -283,14 +283,22 @@
                 <div class="pkg-row-actions">${backBtn}${actionBtn}${cancelBtn}${restoreBtn}</div>
             </div>`;
         }).join("");
-        wrap.querySelectorAll(".pkg-row").forEach(row =>
+        wrap.querySelectorAll(".pkg-row").forEach(row => {
             row.addEventListener("click", (e) => {
                 if (e.target.closest("[data-action]")) return;
-                selectedId = row.dataset.id;
+                const id = row.dataset.id;
+                if (id === selectedId) {
+                    window.RaylookModal?.open(id);
+                    return;
+                }
+                selectedId = id;
                 render();
+            });
+            row.addEventListener("dblclick", (e) => {
+                if (e.target.closest("[data-action]")) return;
                 window.RaylookModal?.open(row.dataset.id);
-            })
-        );
+            });
+        });
         wrap.querySelectorAll("[data-action]").forEach(btn =>
             btn.addEventListener("click", async (e) => {
                 e.stopPropagation();
