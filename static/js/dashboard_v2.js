@@ -40,48 +40,55 @@
     // Estados em estoque/logística — voltar deles exige senha de admin.
     const STOCK_LOG_STATES = new Set(["pago", "pendente", "separado", "enviado"]);
 
-    // Modal de motivos pra Pendente. Retorna {reasons, observations} ou null.
+    // Modal de motivo pra Pendente (seleção única via dropdown). Retorna
+    // {reasons: [valor], observations} ou null se cancelado.
     function promptPendingReasons() {
         return new Promise((resolve) => {
             const ov = document.getElementById("pending-reasons-overlay");
             const md = document.getElementById("pending-reasons-modal");
+            const select = document.getElementById("pending-reason-select");
+            const obsWrap = document.getElementById("pending-obs-wrap");
+            const obs = document.getElementById("pending-reasons-obs");
             const ok = document.getElementById("pending-reasons-ok");
             const cancel = document.getElementById("pending-reasons-cancel");
             const err = document.getElementById("pending-reasons-error");
-            const obs = document.getElementById("pending-reasons-obs");
-            const checkboxes = md.querySelectorAll('input[name="pending_reason"]');
-            const outrosCb = document.getElementById("pending-reason-outros");
-            if (!ov || !md || !ok) { resolve(null); return; }
+            if (!ov || !md || !select || !ok) { resolve(null); return; }
 
-            checkboxes.forEach(c => c.checked = false);
-            obs.value = ""; obs.style.display = "none";
+            select.value = "";
+            obs.value = "";
+            obsWrap.hidden = true;
             err.textContent = "";
-            ov.classList.add("open"); md.classList.add("open");
+            ov.classList.add("open");
+            md.classList.add("open");
+            setTimeout(() => select.focus(), 30);
 
-            function onOutrosChange() {
-                obs.style.display = outrosCb.checked ? "block" : "none";
-                if (outrosCb.checked) setTimeout(() => obs.focus(), 30);
+            function onChange() {
+                const isOutros = select.value === "outros";
+                obsWrap.hidden = !isOutros;
+                if (isOutros) setTimeout(() => obs.focus(), 30);
+                err.textContent = "";
             }
             function cleanup() {
-                ov.classList.remove("open"); md.classList.remove("open");
+                ov.classList.remove("open");
+                md.classList.remove("open");
                 ok.removeEventListener("click", onOk);
                 cancel.removeEventListener("click", onCancel);
                 ov.removeEventListener("click", onCancel);
-                outrosCb.removeEventListener("change", onOutrosChange);
+                select.removeEventListener("change", onChange);
             }
             function onOk() {
-                const reasons = Array.from(checkboxes).filter(c => c.checked).map(c => c.value);
-                if (!reasons.length) { err.textContent = "Selecione pelo menos um motivo."; return; }
+                const reason = select.value;
+                if (!reason) { err.textContent = "Selecione um motivo."; return; }
                 const observations = obs.value.trim();
-                if (reasons.includes("outros") && !observations) {
+                if (reason === "outros" && !observations) {
                     err.textContent = "Descreva o motivo no campo de observação.";
                     return;
                 }
                 cleanup();
-                resolve({ reasons, observations });
+                resolve({ reasons: [reason], observations });
             }
             function onCancel() { cleanup(); resolve(null); }
-            outrosCb.addEventListener("change", onOutrosChange);
+            select.addEventListener("change", onChange);
             ok.addEventListener("click", onOk);
             cancel.addEventListener("click", onCancel);
             ov.addEventListener("click", onCancel);

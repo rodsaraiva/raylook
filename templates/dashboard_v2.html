@@ -612,6 +612,53 @@
         background: var(--accent); color: #0c0a09; border-color: var(--accent);
     }
     .admin-pwd-actions .btn-primary:hover { filter: brightness(1.08); }
+
+    /* Pending reasons modal — variações sobre admin-pwd-modal */
+    .pending-modal { max-width: 440px; }
+    .pending-label {
+        display: block; font-size: 0.78rem;
+        text-transform: uppercase; letter-spacing: 0.08em;
+        color: var(--text-muted); margin: 0 0 6px;
+    }
+    .pending-required { color: var(--danger); }
+    .pending-select-wrap {
+        position: relative; margin-bottom: 14px;
+    }
+    .pending-select {
+        appearance: none; -webkit-appearance: none;
+        width: 100%; padding: 0.7rem 2.2rem 0.7rem 0.9rem;
+        background: var(--bg, #0c0a09);
+        border: 1px solid var(--card-border);
+        border-radius: 10px;
+        color: var(--text-primary);
+        font-family: inherit; font-size: 0.95rem;
+        cursor: pointer;
+        transition: var(--transition);
+    }
+    .pending-select:focus {
+        outline: none; border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(232,197,106,0.15);
+    }
+    .pending-select-caret {
+        position: absolute; right: 14px; top: 50%;
+        transform: translateY(-50%);
+        pointer-events: none;
+        color: var(--text-muted); font-size: 0.7rem;
+    }
+    .pending-obs-wrap { margin-bottom: 4px; }
+    .pending-textarea {
+        width: 100%; padding: 0.65rem 0.85rem;
+        background: var(--bg, #0c0a09);
+        border: 1px solid var(--card-border);
+        border-radius: 10px;
+        color: var(--text-primary);
+        font-family: inherit; font-size: 0.9rem;
+        resize: vertical; min-height: 70px;
+    }
+    .pending-textarea:focus {
+        outline: none; border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(232,197,106,0.15);
+    }
 </style>
 </head>
 <body>
@@ -742,33 +789,31 @@
     </div><!-- /content-area -->
 </div><!-- /layout -->
 
-<!-- Modal de motivos pra mover pacote pra Pendente -->
+<!-- Modal de motivo pra mover pacote pra Pendente -->
 <div id="pending-reasons-overlay" class="admin-pwd-overlay"></div>
-<div id="pending-reasons-modal" class="admin-pwd-modal" role="dialog" aria-labelledby="pending-reasons-title" style="max-width:460px;">
-    <h3 id="pending-reasons-title">Por que esse pacote vai pra Pendente?</h3>
-    <p class="admin-pwd-help">Selecione um ou mais motivos. Esse registro fica anexado ao pacote.</p>
-    <div id="pending-reasons-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;color:var(--text-primary);">
-            <input type="checkbox" name="pending_reason" value="faltando_pecas"> Pacote chegou faltando peças
-        </label>
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;color:var(--text-primary);">
-            <input type="checkbox" name="pending_reason" value="tamanhos_trocados"> Pacote com tamanhos trocados
-        </label>
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;color:var(--text-primary);">
-            <input type="checkbox" name="pending_reason" value="cores_trocadas"> Pacote com cores trocadas
-        </label>
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;color:var(--text-primary);">
-            <input type="checkbox" name="pending_reason" value="modelo_errado"> Pacote chegou com modelo errado
-        </label>
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;color:var(--text-primary);">
-            <input type="checkbox" name="pending_reason" value="cancelado_fornecedor"> Pedido cancelado pelo fornecedor
-        </label>
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;color:var(--text-primary);">
-            <input type="checkbox" name="pending_reason" value="outros" id="pending-reason-outros"> Outros (observações)
-        </label>
+<div id="pending-reasons-modal" class="admin-pwd-modal pending-modal" role="dialog" aria-labelledby="pending-reasons-title">
+    <h3 id="pending-reasons-title">Mover pra Pendente</h3>
+    <p class="admin-pwd-help">Selecione o motivo. Esse registro fica anexado ao pacote.</p>
+
+    <label for="pending-reason-select" class="pending-label">Motivo</label>
+    <div class="pending-select-wrap">
+        <select id="pending-reason-select" class="pending-select">
+            <option value="" disabled selected>Selecione um motivo…</option>
+            <option value="faltando_pecas">Pacote chegou faltando peças</option>
+            <option value="tamanhos_trocados">Pacote com tamanhos trocados</option>
+            <option value="cores_trocadas">Pacote com cores trocadas</option>
+            <option value="modelo_errado">Pacote chegou com modelo errado</option>
+            <option value="cancelado_fornecedor">Pedido cancelado pelo fornecedor</option>
+            <option value="outros">Outros (especifique abaixo)</option>
+        </select>
+        <i class="fas fa-chevron-down pending-select-caret" aria-hidden="true"></i>
     </div>
-    <textarea id="pending-reasons-obs" placeholder="Descreva o motivo..." rows="3"
-              style="width:100%;background:var(--bg,#0c0a09);border:1px solid var(--card-border);border-radius:10px;padding:0.6rem 0.85rem;color:var(--text-primary);font-family:inherit;font-size:0.9rem;resize:vertical;display:none;"></textarea>
+
+    <div id="pending-obs-wrap" class="pending-obs-wrap" hidden>
+        <label for="pending-reasons-obs" class="pending-label">Observação <span class="pending-required">*</span></label>
+        <textarea id="pending-reasons-obs" class="pending-textarea" placeholder="Descreva o motivo com clareza…" rows="3"></textarea>
+    </div>
+
     <div id="pending-reasons-error" class="admin-pwd-error"></div>
     <div class="admin-pwd-actions">
         <button type="button" class="btn-ghost" id="pending-reasons-cancel">Cancelar</button>
