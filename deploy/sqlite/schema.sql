@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS enquete_alternativas (
     enquete_id TEXT NOT NULL REFERENCES enquetes(id),
     option_external_id TEXT,
     label TEXT NOT NULL,
-    qty INTEGER NOT NULL CHECK (qty IN (3, 6, 9, 12)),
+    qty INTEGER NOT NULL CHECK (qty IN (3, 4, 6, 8, 9, 12, 16, 20, 24)),
     position INTEGER NOT NULL DEFAULT 0
 );
 CREATE UNIQUE INDEX IF NOT EXISTS enquete_alternativas_enquete_qty_ux
@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS votos (
     enquete_id TEXT NOT NULL REFERENCES enquetes(id),
     cliente_id TEXT NOT NULL REFERENCES clientes(id),
     alternativa_id TEXT REFERENCES enquete_alternativas(id),
-    qty INTEGER NOT NULL CHECK (qty >= 0 AND qty <= 24 AND qty % 3 = 0),
+    qty INTEGER NOT NULL CHECK (qty IN (0, 3, 4, 6, 8, 9, 12, 16, 20, 24)),
     status TEXT NOT NULL DEFAULT 'out' CHECK (status IN ('in', 'out', 'wait')),
     synthetic INTEGER NOT NULL DEFAULT 0 CHECK (synthetic IN (0, 1)),
     voted_at TEXT NOT NULL,
@@ -138,7 +138,7 @@ CREATE TABLE IF NOT EXISTS votos_eventos (
     enquete_id TEXT NOT NULL REFERENCES enquetes(id),
     cliente_id TEXT NOT NULL REFERENCES clientes(id),
     alternativa_id TEXT REFERENCES enquete_alternativas(id),
-    qty INTEGER NOT NULL CHECK (qty >= 0 AND qty <= 24 AND qty % 3 = 0),
+    qty INTEGER NOT NULL CHECK (qty IN (0, 3, 4, 6, 8, 9, 12, 16, 20, 24)),
     action TEXT NOT NULL CHECK (action IN ('vote', 'remove', 'sync')),
     occurred_at TEXT NOT NULL,
     raw_event_id TEXT,
