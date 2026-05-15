@@ -17,7 +17,7 @@ const RaylookDashboard = (() => {
     // Labels dos status de pagamento (valores do backend em inglês).
     const PAY_LABELS = {
         paid: "Pago",
-        sent: "Enviado",
+        sent: "Cobrança gerada",
         created: "Aberto",
         cancelled: "Cancelado",
         failed: "Falhou",
