@@ -6,7 +6,7 @@
     let activeState = null;
     let selectedId = null;
     let search = "";
-    let filter = { preset: "all", since: null, until: null };
+    let filter = { preset: "today", since: null, until: null };
     // Expõe pro finance.js consumir nos fetches (since/until da barra de cima).
     window.dashboardFilter = filter;
     let listPage = 1;
@@ -621,5 +621,6 @@
     });
 
     function render() { renderRail(); renderList(); renderDetail(); }
-    load();
+    // Boot: aplica o preset default ('hoje') que popula since/until e dispara load().
+    setFilterPreset(filter.preset);
 })();
