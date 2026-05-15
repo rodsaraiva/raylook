@@ -239,6 +239,25 @@ header {
 .badge.pending { background: var(--warning-soft); color: var(--warning); }
 .badge.paid    { background: var(--success-soft); color: var(--success); }
 .badge.cancelled { background: rgba(113,113,122,0.15); color: var(--text-muted); }
+.badge.em-separacao { background: rgba(59,130,246,0.15); color: #3b82f6; }
+.badge.separado { background: rgba(99,102,241,0.15); color: #818cf8; }
+.badge.enviado { background: rgba(34,197,94,0.15); color: #22c55e; }
+.badge.pendente-logistica { background: rgba(249,115,22,0.15); color: #f97316; }
+
+/* ── Motivo da pendência logística (pacote travado pós-pagamento) ── */
+.order-pending-reasons {
+    margin: 6px 0 4px;
+    display: flex; flex-wrap: wrap; gap: 4px;
+}
+.reason-chip {
+    display: inline-block; padding: 3px 8px; border-radius: 6px;
+    background: rgba(249,115,22,0.10); color: #f97316;
+    font-size: 0.7rem; font-weight: 600;
+}
+.reason-obs {
+    flex-basis: 100%; margin-top: 4px;
+    font-size: 0.7rem; color: var(--text-muted); font-style: italic;
+}
 
 /* ── Pay/Receipt buttons ── */
 .btn-pay {

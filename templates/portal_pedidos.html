@@ -72,7 +72,17 @@
             {% endif %}
 
             {% for order in orders %}
-            <div class="order-card" data-status="{{ order.status }}" data-venda-id="{{ order.id }}">
+            {% set ds = order.delivery_status or order.status %}
+            {% set reason_labels = {
+                'faltando_pecas': 'Faltando peças',
+                'tamanhos_trocados': 'Tamanhos trocados',
+                'cores_trocadas': 'Cores trocadas',
+                'modelo_errado': 'Modelo errado',
+                'pacote_com_defeito': 'Pacote com defeito',
+                'cancelado_fornecedor': 'Cancelado pelo fornecedor',
+                'outros': 'Outros'
+            } %}
+            <div class="order-card" data-status="{{ order.status }}" data-delivery="{{ ds }}" data-venda-id="{{ order.id }}">
                 <div class="order-banner">
                     {% if order.image_url %}
                     <img src="{{ order.image_url }}" alt="{{ order.item or 'Peça' }}" class="order-banner-img" loading="lazy">
@@ -83,14 +93,32 @@
                 <div class="order-body">
                     <div class="order-top-row">
                         <div class="order-title">{{ order.item or order.produto_nome or 'Peça' }}</div>
-                        {% if order.status == 'paid' %}
-                        <span class="badge paid"><i class="fas fa-check"></i> Pago</span>
-                        {% elif order.status == 'cancelled' %}
+                        {% if ds == 'cancelled' %}
                         <span class="badge cancelled"><i class="fas fa-ban"></i> Cancelado</span>
+                        {% elif ds == 'pending' %}
+                        <span class="badge pending"><i class="fas fa-clock"></i> Pendente</span>
+                        {% elif ds == 'em_separacao' %}
+                        <span class="badge em-separacao"><i class="fas fa-box-open"></i> Em separação</span>
+                        {% elif ds == 'pendente_logistica' %}
+                        <span class="badge pendente-logistica"><i class="fas fa-triangle-exclamation"></i> Pendente</span>
+                        {% elif ds == 'separado' %}
+                        <span class="badge separado"><i class="fas fa-box"></i> Separado</span>
+                        {% elif ds == 'enviado' %}
+                        <span class="badge enviado"><i class="fas fa-truck"></i> Enviado</span>
                         {% else %}
                         <span class="badge pending"><i class="fas fa-clock"></i> Pendente</span>
                         {% endif %}
                     </div>
+                    {% if ds == 'pendente_logistica' and order.pending_reasons %}
+                    <div class="order-pending-reasons">
+                        {% for r in order.pending_reasons %}
+                        <span class="reason-chip">{{ reason_labels.get(r, r) }}</span>
+                        {% endfor %}
+                        {% if order.pending_observations %}
+                        <div class="reason-obs">"{{ order.pending_observations }}"</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                     <div class="order-meta">
                         {% if order.tecido %}{{ order.tecido }} · {% endif %}
                         {% if order.tamanho %}{{ order.tamanho }} · {% endif %}
