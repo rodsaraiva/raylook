@@ -23,9 +23,15 @@
     function closeFinance() {
         financeOpen = false;
         window._financeOpen = false;
-        document.getElementById('packages-area')?.classList.remove('retracted');
         document.getElementById('section-finance')?.classList.remove('active');
         setGroupOpen(false);
+        // Só devolve a packages-area se nenhuma outra section ocupou o slot.
+        // Sem isso, abrir Financeiro a partir de Clientes (que dispara
+        // closeFinance/closeClientes recíproco) acabava removendo retracted
+        // recém-adicionado, sobrepondo packages-area com a section nova.
+        if (!window._clientesOpen) {
+            document.getElementById('packages-area')?.classList.remove('retracted');
+        }
     }
 
     // Compat: handlers externos (dashboard_v2.js) chamam toggleFinanceView()

@@ -54,9 +54,13 @@
     function closeClientes() {
         state.open = false;
         window._clientesOpen = false;
-        document.getElementById("packages-area")?.classList.remove("retracted");
         document.getElementById("section-clientes")?.classList.remove("active");
         document.getElementById("clientes-group")?.classList.remove("open");
+        // Só devolve a packages-area se nenhuma outra section ocupou o slot
+        // (ex.: abrindo Financeiro logo em seguida, ele já marcou retracted).
+        if (!window._financeOpen) {
+            document.getElementById("packages-area")?.classList.remove("retracted");
+        }
     }
     window._clientesClose = closeClientes;
 
