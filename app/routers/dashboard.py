@@ -988,6 +988,87 @@ def list_clientes(q: Optional[str] = None, exclude_pacote: Optional[str] = None)
     ]
 
 
+def _is_pending_client(cli: Dict[str, Any]) -> bool:
+    """Cliente 'pendente' = nome ainda é o fallback 'Cliente' que veio de
+    webhook WHAPI/Evolution sem pushName. Não considera CPF — cliente pode
+    ter nome real mas ainda estar sem CPF, e isso é fluxo válido até ele
+    clicar em pagar no portal (lazy create no Asaas)."""
+    nome = (cli.get("nome") or "").strip().lower()
+    return nome == "cliente"
+
+
+@router.get("/clientes/list")
+def list_clientes_admin(
+    q: Optional[str] = None,
+    status: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 50,
+) -> Dict[str, Any]:
+    """Listagem pra aba 'Clientes' do dashboard. Suporta busca por nome/celular/CPF,
+    filtros `status=pending` (nome 'Cliente') e `status=complete` (nome real),
+    e paginação. Retorna envelope com items + total.
+    """
+    client = SupabaseRestClient.from_settings()
+    rows = client.select(
+        "clientes",
+        columns="id,nome,celular,cpf_cnpj,created_at,updated_at",
+        order="created_at.desc",
+    ) or []
+    if q:
+        ql = q.lower()
+        rows = [c for c in rows
+                if ql in (c.get("nome") or "").lower()
+                or ql in (c.get("celular") or "")
+                or ql in (c.get("cpf_cnpj") or "")]
+    if status == "pending":
+        rows = [c for c in rows if _is_pending_client(c)]
+    elif status == "complete":
+        rows = [c for c in rows if not _is_pending_client(c)]
+    total = len(rows)
+    page = max(page, 1)
+    size = max(min(page_size, 200), 1)
+    start = (page - 1) * size
+    items = rows[start:start + size]
+    return {"items": items, "total": total, "page": page, "page_size": size}
+
+
+@router.get("/clientes/stats")
+def clientes_stats() -> Dict[str, int]:
+    """Contadores pros sub-itens do dropdown 'Clientes'."""
+    client = SupabaseRestClient.from_settings()
+    rows = client.select("clientes", columns="id,nome") or []
+    pending = sum(1 for c in rows if _is_pending_client(c))
+    total = len(rows)
+    return {"total": total, "complete": total - pending, "pending": pending}
+
+
+@router.patch("/clientes/{cliente_id}")
+def update_cliente(cliente_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
+    """Atualiza dados de um cliente. Hoje só suporta `nome` — outros campos
+    podem ser adicionados conforme necessidade."""
+    nome = body.get("nome")
+    if nome is None:
+        raise HTTPException(400, "nome é obrigatório")
+    from app.services.whatsapp_domain_service import _sanitize_name
+    nome_clean = _sanitize_name(nome, fallback="")
+    if not nome_clean:
+        raise HTTPException(400, "nome não pode ser vazio")
+
+    client = SupabaseRestClient.from_settings()
+    existing = client.select(
+        "clientes", filters=[("id", "eq", cliente_id)], single=True,
+    )
+    if not existing:
+        raise HTTPException(404, "Cliente não encontrado")
+
+    client.update(
+        "clientes",
+        {"nome": nome_clean, "updated_at": datetime.now(timezone.utc).isoformat()},
+        filters=[("id", "eq", cliente_id)],
+    )
+    return {"id": cliente_id, "nome": nome_clean}
+
+
 @router.post("/packages/{pacote_id}/clients")
 def add_client_to_package(pacote_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
     """Adiciona cliente. Aberto → cria voto status='in'. Fechado/confirmado →

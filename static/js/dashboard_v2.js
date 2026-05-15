@@ -309,14 +309,16 @@
                 // Acordeon: só um grupo aberto por vez.
                 Object.keys(groupOpen).forEach(k => { groupOpen[k] = false; });
                 groupOpen[id] = willOpen;
-                // Abrir um dropdown comercial/estoque deve fechar o financeiro.
+                // Abrir um dropdown comercial/estoque deve fechar Financeiro e Clientes.
                 if (willOpen && window._financeOpen) window.toggleFinanceView();
+                if (willOpen && window._clientesOpen) window._clientesClose?.();
                 renderRail();
             })
         );
         rail.querySelectorAll(".rail-step").forEach(el =>
             el.addEventListener("click", () => {
                 if (window._financeOpen) window.toggleFinanceView();
+                if (window._clientesOpen) window._clientesClose?.();
                 activeState = el.dataset.state;
                 listPage = 1;
                 const pkgs = currentItems();

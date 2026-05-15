@@ -346,3 +346,96 @@ def test_swap_proceeds_even_if_asaas_cancel_fails(fake_client, monkeypatch):
     assert pag["status"] == "created"
     assert pag["provider_payment_id"] is None
     assert fake.tables["vendas"][0]["cliente_id"] == "c2"
+
+
+# ── GET /clientes/list + /clientes/stats ───────────────────────────────────
+def test_clientes_list_envelope_e_paginacao(fake_client):
+    client, fake = fake_client
+    fake.tables["clientes"].extend([
+        {"id": f"c{i}", "nome": f"Cliente Nome {i}", "celular": f"55119900{i:04d}",
+         "cpf_cnpj": "12345678901", "created_at": f"2026-01-{i:02d}T00:00:00Z"}
+        for i in range(1, 6)
+    ])
+    res = client.get("/api/dashboard/clientes/list?page=1&page_size=2")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["total"] == 5
+    assert body["page"] == 1
+    assert body["page_size"] == 2
+    assert len(body["items"]) == 2
+
+
+def test_clientes_list_pending_filtra_nome_cliente(fake_client):
+    client, fake = fake_client
+    fake.tables["clientes"].extend([
+        {"id": "c1", "nome": "Ana", "celular": "5511", "cpf_cnpj": "111"},
+        {"id": "c2", "nome": "Cliente", "celular": "5522", "cpf_cnpj": "222"},
+        {"id": "c3", "nome": "Bia", "celular": "5533", "cpf_cnpj": ""},
+        {"id": "c4", "nome": "cliente", "celular": "5544"},  # lower case também conta
+    ])
+    res = client.get("/api/dashboard/clientes/list?status=pending")
+    assert res.status_code == 200
+    ids = {c["id"] for c in res.json()["items"]}
+    assert ids == {"c2", "c4"}
+
+
+def test_clientes_list_complete_filtra_nome_real(fake_client):
+    client, fake = fake_client
+    fake.tables["clientes"].extend([
+        {"id": "c1", "nome": "Ana", "celular": "5511"},
+        {"id": "c2", "nome": "Cliente", "celular": "5522"},
+        {"id": "c3", "nome": "Bia", "celular": "5533"},
+    ])
+    res = client.get("/api/dashboard/clientes/list?status=complete")
+    assert res.status_code == 200
+    ids = {c["id"] for c in res.json()["items"]}
+    assert ids == {"c1", "c3"}
+
+
+def test_clientes_stats(fake_client):
+    client, fake = fake_client
+    fake.tables["clientes"].extend([
+        {"id": "c1", "nome": "Ana"},
+        {"id": "c2", "nome": "Cliente"},
+        {"id": "c3", "nome": "Bia"},
+    ])
+    res = client.get("/api/dashboard/clientes/stats")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["total"] == 3
+    assert body["complete"] == 2
+    assert body["pending"] == 1
+
+
+# ── PATCH /clientes/{id} (rename) ──────────────────────────────────────────
+def test_patch_cliente_renomeia(fake_client):
+    client, fake = fake_client
+    fake.tables["clientes"].append(
+        {"id": "c1", "nome": "Cliente", "celular": "5511"}
+    )
+    res = client.patch("/api/dashboard/clientes/c1", json={"nome": "  Ana Silva  "})
+    assert res.status_code == 200
+    assert res.json()["nome"] == "Ana Silva"
+    assert fake.tables["clientes"][0]["nome"] == "Ana Silva"
+
+
+def test_patch_cliente_404_quando_inexistente(fake_client):
+    client, _ = fake_client
+    res = client.patch("/api/dashboard/clientes/ghost", json={"nome": "Ana"})
+    assert res.status_code == 404
+
+
+def test_patch_cliente_400_quando_nome_vazio(fake_client):
+    client, fake = fake_client
+    fake.tables["clientes"].append({"id": "c1", "nome": "Ana"})
+    res = client.patch("/api/dashboard/clientes/c1", json={"nome": "   "})
+    assert res.status_code == 400
+    # nome preservado
+    assert fake.tables["clientes"][0]["nome"] == "Ana"
+
+
+def test_patch_cliente_400_quando_nome_ausente(fake_client):
+    client, fake = fake_client
+    fake.tables["clientes"].append({"id": "c1", "nome": "Ana"})
+    res = client.patch("/api/dashboard/clientes/c1", json={})
+    assert res.status_code == 400

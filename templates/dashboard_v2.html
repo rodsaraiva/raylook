@@ -382,9 +382,10 @@
         min-height: 400px;
     }
 
-    /* Ambos os painéis ocupam a mesma célula do grid */
+    /* Todos os painéis ocupam a mesma célula do grid */
     .packages-area,
-    #section-finance {
+    #section-finance,
+    #section-clientes {
         grid-area: 1 / 1;
     }
 
@@ -401,14 +402,16 @@
         pointer-events: none;
     }
 
-    #section-finance {
+    #section-finance,
+    #section-clientes {
         opacity: 0;
         transform: translateX(32px);
         pointer-events: none;
         visibility: hidden;
         transition: transform 0.42s cubic-bezier(0.16,1,0.3,1), opacity 0.32s ease, visibility 0s linear 0.42s;
     }
-    #section-finance.active {
+    #section-finance.active,
+    #section-clientes.active {
         opacity: 1;
         transform: translateX(0);
         pointer-events: all;
@@ -700,6 +703,39 @@
                 </div>
             </div>
         </div>
+        <div class="rail-group" id="clientes-group" data-group="clientes">
+            <div class="rail-group-header" id="clientes-group-header">
+                <span class="rail-group-label">Clientes</span>
+                <span class="rail-group-total" id="clientes-total-count">—</span>
+                <i class="fas fa-chevron-down rail-group-chevron"></i>
+            </div>
+            <div class="rail-group-body">
+                <div class="rail-step active" data-clientes-view="all">
+                    <div class="num">1</div>
+                    <div>
+                        <div class="label">Todos</div>
+                        <div class="sub">cadastrados</div>
+                    </div>
+                    <div class="count" id="clientes-count-all">—</div>
+                </div>
+                <div class="rail-step" data-clientes-view="complete">
+                    <div class="num">2</div>
+                    <div>
+                        <div class="label">Cadastros completos</div>
+                        <div class="sub">com nome real</div>
+                    </div>
+                    <div class="count" id="clientes-count-complete">—</div>
+                </div>
+                <div class="rail-step" data-clientes-view="pending">
+                    <div class="num">3</div>
+                    <div>
+                        <div class="label">Pendentes</div>
+                        <div class="sub">nome "Cliente"</div>
+                    </div>
+                    <div class="count" id="clientes-count-pending">—</div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Área de conteúdo: pacotes e financeiro empilhados, troca retrátil -->
@@ -849,8 +885,47 @@
             </div><!-- /view-paid -->
 
         </div><!-- /section-finance -->
+
+        <!-- PAINEL CLIENTES -->
+        <div id="section-clientes">
+            <div class="fin-table-wrap">
+                <div class="finance-bar-head">
+                    <div class="finance-bar-head-left">
+                        <span id="clientes-view-title" style="font-weight:700;font-size:13px;color:var(--text-primary);">Todos os clientes</span>
+                        <span id="clientes-view-meta" style="font-size:11px;color:var(--text-muted);">—</span>
+                    </div>
+                    <input class="search-box" placeholder="🔍 Buscar nome / celular / CPF…" id="clientes-search" style="width:260px;">
+                </div>
+                <table class="fin-table" id="clientes-table">
+                    <thead>
+                        <tr>
+                            <th>Nome</th><th>Celular</th><th>CPF/CNPJ</th><th>Cadastrado</th><th style="text-align:right;">Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clientes-table-body"></tbody>
+                </table>
+                <div class="finance-pagination">
+                    <button class="fin-page-btn" id="clientes-page-prev">← Anterior</button>
+                    <span id="clientes-pagination-summary" style="flex:1;text-align:center;">Página 1</span>
+                    <button class="fin-page-btn" id="clientes-page-next">Próxima →</button>
+                </div>
+            </div>
+        </div><!-- /section-clientes -->
     </div><!-- /content-area -->
 </div><!-- /layout -->
+
+<!-- Modal de renomear cliente -->
+<div id="cliente-rename-overlay" class="admin-pwd-overlay"></div>
+<div id="cliente-rename-modal" class="admin-pwd-modal" role="dialog" aria-labelledby="cliente-rename-title">
+    <h3 id="cliente-rename-title">Renomear cliente</h3>
+    <p class="admin-pwd-help" id="cliente-rename-help">—</p>
+    <input id="cliente-rename-input" class="admin-pwd-input" type="text" placeholder="Nome do cliente" autocomplete="off">
+    <div id="cliente-rename-error" class="admin-pwd-error"></div>
+    <div class="admin-pwd-actions">
+        <button type="button" class="btn-ghost" id="cliente-rename-cancel">Cancelar</button>
+        <button type="button" class="btn-primary" id="cliente-rename-ok">Salvar</button>
+    </div>
+</div>
 
 <!-- Modal de motivo pra mover pacote pra Pendente -->
 <div id="pending-reasons-overlay" class="admin-pwd-overlay"></div>
@@ -903,5 +978,6 @@
 <script src="/static/js/dashboard_v2.js"></script>
 <script src="/static/js/finance-toggle.js"></script>
 <script src="/static/js/finance.js"></script>
+<script src="/static/js/clientes.js"></script>
 </body>
 </html>

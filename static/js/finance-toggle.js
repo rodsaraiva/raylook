@@ -12,8 +12,9 @@
         window._financeOpen = true;
         document.getElementById('packages-area')?.classList.add('retracted');
         document.getElementById('section-finance')?.classList.add('active');
-        // Acordeon: abrir financeiro fecha Comercial/Estoque/Logística.
+        // Acordeon: abrir financeiro fecha Comercial/Estoque/Logística/Clientes.
         window._railCollapseGroups?.();
+        window._clientesClose?.();
         setGroupOpen(true);
         if (view) window.financeSetView?.(view);
         window.financeRefresh?.();
