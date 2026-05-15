@@ -503,6 +503,7 @@
             tamanhos_trocados: "Tamanhos trocados",
             cores_trocadas: "Cores trocadas",
             modelo_errado: "Modelo errado",
+            pacote_com_defeito: "Pacote com defeito",
             cancelado_fornecedor: "Cancelado pelo fornecedor",
             outros: "Outros",
         };

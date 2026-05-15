@@ -522,7 +522,7 @@ def _load_pkg_and_pags(client: SupabaseRestClient, pacote_id: str):
 
 VALID_PENDING_REASONS = {
     "faltando_pecas", "tamanhos_trocados", "cores_trocadas",
-    "modelo_errado", "cancelado_fornecedor", "outros",
+    "modelo_errado", "pacote_com_defeito", "cancelado_fornecedor", "outros",
 }
 
 
