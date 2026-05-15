@@ -309,6 +309,34 @@ def reset_password(cliente_id: str, new_password: str) -> str:
 # Dados de pedidos do cliente
 # ---------------------------------------------------------------------------
 
+def _delivery_status(pag_status: str, pacote: Dict[str, Any]) -> Dict[str, Any]:
+    """Mapeia o estado logístico do pacote pro que aparece no portal do
+    cliente. Pré-pagamento devolve 'pending' (mesma semântica antiga,
+    significa 'aguardando pagamento'); pós-pagamento mapeia pelo estágio
+    real do pacote no fluxo do dashboard.
+
+    Retorna dict com `code` e, quando pendente, `reasons`/`observations`.
+    """
+    if pag_status in CANCELLED_STATUSES:
+        return {"code": "cancelled", "reasons": [], "observations": ""}
+    if pag_status not in PAID_STATUSES:
+        return {"code": "pending", "reasons": [], "observations": ""}
+    if (pacote.get("status") or "").lower() == "cancelled":
+        return {"code": "cancelled", "reasons": [], "observations": ""}
+    if pacote.get("shipped_at"):
+        return {"code": "enviado", "reasons": [], "observations": ""}
+    if pacote.get("pdf_sent_at"):
+        return {"code": "separado", "reasons": [], "observations": ""}
+    reasons = pacote.get("pending_reasons") or []
+    if isinstance(reasons, list) and reasons:
+        return {
+            "code": "pendente_logistica",
+            "reasons": list(reasons),
+            "observations": pacote.get("pending_observations") or "",
+        }
+    return {"code": "em_separacao", "reasons": [], "observations": ""}
+
+
 def get_client_orders(cliente_id: str) -> List[Dict[str, Any]]:
     """Busca vendas + pagamentos do cliente, com info de produto e enquete."""
     client = _client()
@@ -320,7 +348,8 @@ def get_client_orders(cliente_id: str) -> List[Dict[str, Any]]:
             "id,pacote_id,produto_id,qty,unit_price,subtotal,"
             "commission_percent,commission_amount,total_amount,status,created_at,"
             "produto:produto_id(nome,descricao,tamanho,drive_file_id),"
-            "pacote:pacote_id(id,enquete:enquete_id(titulo,created_at_provider,drive_file_id))"
+            "pacote:pacote_id(id,status,shipped_at,pdf_sent_at,pending_reasons,pending_observations,"
+            "enquete:enquete_id(titulo,created_at_provider,drive_file_id))"
         ),
         filters=[("cliente_id", "eq", cliente_id)],
         order="created_at.desc",
@@ -352,8 +381,16 @@ def get_client_orders(cliente_id: str) -> List[Dict[str, Any]]:
         # Se a cobrança foi excluída (venda existe mas pagamento não), não mostrar
         if not pagamento:
             continue
+        # Pacote ainda formando (aberto/fechado) ou já cancelado não aparece
+        # no portal — só faz sentido após approve.
+        pkg_status = (pacote.get("status") or "").lower()
+        if pkg_status in ("open", "closed", "cancelled"):
+            continue
 
         pag_status = str(pagamento.get("status") or venda.get("status") or "pending").lower()
+        if pag_status in CANCELLED_STATUSES:
+            continue
+        delivery = _delivery_status(pag_status, pacote)
 
         # F-061: imagem da enquete (post específico) tem prioridade sobre a do produto.
         # ?size=600 entrega thumb cacheada em vez do original (~200KB) — corta
@@ -382,6 +419,9 @@ def get_client_orders(cliente_id: str) -> List[Dict[str, Any]]:
             "total_amount": float(venda.get("total_amount") or 0),
             "status": "paid" if pag_status in PAID_STATUSES else ("cancelled" if pag_status in CANCELLED_STATUSES else "pending"),
             "raw_status": pag_status,
+            "delivery_status": delivery["code"],
+            "pending_reasons": delivery["reasons"],
+            "pending_observations": delivery["observations"],
             "payment_link": pagamento.get("payment_link") or "",
             "pix_payload": pagamento.get("pix_payload") or "",
             "provider_payment_id": pagamento.get("provider_payment_id") or "",

@@ -660,6 +660,60 @@ class TestGetClientOrders:
         result = ps.get_client_orders("cli-1")
         assert result[0]["image_url"] == "/files/enq-drive?size=600"
 
+    def test_pacote_open_closed_cancelled_sao_omitidos(self, monkeypatch):
+        """Pacote ainda formando (open/closed) ou cancelado não deve
+        aparecer no portal do cliente."""
+        def mk_venda(vid, pkg_status, pag_status):
+            return {
+                "id": vid, "cliente_id": "cli-1", "pacote_id": f"pk-{vid}",
+                "produto_id": "pr", "qty": 1, "unit_price": 10.0, "subtotal": 10.0,
+                "commission_percent": 0, "commission_amount": 0, "total_amount": 10.0,
+                "status": "pending", "created_at": "2026-01-01T00:00:00Z",
+                "produto": {"nome": "X", "descricao": None, "tamanho": None, "drive_file_id": None},
+                "pacote": {"id": f"pk-{vid}", "status": pkg_status,
+                           "enquete": {"titulo": "E", "created_at_provider": None, "drive_file_id": None}},
+            }, {
+                "id": f"pag-{vid}", "venda_id": vid, "provider": "asaas",
+                "provider_payment_id": "x", "payment_link": "", "pix_payload": "",
+                "status": pag_status, "due_date": None, "paid_at": None,
+                "created_at": "2026-01-01T00:00:00Z",
+            }
+        v_open, p_open = mk_venda("v-open", "open", "pending")
+        v_closed, p_closed = mk_venda("v-closed", "closed", "pending")
+        v_cancel, p_cancel = mk_venda("v-cancel", "cancelled", "pending")
+        v_appr, p_appr = mk_venda("v-appr", "approved", "pending")
+
+        fake = FakeSupabaseClient({
+            "vendas": [v_open, v_closed, v_cancel, v_appr],
+            "pagamentos": [p_open, p_closed, p_cancel, p_appr],
+        })
+        _install_fake(monkeypatch, fake)
+        result = ps.get_client_orders("cli-1")
+        ids = [o["id"] for o in result]
+        assert ids == ["v-appr"]
+
+    def test_pagamento_cancelado_e_omitido(self, monkeypatch):
+        """Pagamento explicitamente cancelado também é omitido."""
+        venda = {
+            "id": "vc", "cliente_id": "cli-1", "pacote_id": "pk",
+            "produto_id": "pr", "qty": 1, "unit_price": 10.0, "subtotal": 10.0,
+            "commission_percent": 0, "commission_amount": 0, "total_amount": 10.0,
+            "status": "pending", "created_at": "2026-01-01T00:00:00Z",
+            "produto": {"nome": "X", "descricao": None, "tamanho": None, "drive_file_id": None},
+            "pacote": {"id": "pk", "status": "approved",
+                       "enquete": {"titulo": "E", "created_at_provider": None, "drive_file_id": None}},
+        }
+        pagamento = {
+            "id": "pgc", "venda_id": "vc", "provider": "asaas",
+            "provider_payment_id": "", "payment_link": "", "pix_payload": "",
+            "status": "cancelled", "due_date": None, "paid_at": None,
+            "created_at": "2026-01-01T00:00:00Z",
+        }
+        fake = FakeSupabaseClient({"vendas": [venda], "pagamentos": [pagamento]})
+        _install_fake(monkeypatch, fake)
+        result = ps.get_client_orders("cli-1")
+        assert result == []
+
 
 # ---------------------------------------------------------------------------
 # _build_pix_response
