@@ -117,6 +117,7 @@ class AsaasClient:
             "name": name,
             "phone": phone,
             "cpfCnpj": cpf_cnpj,
+            "notificationDisabled": True,
         })
 
     def create_payment_pix(self, customer_id: str, amount: float, due_date: str, description: str = "") -> Dict[str, Any]:
