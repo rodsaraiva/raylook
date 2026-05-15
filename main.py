@@ -378,7 +378,18 @@ def _is_supabase_metrics_mode() -> bool:
 
 
 def _should_async_webhook_postprocess() -> bool:
-    return bool(_is_supabase_metrics_mode() and supabase_domain_enabled() and settings.TEST_MODE)
+    """Decide se o pós-processamento do webhook (snapshot, refreshes, backfills)
+    roda em background ou bloqueia a resposta.
+
+    Liga via TEST_MODE (legado) OU WEBHOOK_POSTPROCESS_ASYNC=true. Em prod,
+    setar a flag dedicada evita prender o worker por 7-90s por webhook —
+    o trabalho pesado vai pra asyncio.create_task com coalescing.
+    """
+    if not (_is_supabase_metrics_mode() and supabase_domain_enabled()):
+        return False
+    if settings.TEST_MODE:
+        return True
+    return os.getenv("WEBHOOK_POSTPROCESS_ASYNC", "").strip().lower() in ("1", "true", "yes")
 
 
 def _latest_monitored_enquete_ts() -> Optional[datetime]:

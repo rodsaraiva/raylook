@@ -77,7 +77,14 @@ services:
 
   raylook-dashboard:
     image: ${DOCKER_IMAGE:-ghcr.io/rodsaraiva/raylook:latest}
+    # Override do CMD do Dockerfile pra subir com 2 workers — paraleliza
+    # requests e evita que webhook lento (até com pós-process async pode
+    # ter pico) prenda o dashboard.
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
     environment:
+      # Webhook descarrega snapshot/backfills pra asyncio.create_task (com
+      # coalescing) em vez de bloquear a resposta. Cai de 7-90s pra <300ms.
+      WEBHOOK_POSTPROCESS_ASYNC: "true"
       DATA_BACKEND: postgres
       RAYLOOK_SANDBOX: ${RAYLOOK_SANDBOX:-false}
       RESEND_EMAIL_STUB: ${RESEND_EMAIL_STUB:-true}
