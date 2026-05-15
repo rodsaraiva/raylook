@@ -586,7 +586,7 @@ class TestGetClientOrders:
         assert o["qty"] == 2
         assert o["total_amount"] == 165.0
         assert o["status"] == "pending"
-        assert o["image_url"] == "/files/drv-1"
+        assert o["image_url"] == "/files/drv-1?size=600"
         assert o["produto_tamanho"] == "M"
 
     def test_pagamento_paid_status(self, monkeypatch):
@@ -658,7 +658,7 @@ class TestGetClientOrders:
         fake = FakeSupabaseClient({"vendas": vendas, "pagamentos": pagamentos})
         _install_fake(monkeypatch, fake)
         result = ps.get_client_orders("cli-1")
-        assert result[0]["image_url"] == "/files/enq-drive"
+        assert result[0]["image_url"] == "/files/enq-drive?size=600"
 
 
 # ---------------------------------------------------------------------------

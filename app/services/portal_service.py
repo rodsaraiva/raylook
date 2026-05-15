@@ -356,8 +356,10 @@ def get_client_orders(cliente_id: str) -> List[Dict[str, Any]]:
         pag_status = str(pagamento.get("status") or venda.get("status") or "pending").lower()
 
         # F-061: imagem da enquete (post específico) tem prioridade sobre a do produto.
+        # ?size=600 entrega thumb cacheada em vez do original (~200KB) — corta
+        # banda da listagem em ~70% (a foto reduzida fica ~50-70KB).
         drive_id = enquete.get("drive_file_id") or produto.get("drive_file_id")
-        image_url = f"/files/{drive_id}" if drive_id else ""
+        image_url = f"/files/{drive_id}?size=600" if drive_id else ""
 
         parsed = parse_enquete_title(enquete.get("titulo") or "")
 

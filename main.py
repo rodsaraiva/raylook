@@ -178,11 +178,40 @@ templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
+_THUMB_ALLOWED_SIZES = {300, 600, 900}
+_THUMB_CACHE_DIR = Path("static/uploads")
+
+
+def _get_or_create_thumb(src_path: Path, file_id: str, size: int) -> Path:
+    """Gera/cacheia thumb JPEG do file_id no tamanho pedido.
+
+    Cache em static/uploads/thumb_<file_id>_<size>.jpg. Se já existe, devolve
+    sem regenerar. Se PIL falhar, devolve o original (caller serve raw).
+    """
+    out = _THUMB_CACHE_DIR / f"thumb_{file_id}_{size}.jpg"
+    if out.exists():
+        return out
+    try:
+        from PIL import Image
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with Image.open(src_path) as im:
+            im = im.convert("RGB")
+            im.thumbnail((size, size))
+            im.save(out, format="JPEG", quality=85, optimize=True)
+        return out
+    except Exception as exc:
+        logger.warning("_get_or_create_thumb falhou file=%s size=%d: %s", file_id, size, exc)
+        return src_path
+
+
 @app.get("/files/{file_id}")
-async def serve_local_file(file_id: str):
+async def serve_local_file(file_id: str, size: Optional[int] = None):
     """Serve imagens armazenadas pelo LocalImageStorage.
 
-    Substitui as URLs lh3.googleusercontent.com/d/<id> do Drive em sandbox.
+    `?size=N` (N em {300, 600, 900}) devolve um thumbnail JPEG cacheado em
+    disco — útil pra lista de pedidos no portal, onde a banda da imagem
+    original (~200KB) é desperdício. Sem `size`, serve o arquivo cru.
+
     Sem auth — espelha o "anyone with link" original.
     """
     from fastapi.responses import FileResponse, JSONResponse
@@ -192,6 +221,9 @@ async def serve_local_file(file_id: str):
     if not resolved:
         return JSONResponse({"error": "not_found"}, status_code=404)
     path, mime = resolved
+    if size in _THUMB_ALLOWED_SIZES:
+        thumb_path = _get_or_create_thumb(path, file_id, size)
+        return FileResponse(thumb_path, media_type="image/jpeg")
     return FileResponse(path, media_type=mime)
 
 # Enable CORS

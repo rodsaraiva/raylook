@@ -17,6 +17,33 @@ from app.services.supabase_service import SupabaseRestClient
 
 logger = logging.getLogger("raylook.services.drive_image")
 
+# Limite "razoável" pra imagens de produto exibidas em mobile/desktop. Acima
+# disso o ganho de qualidade visual é marginal, mas o custo de banda no portal
+# e de disco no volume cresce linearmente. Originais do WhatsApp costumam vir
+# em 1280-2400px e 200KB-2MB; após _shrink_image caem pra ~50-90KB.
+_IMAGE_MAX_DIM = 1024
+_IMAGE_QUALITY = 85
+
+
+def _shrink_image(img_bytes: bytes) -> bytes:
+    """Redimensiona pra _IMAGE_MAX_DIM no maior lado e reencoda JPEG q=85.
+
+    Se PIL falhar (formato exótico, bytes corrompidos), devolve o original
+    — melhor armazenar grande do que perder a imagem.
+    """
+    try:
+        import io
+        from PIL import Image
+        with Image.open(io.BytesIO(img_bytes)) as im:
+            im = im.convert("RGB")
+            im.thumbnail((_IMAGE_MAX_DIM, _IMAGE_MAX_DIM))
+            out = io.BytesIO()
+            im.save(out, format="JPEG", quality=_IMAGE_QUALITY, optimize=True)
+            return out.getvalue()
+    except Exception as exc:
+        logger.warning("_shrink_image failed (%d bytes): %s", len(img_bytes), exc)
+        return img_bytes
+
 
 async def attach_poll_image(
     poll_id: str,
@@ -96,6 +123,14 @@ def _attach_poll_image_sync(
     except Exception as exc:
         logger.error("attach_poll_image: download_media failed: %s", exc)
         return None
+
+    original_size = len(img_bytes)
+    img_bytes = _shrink_image(img_bytes)
+    logger.info(
+        "attach_poll_image: image %d -> %d bytes (%.1f%%)",
+        original_size, len(img_bytes),
+        (len(img_bytes) / original_size * 100) if original_size else 0,
+    )
 
     drive = GoogleDriveClient()
     try:
