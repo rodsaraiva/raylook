@@ -161,6 +161,7 @@
         switch (preset) {
             case "today": return { since: t, until: t };
             case "yesterday": { const y = isoMinusDays(t, 1); return { since: y, until: y }; }
+            case "72h": return { since: isoMinusDays(t, 2), until: t };
             case "7d": return { since: isoMinusDays(t, 6), until: t };
             case "month": return { since: firstDayOfMonthBRT(), until: t };
             default: return { since: null, until: null };
