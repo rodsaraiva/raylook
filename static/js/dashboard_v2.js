@@ -312,7 +312,21 @@
                 // Abrir um dropdown comercial/estoque deve fechar Financeiro e Clientes.
                 if (willOpen && window._financeOpen) window.toggleFinanceView();
                 if (willOpen && window._clientesOpen) window._clientesClose?.();
-                renderRail();
+                if (willOpen) {
+                    // Seleciona o primeiro estado do grupo — mesma UX que
+                    // Financeiro/Clientes já têm (abrir = ir pra primeira aba).
+                    const group = RAIL_GROUPS.find(g => g.id === id);
+                    const firstState = group?.states?.[0];
+                    if (firstState && firstState !== activeState) {
+                        activeState = firstState;
+                        listPage = 1;
+                        const pkgs = currentItems();
+                        selectedId = pkgs[0] ? pkgs[0].id : null;
+                    }
+                    render();
+                } else {
+                    renderRail();
+                }
             })
         );
         rail.querySelectorAll(".rail-step").forEach(el =>
