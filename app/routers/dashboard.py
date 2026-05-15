@@ -156,26 +156,50 @@ def list_packages_by_state(
 ) -> Dict[str, Any]:
     """Lista pacotes agrupados por estado.
 
-    Filtros opcionais: ?since=YYYY-MM-DD&until=YYYY-MM-DD (BRT) — restringem por
-    pacotes.created_at. Inválido devolve 400.
+    Filtros opcionais: ?since=YYYY-MM-DD&until=YYYY-MM-DD (BRT) — restringem
+    pelo timestamp da TRANSIÇÃO pro estado em que o pacote está hoje
+    (opened_at, closed_at, approved_at, payment_validated_at, pdf_sent_at,
+    shipped_at, cancelled_at). 'Pacotes fechados hoje' = pacotes cujo
+    closed_at é hoje, independente da data de criação.
     """
     client = SupabaseRestClient.from_settings()
     since_iso, until_iso = _parse_date_range(since, until)
 
-    pkg_filters: List[Tuple[str, str, Any]] = []
-    if since_iso:
-        pkg_filters.append(("created_at", "gte", since_iso))
-    if until_iso:
-        pkg_filters.append(("created_at", "lte", until_iso))
-
-    # select() usa dict de params (sobrescreve quando há 2 filtros no mesmo
-    # campo); select_all() preserva múltiplos. Por isso o ramo dividido.
-    if pkg_filters:
-        pacotes = client.select_all(
-            "pacotes", order="updated_at.desc", filters=pkg_filters
-        ) or []
-    else:
+    if not (since_iso or until_iso):
         pacotes = client.select("pacotes", order="updated_at.desc") or []
+    else:
+        # Uma query por (status, campo de timestamp). Cada estado tem seu
+        # campo de transição; pra pacotes 'approved' (que viram confirmado/
+        # pago/pendente/separado/enviado), todos os timestamps de sub-estado
+        # entram. Dedup por id, pois um mesmo pacote pode bater em mais de
+        # uma query (ex.: approved_at e shipped_at ambos no range).
+        query_specs: List[Tuple[str, str]] = [
+            ("open", "opened_at"),
+            ("closed", "closed_at"),
+            ("cancelled", "cancelled_at"),
+            ("approved", "approved_at"),
+            ("approved", "payment_validated_at"),
+            ("approved", "pdf_sent_at"),
+            ("approved", "shipped_at"),
+            ("approved", "updated_at"),
+        ]
+        pacote_dict: Dict[str, Dict[str, Any]] = {}
+        for pkg_status, ts_field in query_specs:
+            flt: List[Tuple[str, str, Any]] = [("status", "eq", pkg_status)]
+            if since_iso:
+                flt.append((ts_field, "gte", since_iso))
+            if until_iso:
+                flt.append((ts_field, "lte", until_iso))
+            rows = client.select_all(
+                "pacotes", filters=flt, order=f"{ts_field}.desc"
+            ) or []
+            for r in rows:
+                pacote_dict[r["id"]] = r
+        pacotes = sorted(
+            pacote_dict.values(),
+            key=lambda p: p.get("updated_at") or "",
+            reverse=True,
+        )
     enquetes = client.select("enquetes") or []
     produtos = client.select("produtos") or []
     pacote_clientes = client.select("pacote_clientes") or []
@@ -229,9 +253,34 @@ def list_packages_by_state(
     grouped: Dict[str, List[Dict[str, Any]]] = {s: [] for s in FLOW_STATES}
     cancelled: List[Dict[str, Any]] = []
 
+    state_ts_map = {
+        "aberto": "opened_at",
+        "fechado": "closed_at",
+        "confirmado": "approved_at",          # aprovado mas esperando pagamento
+        "pago": "updated_at",                 # último pagamento marcado paid
+        "pendente": "payment_validated_at",   # gerente validou
+        "separado": "pdf_sent_at",
+        "enviado": "shipped_at",
+        "cancelled": "cancelled_at",
+    }
+
     for pkg in pacotes:
         pags = pagamentos_by_pacote.get(pkg["id"], [])
         state = _derive_state(pkg, pags)
+
+        # Refina o filtro de data: queries SQL fazem corte amplo por
+        # status+algum_timestamp, mas o estado derivado pode usar OUTRO
+        # timestamp (ex.: pacote 'approved' veio pela query approved_at,
+        # mas state='enviado' usa shipped_at). Pula se o timestamp do
+        # estado real não está no range.
+        if since_iso or until_iso:
+            state_ts = pkg.get(state_ts_map.get(state, "updated_at"))
+            if not state_ts:
+                continue
+            if since_iso and state_ts < since_iso:
+                continue
+            if until_iso and state_ts > until_iso:
+                continue
 
         enq = enquete_map.get(pkg["enquete_id"], {})
         prod = produto_map.get(enq.get("produto_id"))
@@ -281,16 +330,7 @@ def list_packages_by_state(
         }
 
         # timestamp "do estado atual" = horário da última transição
-        state_ts_field = {
-            "aberto": "opened_at",
-            "fechado": "closed_at",
-            "confirmado": "approved_at",          # aprovado mas esperando pagamento
-            "pago": "updated_at",                 # último pagamento marcado paid
-            "pendente": "payment_validated_at",   # gerente validou
-            "separado": "pdf_sent_at",
-            "enviado": "shipped_at",
-            "cancelled": "cancelled_at",
-        }.get(state, "updated_at")
+        state_ts_field = state_ts_map.get(state, "updated_at")
 
         drive_id = (enq.get("drive_file_id") or (prod.get("drive_file_id") if prod else None))
         item = {
