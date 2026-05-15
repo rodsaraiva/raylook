@@ -1,38 +1,55 @@
 (function () {
     let financeOpen = false;
+    let financeGroupOpen = false;
 
-    window.toggleFinanceView = function () {
-        financeOpen = !financeOpen;
-        window._financeOpen = financeOpen;
+    function setGroupOpen(open) {
+        financeGroupOpen = open;
+        document.getElementById('fin-group')?.classList.toggle('open', open);
+    }
 
-        const pkgsArea   = document.getElementById('packages-area');
-        const finSection = document.getElementById('section-finance');
-        const finBlock   = document.getElementById('fin-block');
+    function openFinance(view) {
+        financeOpen = true;
+        window._financeOpen = true;
+        document.getElementById('packages-area')?.classList.add('retracted');
+        document.getElementById('section-finance')?.classList.add('active');
+        // Acordeon: abrir financeiro fecha Comercial/Estoque/Logística.
+        window._railCollapseGroups?.();
+        setGroupOpen(true);
+        if (view) window.financeSetView?.(view);
+        window.financeRefresh?.();
+    }
 
-        if (financeOpen) {
-            pkgsArea?.classList.add('retracted');
-            finSection?.classList.add('active');
-            finBlock?.classList.add('active');
-            // Acordeon: abrir financeiro fecha Comercial/Estoque.
-            window._railCollapseGroups?.();
-            window.financeRefresh?.();
-        } else {
-            pkgsArea?.classList.remove('retracted');
-            finSection?.classList.remove('active');
-            finBlock?.classList.remove('active');
-        }
+    function closeFinance() {
+        financeOpen = false;
+        window._financeOpen = false;
+        document.getElementById('packages-area')?.classList.remove('retracted');
+        document.getElementById('section-finance')?.classList.remove('active');
+        setGroupOpen(false);
+    }
+
+    // Compat: handlers externos (dashboard_v2.js) chamam toggleFinanceView()
+    // pra fechar o financeiro ao abrir outro grupo.
+    window.toggleFinanceView = function (view) {
+        if (view) { openFinance(view); return; }
+        if (financeOpen) closeFinance(); else openFinance();
     };
 
     document.addEventListener('DOMContentLoaded', function () {
-        document.getElementById('fin-block')?.addEventListener('click', function () {
-            window.toggleFinanceView();
+        // Header do dropdown: abre/fecha o grupo + abre a view default (receivable)
+        document.getElementById('fin-group-header')?.addEventListener('click', function () {
+            if (financeOpen) closeFinance();
+            else openFinance('receivable');
         });
 
-        // Clicar no rail colapsado (título "Fluxo") fecha o financeiro
-        document.getElementById('rail')?.addEventListener('click', function (e) {
-            if (window._financeOpen && !e.target.closest('.rail-step')) {
-                window.toggleFinanceView();
-            }
+        // Sub-itens "A receber" / "Pagos"
+        document.querySelectorAll('#fin-group .rail-step[data-fin-view]').forEach((step) => {
+            step.addEventListener('click', function (e) {
+                e.stopPropagation();  // evita disparar o toggle do header
+                const view = step.dataset.finView;
+                document.querySelectorAll('#fin-group .rail-step').forEach((s) =>
+                    s.classList.toggle('active', s === step));
+                openFinance(view);
+            });
         });
     });
 })();

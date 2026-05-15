@@ -12,12 +12,20 @@
         "R$ " + Number(v || 0).toFixed(2).replace(".", ",");
 
     const state = {
-        mode: "by-client",      // "by-client" | "by-charge"
-        filter: "all",          // "all" | "0-7" | ... | "written_off"
+        tab: "receivable",      // "receivable" | "paid"
+        // A receber
+        mode: "by-client",
+        filter: "all",
         search: "",
         receivables: [],
         page: 1,
         pageSize: 25,
+        // Pagos
+        paidMode: "by-client",
+        paidFilter: "all",
+        paidSearch: "",
+        paid: [],
+        paidPage: 1,
     };
 
     function el(id) { return document.getElementById(id); }
@@ -181,7 +189,7 @@
 
     // ---- Click handlers (delegated) ----
     document.addEventListener("click", (ev) => {
-        const expandBtn = ev.target.closest(".btn-expand");
+        const expandBtn = ev.target.closest(".btn-expand[data-cliente]");
         if (expandBtn) {
             const id = expandBtn.dataset.cliente;
             const row = document.querySelector(`.client-expand[data-cliente="${id}"]`);
@@ -312,9 +320,210 @@
         backdrop.style.display = "flex";
     }
 
+    // ---- Aba Pagos ----
+    async function loadPaidSummary() {
+        const res = await fetch("/api/finance/paid-summary" + _filterQS(), { credentials: "same-origin" });
+        if (!res.ok) return;
+        const s = await res.json();
+        el("finance-paid-total").textContent = fmtMoney(s.total_paid);
+        el("finance-paid-meta").textContent =
+            `${s.count} cobranças · ${s.clients_count} clientes`;
+        el("finance-paid-count").textContent = String(s.count || 0);
+        el("finance-paid-clients").textContent =
+            `${s.clients_count || 0} cliente${s.clients_count === 1 ? "" : "s"}`;
+        el("finance-paid-avg-ticket").textContent = fmtMoney(s.avg_ticket);
+        el("finance-paid-avg-days").textContent = (s.avg_days_to_pay || 0).toFixed(1) + "d";
+    }
+
+    async function loadPaid() {
+        const res = await fetch("/api/finance/paid" + _filterQS(), { credentials: "same-origin" });
+        if (!res.ok) return;
+        state.paid = await res.json();
+        renderPaid();
+    }
+
+    function filterPaidRows() {
+        let rows = state.paid;
+        if (state.paidFilter !== "all") {
+            rows = rows.filter((r) => r.bucket === state.paidFilter);
+        }
+        if (state.paidSearch) {
+            const q = state.paidSearch.toLowerCase();
+            rows = rows.filter((r) =>
+                (r.nome || "").toLowerCase().includes(q) ||
+                (r.celular_last4 || "").includes(q)
+            );
+        }
+        return rows;
+    }
+
+    function renderPaid() {
+        const tbody = el("finance-paid-table-body");
+        const rows = filterPaidRows();
+        const start = (state.paidPage - 1) * state.pageSize;
+        const pageRows = rows.slice(start, start + state.pageSize);
+        tbody.innerHTML = "";
+
+        if (state.paidMode === "by-charge") {
+            renderPaidByCharge(tbody, pageRows);
+        } else {
+            renderPaidByClient(tbody, pageRows);
+        }
+
+        el("finance-paid-pagination-summary").textContent =
+            `Página ${state.paidPage} de ${Math.max(1, Math.ceil(rows.length / state.pageSize))} (${rows.length} resultados)`;
+    }
+
+    function fmtDate(iso) {
+        if (!iso) return "—";
+        try { return new Date(iso).toLocaleDateString("pt-BR"); }
+        catch (_) { return "—"; }
+    }
+
+    function renderPaidByClient(tbody, rows) {
+        rows.forEach((r) => {
+            const tr = document.createElement("tr");
+            tr.className = "client-row";
+            tr.innerHTML = `
+                <td>${escapeHtml(r.nome)}</td>
+                <td>***${escapeHtml(r.celular_last4 || "")}</td>
+                <td>${fmtMoney(r.total)}</td>
+                <td>${r.count}</td>
+                <td>${fmtDate(r.last_paid_at)} <span class="aging-badge bucket-${(r.bucket||"0-7").replace("+","plus")}">${r.newest_age_days}d</span></td>
+                <td style="text-align:right;">
+                    <button class="btn-expand" data-paid-cliente="${r.cliente_id}"><i class="fas fa-chevron-right"></i></button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+
+            const expandTr = document.createElement("tr");
+            expandTr.className = "client-expand";
+            expandTr.dataset.paidCliente = r.cliente_id;
+            expandTr.style.display = "none";
+            expandTr.innerHTML = `
+                <td colspan="6">
+                    <table class="charges-mini">
+                        <thead>
+                            <tr><th>Pacote</th><th>Valor</th><th>Pago em</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            ${r.charges.map((c) => `
+                                <tr>
+                                    <td>${escapeHtml(c.enquete_titulo) || c.pacote_id}</td>
+                                    <td>${fmtMoney(c.valor)}</td>
+                                    <td>${fmtDate(c.paid_at)} <span class="muted">(${c.age_days}d)</span></td>
+                                    <td>
+                                        <button class="btn-history" data-pag="${c.pagamento_id}" title="Histórico"><i class="fas fa-scroll"></i></button>
+                                    </td>
+                                </tr>
+                            `).join("")}
+                        </tbody>
+                    </table>
+                </td>
+            `;
+            tbody.appendChild(expandTr);
+        });
+    }
+
+    function renderPaidByCharge(tbody, rows) {
+        const charges = [];
+        rows.forEach((r) => r.charges.forEach((c) =>
+            charges.push({ ...c, nome: r.nome, celular_last4: r.celular_last4 })
+        ));
+        charges.forEach((c) => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td>${escapeHtml(c.nome)}</td>
+                <td>${escapeHtml(c.enquete_titulo) || c.pacote_id}</td>
+                <td>${fmtMoney(c.valor)}</td>
+                <td>${fmtDate(c.paid_at)}</td>
+                <td>${c.age_days}d</td>
+                <td style="text-align:right;">
+                    <button class="btn-history" data-pag="${c.pagamento_id}"><i class="fas fa-scroll"></i></button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function updatePaidHead() {
+        const thead = el("finance-paid-thead");
+        if (state.paidMode === "by-charge") {
+            thead.innerHTML = `<tr><th>Cliente</th><th>Pacote</th><th>Valor</th><th>Pago em</th><th>Idade</th><th></th></tr>`;
+        } else {
+            thead.innerHTML = `<tr><th>Cliente</th><th>Celular</th><th>Total pago</th><th>Cobranças</th><th>Último pagamento</th><th></th></tr>`;
+        }
+    }
+
+    // Handlers Pagos (mode toggle, filtros, busca, paginação, expand)
+    document.querySelectorAll('#finance-view-paid .toggle-btn').forEach((btn) => {
+        btn.addEventListener("click", () => {
+            document.querySelectorAll('#finance-view-paid .toggle-btn')
+                .forEach((b) => b.classList.toggle("active", b === btn));
+            state.paidMode = btn.dataset.paidMode;
+            state.paidPage = 1;
+            updatePaidHead();
+            renderPaid();
+        });
+    });
+
+    document.querySelectorAll('#finance-view-paid .filter-btn').forEach((btn) => {
+        btn.addEventListener("click", () => {
+            document.querySelectorAll('#finance-view-paid .filter-btn')
+                .forEach((b) => b.classList.toggle("active", b === btn));
+            state.paidFilter = btn.dataset.paidFilter;
+            state.paidPage = 1;
+            renderPaid();
+        });
+    });
+
+    const paidSearch = el("finance-paid-search");
+    if (paidSearch) {
+        paidSearch.addEventListener("input", () => {
+            state.paidSearch = paidSearch.value.trim();
+            state.paidPage = 1;
+            renderPaid();
+        });
+    }
+
+    el("finance-paid-page-prev")?.addEventListener("click", () => {
+        if (state.paidPage > 1) { state.paidPage -= 1; renderPaid(); }
+    });
+    el("finance-paid-page-next")?.addEventListener("click", () => {
+        state.paidPage += 1; renderPaid();
+    });
+
+    // Expand handler isolado pra Pagos (key data-paid-cliente)
+    document.addEventListener("click", (ev) => {
+        const btn = ev.target.closest(".btn-expand[data-paid-cliente]");
+        if (!btn) return;
+        const id = btn.dataset.paidCliente;
+        const row = document.querySelector(`.client-expand[data-paid-cliente="${id}"]`);
+        if (row) {
+            const open = row.style.display !== "none";
+            row.style.display = open ? "none" : "table-row";
+            btn.querySelector("i").className =
+                "fas " + (open ? "fa-chevron-right" : "fa-chevron-down");
+        }
+    });
+
+    // Troca de view (chamada pelo dropdown na sidebar — finance-toggle.js)
+    window.financeSetView = function (view) {
+        if (view !== "receivable" && view !== "paid") return;
+        if (state.tab === view) return;
+        state.tab = view;
+        document.querySelectorAll(".finance-view")
+            .forEach((v) => v.classList.toggle("active", v.id === `finance-view-${view}`));
+        refreshAll();
+    };
+
     // ---- Refresh ----
     async function refreshAll() {
-        await Promise.all([loadAgingSummary(), loadReceivables()]);
+        if (state.tab === "paid") {
+            await Promise.all([loadPaidSummary(), loadPaid()]);
+        } else {
+            await Promise.all([loadAgingSummary(), loadReceivables()]);
+        }
     }
 
     // ---- Trigger on nav ----

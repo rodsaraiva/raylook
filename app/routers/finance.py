@@ -10,6 +10,8 @@ from finance.manager import FinanceManager
 from app.services.finance_service import (
     build_receivables_by_client,
     build_aging_summary,
+    build_paid_by_client,
+    build_paid_summary,
     build_payment_history,
     mark_payment_written_off,
     PaymentNotFound,
@@ -112,6 +114,36 @@ async def get_aging_summary(
         return build_aging_summary(since=since, until=until)
     except Exception:
         logger.exception("Erro ao construir aging summary")
+        return JSONResponse(status_code=500, content={"error": "internal"})
+
+
+@router.get("/paid")
+async def get_paid(
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Cobranças pagas agregadas por cliente (status=paid).
+
+    Filtros opcionais ?since=YYYY-MM-DD&until=YYYY-MM-DD — restringem por
+    pagamentos.paid_at (BRT).
+    """
+    try:
+        return build_paid_by_client(since=since, until=until)
+    except Exception:
+        logger.exception("Erro ao agregar pagos")
+        return JSONResponse(status_code=500, content={"error": "internal"})
+
+
+@router.get("/paid-summary")
+async def get_paid_summary(
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+) -> Dict[str, Any]:
+    """KPIs da aba Pagos."""
+    try:
+        return build_paid_summary(since=since, until=until)
+    except Exception:
+        logger.exception("Erro ao construir paid summary")
         return JSONResponse(status_code=500, content={"error": "internal"})
 
 

@@ -1095,6 +1095,193 @@ def build_aging_summary(
     }
 
 
+def build_paid_by_client(
+    now_iso: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+) -> List[Dict[str, Any]]:
+    """Agrega pagamentos liquidados (status=paid) por cliente.
+
+    Filtros opcionais since/until (YYYY-MM-DD BRT) restringem por paid_at;
+    quando paid_at for nulo (legado), cai pra created_at.
+    """
+    if not supabase_domain_enabled():
+        return []
+
+    client = SupabaseRestClient.from_settings()
+    pag_filters: List[tuple] = [("status", "eq", "paid")]
+    since_iso, until_iso = _date_range_iso(since, until)
+    if since_iso:
+        pag_filters.append(("paid_at", "gte", since_iso))
+    if until_iso:
+        pag_filters.append(("paid_at", "lte", until_iso))
+    pagamentos = client.select_all(
+        "pagamentos",
+        columns="id,venda_id,status,created_at,paid_at",
+        filters=pag_filters,
+        order="paid_at.desc",
+    )
+    if not pagamentos:
+        return []
+
+    venda_ids = list({str(p["venda_id"]) for p in pagamentos if p.get("venda_id")})
+    vendas = _select_in_batches(
+        client, "vendas",
+        columns="id,cliente_id,pacote_id,total_amount",
+        filter_field="id", values=venda_ids,
+    )
+    venda_by_id = {str(v["id"]): v for v in vendas}
+
+    cliente_ids = list({str(v["cliente_id"]) for v in vendas if v.get("cliente_id")})
+    clientes = _select_in_batches(
+        client, "clientes",
+        columns="id,nome,celular",
+        filter_field="id", values=cliente_ids,
+    )
+    cliente_by_id = {str(c["id"]): c for c in clientes}
+
+    pacote_ids = list({str(v["pacote_id"]) for v in vendas if v.get("pacote_id")})
+    pacotes = _select_in_batches(
+        client, "pacotes",
+        columns="id,enquete_id,sequence_no",
+        filter_field="id", values=pacote_ids,
+    )
+    pacote_by_id = {str(p["id"]): p for p in pacotes}
+
+    enquete_ids = list({str(p["enquete_id"]) for p in pacotes if p.get("enquete_id")})
+    enquetes = _select_in_batches(
+        client, "enquetes",
+        columns="id,titulo",
+        filter_field="id", values=enquete_ids,
+    )
+    enquete_by_id = {str(e["id"]): e for e in enquetes}
+
+    now = _now_dt(now_iso)
+    by_cliente: Dict[str, Dict[str, Any]] = {}
+
+    for pag in pagamentos:
+        venda = venda_by_id.get(str(pag.get("venda_id")))
+        if not venda:
+            continue
+        cliente_id = str(venda.get("cliente_id") or "")
+        cliente = cliente_by_id.get(cliente_id)
+        if not cliente:
+            continue
+        pacote = pacote_by_id.get(str(venda.get("pacote_id") or ""))
+        enquete_titulo = ""
+        if pacote:
+            enq = enquete_by_id.get(str(pacote.get("enquete_id") or ""))
+            if enq:
+                enquete_titulo = enq.get("titulo") or ""
+
+        paid_at_raw = pag.get("paid_at") or pag.get("created_at")
+        paid_at = _parse_dt(paid_at_raw)
+        age_days = (now.date() - paid_at.date()).days if paid_at else 0
+        valor = float(venda.get("total_amount") or 0)
+
+        bucket = by_cliente.setdefault(cliente_id, {
+            "cliente_id": cliente_id,
+            "nome": cliente.get("nome") or "",
+            "celular_last4": str(cliente.get("celular") or "")[-4:],
+            "total": 0.0,
+            "count": 0,
+            "last_paid_at": paid_at_raw,
+            "newest_age_days": age_days,
+            "bucket": _classify_bucket(age_days),
+            "charges": [],
+        })
+        bucket["total"] += valor
+        bucket["count"] += 1
+        if paid_at_raw and (bucket["last_paid_at"] is None or paid_at_raw > bucket["last_paid_at"]):
+            bucket["last_paid_at"] = paid_at_raw
+            bucket["newest_age_days"] = age_days
+            bucket["bucket"] = _classify_bucket(age_days)
+        bucket["charges"].append({
+            "pagamento_id": str(pag["id"]),
+            "pacote_id": str(venda.get("pacote_id") or ""),
+            "enquete_titulo": enquete_titulo,
+            "valor": valor,
+            "age_days": age_days,
+            "paid_at": paid_at_raw,
+            "status": pag.get("status"),
+        })
+
+    rows = list(by_cliente.values())
+    rows.sort(key=lambda r: r["last_paid_at"] or "", reverse=True)
+    for r in rows:
+        r["total"] = round(r["total"], 2)
+    return rows
+
+
+def build_paid_summary(
+    now_iso: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+) -> Dict[str, Any]:
+    """KPIs da aba Pagos: total recebido, nº cobranças pagas,
+    ticket médio e tempo médio (created_at → paid_at) em dias.
+    """
+    empty = {
+        "total_paid": 0, "count": 0, "clients_count": 0,
+        "avg_ticket": 0, "avg_days_to_pay": 0,
+    }
+    if not supabase_domain_enabled():
+        return empty
+
+    client = SupabaseRestClient.from_settings()
+
+    pag_filters: List[tuple] = [("status", "eq", "paid")]
+    since_iso, until_iso = _date_range_iso(since, until)
+    if since_iso:
+        pag_filters.append(("paid_at", "gte", since_iso))
+    if until_iso:
+        pag_filters.append(("paid_at", "lte", until_iso))
+
+    pagamentos = client.select_all(
+        "pagamentos",
+        columns="id,venda_id,status,created_at,paid_at",
+        filters=pag_filters,
+    )
+    if not pagamentos:
+        return empty
+
+    venda_ids = list({str(p["venda_id"]) for p in pagamentos if p.get("venda_id")})
+    vendas = _select_in_batches(
+        client, "vendas",
+        columns="id,cliente_id,total_amount",
+        filter_field="id", values=venda_ids,
+    )
+    venda_by_id = {str(v["id"]): v for v in vendas}
+
+    total = 0.0
+    count = 0
+    clientes = set()
+    days_to_pay_weighted = 0.0
+
+    for pag in pagamentos:
+        venda = venda_by_id.get(str(pag.get("venda_id")))
+        if not venda:
+            continue
+        valor = float(venda.get("total_amount") or 0)
+        total += valor
+        count += 1
+        if venda.get("cliente_id"):
+            clientes.add(str(venda["cliente_id"]))
+        created_at = _parse_dt(pag.get("created_at"))
+        paid_at = _parse_dt(pag.get("paid_at"))
+        if created_at and paid_at:
+            delta = max(0, (paid_at.date() - created_at.date()).days)
+            days_to_pay_weighted += valor * delta
+
+    return {
+        "total_paid": round(total, 2),
+        "count": count,
+        "clients_count": len(clientes),
+        "avg_ticket": round(total / count, 2) if count > 0 else 0,
+        "avg_days_to_pay": round(days_to_pay_weighted / total, 2) if total > 0 else 0,
+    }
+
+
 def _paid_rate_30d(client: SupabaseRestClient, now: datetime) -> float:
     """% de R$ pago sobre o total confirmado nos últimos 30d (rolling)."""
     cutoff = (now - timedelta(days=30)).isoformat()

@@ -27,7 +27,7 @@
 
     // Esconde o bloco Financeiro pra não-admin (só admin enxerga).
     if (!visibleGroups.has("financeiro")) {
-        document.getElementById("fin-block")?.style.setProperty("display", "none");
+        document.getElementById("fin-group")?.style.setProperty("display", "none");
     }
 
     const DESCS = {

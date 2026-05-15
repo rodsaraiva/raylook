@@ -416,27 +416,8 @@
         transition: transform 0.42s cubic-bezier(0.16,1,0.3,1), opacity 0.32s ease, visibility 0s linear 0s;
     }
 
-    /* Bloco Financeiro — dropdown irmão de Comercial / Estoque */
-    .fin-block {
-        background: var(--card-bg); backdrop-filter: blur(14px);
-        border: 1px solid var(--card-border); border-radius: var(--radius-lg);
-        display: flex; align-items: center; gap: 10px;
-        padding: 12px 14px; cursor: pointer; transition: background 0.2s;
-    }
-    .fin-block:hover { background: rgba(255,255,255,0.03); }
-    .fin-block.active { background: var(--accent-soft); border-color: rgba(212,175,55,0.35); }
-    .fin-block-label {
-        flex: 1; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
-        font-weight: 700; color: var(--accent);
-    }
-    .fin-block-amount {
-        font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 700;
-        color: var(--text-primary); font-variant-numeric: tabular-nums;
-    }
-    .fin-block-chevron {
-        font-size: 10px; color: var(--text-muted); transition: transform 0.3s;
-    }
-    .fin-block.active .fin-block-chevron { transform: rotate(180deg); }
+    .finance-view { display: none; }
+    .finance-view.active { display: block; }
 
     /* ── Finance section: KPIs ── */
     .finance-kpis {
@@ -694,10 +675,30 @@
         <aside class="rail" id="rail">
             <!-- Grupos Comercial/Estoque injetados pelo dashboard_v2.js -->
         </aside>
-        <div class="fin-block" id="fin-block">
-            <span class="fin-block-label">Financeiro</span>
-            <span class="fin-block-amount" id="fin-block-amount">—</span>
-            <i class="fas fa-chevron-down fin-block-chevron"></i>
+        <div class="rail-group" id="fin-group" data-group="financeiro">
+            <div class="rail-group-header" id="fin-group-header">
+                <span class="rail-group-label">Financeiro</span>
+                <span class="rail-group-total" id="fin-block-amount">—</span>
+                <i class="fas fa-chevron-down rail-group-chevron"></i>
+            </div>
+            <div class="rail-group-body">
+                <div class="rail-step active" data-fin-view="receivable">
+                    <div class="num">1</div>
+                    <div>
+                        <div class="label">A receber</div>
+                        <div class="sub">pendentes</div>
+                    </div>
+                    <div class="count" id="fin-count-receivable">—</div>
+                </div>
+                <div class="rail-step" data-fin-view="paid">
+                    <div class="num">2</div>
+                    <div>
+                        <div class="label">Pagos</div>
+                        <div class="sub">liquidados</div>
+                    </div>
+                    <div class="count" id="fin-count-paid">—</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -723,67 +724,129 @@
         <!-- PAINEL FINANCEIRO -->
         <div id="section-finance">
 
-            <!-- KPIs -->
-            <div class="finance-kpis">
-                <div class="fin-kpi">
-                    <div class="lbl">Total a receber</div>
-                    <div class="val" id="finance-receivable-total">—</div>
-                    <div class="meta" id="finance-receivable-meta">—</div>
-                </div>
-                <div class="fin-kpi">
-                    <div class="lbl">Vencimento</div>
-                    <div class="aging-bar" id="finance-aging-bar">
-                        <div class="aging-bucket" data-bucket="0-7"   style="width:0%"></div>
-                        <div class="aging-bucket" data-bucket="8-15"  style="width:0%"></div>
-                        <div class="aging-bucket" data-bucket="16-30" style="width:0%"></div>
-                        <div class="aging-bucket" data-bucket="30+"   style="width:0%"></div>
+            <!-- VIEW: A receber -->
+            <div class="finance-view active" id="finance-view-receivable">
+                <!-- KPIs -->
+                <div class="finance-kpis">
+                    <div class="fin-kpi">
+                        <div class="lbl">Total a receber</div>
+                        <div class="val" id="finance-receivable-total">—</div>
+                        <div class="meta" id="finance-receivable-meta">—</div>
                     </div>
-                    <div class="aging-legend" id="finance-aging-legend"></div>
-                </div>
-                <div class="fin-kpi">
-                    <div class="lbl">Tempo médio</div>
-                    <div class="val" id="finance-avg-age">—</div>
-                    <div class="meta" id="finance-avg-age-trend">—</div>
-                </div>
-                <div class="fin-kpi">
-                    <div class="lbl">% Pago (30d)</div>
-                    <div class="val" id="finance-paid-rate">—</div>
-                    <div class="meta">últimos 30 dias</div>
-                </div>
-            </div>
-
-            <!-- Tabela -->
-            <div class="fin-table-wrap">
-                <div class="finance-bar-head">
-                    <div class="finance-bar-head-left">
-                        <div class="view-toggle">
-                            <button class="toggle-btn active" data-mode="by-client">Por cliente</button>
-                            <button class="toggle-btn" data-mode="by-charge">Por cobrança</button>
+                    <div class="fin-kpi">
+                        <div class="lbl">Vencimento</div>
+                        <div class="aging-bar" id="finance-aging-bar">
+                            <div class="aging-bucket" data-bucket="0-7"   style="width:0%"></div>
+                            <div class="aging-bucket" data-bucket="8-15"  style="width:0%"></div>
+                            <div class="aging-bucket" data-bucket="16-30" style="width:0%"></div>
+                            <div class="aging-bucket" data-bucket="30+"   style="width:0%"></div>
                         </div>
-                        <button class="filter-btn active" data-filter="all">Todos</button>
-                        <button class="filter-btn" data-filter="0-7">0-7d</button>
-                        <button class="filter-btn" data-filter="8-15">8-15d</button>
-                        <button class="filter-btn" data-filter="16-30">16-30d</button>
-                        <button class="filter-btn" data-filter="30+">30+d</button>
-                        <button class="filter-btn" data-filter="written_off">Perdidos</button>
+                        <div class="aging-legend" id="finance-aging-legend"></div>
                     </div>
-                    <input class="search-box" placeholder="🔍 Buscar cliente…" id="finance-search" style="width:200px;">
+                    <div class="fin-kpi">
+                        <div class="lbl">Tempo médio</div>
+                        <div class="val" id="finance-avg-age">—</div>
+                        <div class="meta" id="finance-avg-age-trend">—</div>
+                    </div>
+                    <div class="fin-kpi">
+                        <div class="lbl">% Pago (30d)</div>
+                        <div class="val" id="finance-paid-rate">—</div>
+                        <div class="meta">últimos 30 dias</div>
+                    </div>
                 </div>
-                <table class="fin-table" id="finance-table">
-                    <thead id="finance-thead">
-                        <tr>
-                            <th>Cliente</th><th>Celular</th><th>Total devido</th>
-                            <th>Cobranças</th><th>Idade do mais antigo</th><th></th>
-                        </tr>
-                    </thead>
-                    <tbody id="finance-table-body"></tbody>
-                </table>
-                <div class="finance-pagination">
-                    <button class="fin-page-btn" id="finance-page-prev">← Anterior</button>
-                    <span id="finance-pagination-summary" style="flex:1;text-align:center;">Página 1</span>
-                    <button class="fin-page-btn" id="finance-page-next">Próxima →</button>
+
+                <!-- Tabela -->
+                <div class="fin-table-wrap">
+                    <div class="finance-bar-head">
+                        <div class="finance-bar-head-left">
+                            <div class="view-toggle">
+                                <button class="toggle-btn active" data-mode="by-client">Por cliente</button>
+                                <button class="toggle-btn" data-mode="by-charge">Por cobrança</button>
+                            </div>
+                            <button class="filter-btn active" data-filter="all">Todos</button>
+                            <button class="filter-btn" data-filter="0-7">0-7d</button>
+                            <button class="filter-btn" data-filter="8-15">8-15d</button>
+                            <button class="filter-btn" data-filter="16-30">16-30d</button>
+                            <button class="filter-btn" data-filter="30+">30+d</button>
+                            <button class="filter-btn" data-filter="written_off">Perdidos</button>
+                        </div>
+                        <input class="search-box" placeholder="🔍 Buscar cliente…" id="finance-search" style="width:200px;">
+                    </div>
+                    <table class="fin-table" id="finance-table">
+                        <thead id="finance-thead">
+                            <tr>
+                                <th>Cliente</th><th>Celular</th><th>Total devido</th>
+                                <th>Cobranças</th><th>Idade do mais antigo</th><th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="finance-table-body"></tbody>
+                    </table>
+                    <div class="finance-pagination">
+                        <button class="fin-page-btn" id="finance-page-prev">← Anterior</button>
+                        <span id="finance-pagination-summary" style="flex:1;text-align:center;">Página 1</span>
+                        <button class="fin-page-btn" id="finance-page-next">Próxima →</button>
+                    </div>
                 </div>
-            </div>
+            </div><!-- /view-receivable -->
+
+            <!-- VIEW: Pagos -->
+            <div class="finance-view" id="finance-view-paid">
+                <!-- KPIs -->
+                <div class="finance-kpis">
+                    <div class="fin-kpi">
+                        <div class="lbl">Total recebido</div>
+                        <div class="val" id="finance-paid-total">—</div>
+                        <div class="meta" id="finance-paid-meta">—</div>
+                    </div>
+                    <div class="fin-kpi">
+                        <div class="lbl">Nº cobranças pagas</div>
+                        <div class="val" id="finance-paid-count">—</div>
+                        <div class="meta" id="finance-paid-clients">—</div>
+                    </div>
+                    <div class="fin-kpi">
+                        <div class="lbl">Ticket médio</div>
+                        <div class="val" id="finance-paid-avg-ticket">—</div>
+                        <div class="meta">por cobrança</div>
+                    </div>
+                    <div class="fin-kpi">
+                        <div class="lbl">Tempo médio pra pagar</div>
+                        <div class="val" id="finance-paid-avg-days">—</div>
+                        <div class="meta">criação → pagamento</div>
+                    </div>
+                </div>
+
+                <!-- Tabela -->
+                <div class="fin-table-wrap">
+                    <div class="finance-bar-head">
+                        <div class="finance-bar-head-left">
+                            <div class="view-toggle">
+                                <button class="toggle-btn active" data-paid-mode="by-client">Por cliente</button>
+                                <button class="toggle-btn" data-paid-mode="by-charge">Por cobrança</button>
+                            </div>
+                            <button class="filter-btn active" data-paid-filter="all">Todos</button>
+                            <button class="filter-btn" data-paid-filter="0-7">0-7d</button>
+                            <button class="filter-btn" data-paid-filter="8-15">8-15d</button>
+                            <button class="filter-btn" data-paid-filter="16-30">16-30d</button>
+                            <button class="filter-btn" data-paid-filter="30+">30+d</button>
+                        </div>
+                        <input class="search-box" placeholder="🔍 Buscar cliente…" id="finance-paid-search" style="width:200px;">
+                    </div>
+                    <table class="fin-table" id="finance-paid-table">
+                        <thead id="finance-paid-thead">
+                            <tr>
+                                <th>Cliente</th><th>Celular</th><th>Total pago</th>
+                                <th>Cobranças</th><th>Último pagamento</th><th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="finance-paid-table-body"></tbody>
+                    </table>
+                    <div class="finance-pagination">
+                        <button class="fin-page-btn" id="finance-paid-page-prev">← Anterior</button>
+                        <span id="finance-paid-pagination-summary" style="flex:1;text-align:center;">Página 1</span>
+                        <button class="fin-page-btn" id="finance-paid-page-next">Próxima →</button>
+                    </div>
+                </div>
+            </div><!-- /view-paid -->
 
         </div><!-- /section-finance -->
     </div><!-- /content-area -->
