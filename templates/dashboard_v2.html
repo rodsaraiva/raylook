@@ -393,13 +393,19 @@
         display: grid;
         grid-template-columns: 1fr 420px;
         gap: 14px;
-        transition: transform 0.42s cubic-bezier(0.16,1,0.3,1), opacity 0.32s ease;
+        transition: transform 0.42s cubic-bezier(0.16,1,0.3,1), opacity 0.32s ease, visibility 0s linear 0s;
         transform-origin: left center;
+        visibility: visible;
     }
     .packages-area.retracted {
         transform: scaleX(0.88) translateX(-28px);
         opacity: 0;
         pointer-events: none;
+        visibility: hidden;
+        /* Esconde só depois do fade out (0.42s) — senão o crossfade some sem animar.
+           Sem visibility:hidden, a packages-area continua ocupando o grid-cell e
+           "passa atrás" dos gaps transparentes entre KPIs/tabela do Financeiro. */
+        transition: transform 0.42s cubic-bezier(0.16,1,0.3,1), opacity 0.32s ease, visibility 0s linear 0.42s;
     }
 
     #section-finance,
