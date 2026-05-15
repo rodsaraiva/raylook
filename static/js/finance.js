@@ -534,9 +534,9 @@
         });
     }
 
-    if (document.getElementById("section-finance")?.style.display !== "none") {
-        refreshAll();
-    }
-
+    // Lazy load: nada é puxado no boot. refreshAll só dispara via
+    // toggleFinanceView/financeSetView (sub-itens da sidebar). Antes esse
+    // check usava style.display, mas o CSS usa opacity/visibility e o check
+    // sempre passava — disparando aging-summary+receivables em todo load.
     window.financeRefresh = refreshAll;
 })();

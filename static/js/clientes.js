@@ -245,7 +245,14 @@
             if (e.key === "Escape") closeRename();
         });
 
-        // Contadores do dropdown carregados ao iniciar pra ficar tudo amarrado
-        loadStats();
+        // Contadores do dropdown: carregados deferidos pra não competir com
+        // /api/dashboard/packages no boot (snapshot principal). requestIdleCallback
+        // espera o navegador ficar ocioso; setTimeout é fallback.
+        const popStats = () => { loadStats(); };
+        if (typeof window.requestIdleCallback === "function") {
+            window.requestIdleCallback(popStats, { timeout: 4000 });
+        } else {
+            setTimeout(popStats, 1500);
+        }
     });
 })();
