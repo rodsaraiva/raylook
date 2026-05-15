@@ -146,6 +146,14 @@ class AsaasClient:
         """Get payment details."""
         return self._request("GET", f"payments/{payment_id}")
 
+    def cancel_payment(self, payment_id: str) -> Dict[str, Any]:
+        """Cancela uma cobrança no Asaas (DELETE /payments/{id}).
+
+        Só funciona se a cobrança ainda não foi paga; chamadores devem
+        tratar a possibilidade de o Asaas retornar 400 (já paga/inválida).
+        """
+        return self._request("DELETE", f"payments/{payment_id}")
+
     def get_payment_pix(self, payment_id: str) -> Dict[str, Any]:
         """Get PIX data for a payment."""
         payment = self.get_payment(payment_id)

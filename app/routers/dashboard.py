@@ -1209,17 +1209,61 @@ def swap_client_in_package(pacote_id: str, cliente_id: str, body: Dict[str, Any]
     if dupe:
         raise HTTPException(400, "Novo cliente já está no pacote")
 
-    client.update("pacote_clientes",
-                  {"cliente_id": new_cliente_id},
-                  filters=[("id", "eq", pc["id"])])
-    # Propaga o swap pras vendas relacionadas (mantém consistência)
     vendas = client.select(
         "vendas",
         filters=[("pacote_cliente_id", "eq", pc["id"])],
     ) or []
+    venda_ids = [v["id"] for v in vendas]
+
+    # Pagamentos vinculados às vendas — bloqueia swap se algum já foi pago
+    # (cliente que já liquidou não pode "sair" do pacote sem estorno manual).
+    pagamentos = []
+    if venda_ids:
+        pagamentos = client.select(
+            "pagamentos",
+            filters=[("venda_id", "in", venda_ids)],
+        ) or []
+    if any(str(p.get("status") or "").lower() == "paid" for p in pagamentos):
+        raise HTTPException(409, "Cliente já pagou — não pode ser substituído")
+
+    # Cancela cobranças no Asaas (best-effort) e zera os ponteiros locais.
+    # A nova cobrança será criada lazy quando o substituto clicar em
+    # "pagar" no portal (mesmo fluxo do generate_pix_for_payment).
+    from integrations.asaas.client import AsaasClient
+    asaas = AsaasClient()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    for pag in pagamentos:
+        provider_id = pag.get("provider_payment_id")
+        if provider_id:
+            try:
+                asaas.cancel_payment(provider_id)
+            except Exception as exc:
+                logger.warning(
+                    "swap: falha cancelando cobrança Asaas %s (pagamento=%s): %s",
+                    provider_id, pag.get("id"), exc,
+                )
+        client.update(
+            "pagamentos",
+            {
+                "provider_payment_id": None,
+                "provider_customer_id": None,
+                "payment_link": None,
+                "pix_payload": None,
+                "due_date": None,
+                "paid_at": None,
+                "status": "created",
+                "updated_at": now_iso,
+            },
+            filters=[("id", "eq", pag["id"])],
+        )
+
+    client.update("pacote_clientes",
+                  {"cliente_id": new_cliente_id},
+                  filters=[("id", "eq", pc["id"])])
     for v in vendas:
         client.update("vendas",
                       {"cliente_id": new_cliente_id},
                       filters=[("id", "eq", v["id"])])
     return {"status": "ok", "action": "swapped",
-            "from_cliente_id": cliente_id, "to_cliente_id": new_cliente_id}
+            "from_cliente_id": cliente_id, "to_cliente_id": new_cliente_id,
+            "pagamentos_resetados": len(pagamentos)}

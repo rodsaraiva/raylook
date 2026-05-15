@@ -253,3 +253,96 @@ def test_swap_candidates_empty_when_no_match(fake_client):
     res = client.get("/api/dashboard/packages/p1/swap-candidates/c1")
     assert res.status_code == 200
     assert res.json() == []
+
+
+# ── PATCH /packages/{id}/clients/{cli} (swap) ──────────────────────────────
+def _seed_swap_scenario(fake):
+    fake.tables["pacotes"].append({
+        "id": "p1", "status": "approved", "enquete_id": "e1",
+    })
+    fake.tables["pacote_clientes"].append({
+        "id": "pc1", "pacote_id": "p1", "cliente_id": "c1", "qty": 6,
+    })
+    fake.tables["clientes"].extend([
+        {"id": "c1", "nome": "Ana", "celular": "5511"},
+        {"id": "c2", "nome": "Bia", "celular": "5522"},
+    ])
+    fake.tables["votos"].append(
+        {"id": "v2", "enquete_id": "e1", "cliente_id": "c2", "qty": 6, "status": "in"},
+    )
+    fake.tables["vendas"].append({
+        "id": "v_a", "pacote_id": "p1", "pacote_cliente_id": "pc1",
+        "cliente_id": "c1", "total_amount": 100.0,
+    })
+
+
+def test_swap_blocks_when_pagamento_already_paid(fake_client):
+    client, fake = fake_client
+    _seed_swap_scenario(fake)
+    fake.tables["pagamentos"].append({
+        "id": "pag1", "venda_id": "v_a", "status": "paid",
+        "provider_payment_id": "as_001",
+    })
+    res = client.patch("/api/dashboard/packages/p1/clients/c1",
+                       json={"new_cliente_id": "c2"})
+    assert res.status_code == 409
+    # estado preservado
+    assert fake.tables["pacote_clientes"][0]["cliente_id"] == "c1"
+    assert fake.tables["pagamentos"][0]["status"] == "paid"
+
+
+def test_swap_resets_pagamento_and_cancels_asaas(fake_client, monkeypatch):
+    client, fake = fake_client
+    _seed_swap_scenario(fake)
+    fake.tables["pagamentos"].append({
+        "id": "pag1", "venda_id": "v_a", "status": "sent",
+        "provider_payment_id": "as_001",
+        "provider_customer_id": "cus_001",
+        "payment_link": "https://asaas/pay/x",
+        "pix_payload": "00020126...",
+    })
+
+    cancel_calls = []
+    from integrations.asaas.client import AsaasClient
+    monkeypatch.setattr(
+        AsaasClient, "cancel_payment",
+        lambda self, pid: cancel_calls.append(pid) or {"id": pid, "deleted": True},
+    )
+
+    res = client.patch("/api/dashboard/packages/p1/clients/c1",
+                       json={"new_cliente_id": "c2"})
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["action"] == "swapped"
+    assert body["pagamentos_resetados"] == 1
+    assert cancel_calls == ["as_001"]
+    pag = fake.tables["pagamentos"][0]
+    assert pag["status"] == "created"
+    assert pag["provider_payment_id"] is None
+    assert pag["payment_link"] is None
+    assert pag["pix_payload"] is None
+    assert fake.tables["vendas"][0]["cliente_id"] == "c2"
+    assert fake.tables["pacote_clientes"][0]["cliente_id"] == "c2"
+
+
+def test_swap_proceeds_even_if_asaas_cancel_fails(fake_client, monkeypatch):
+    """Falha no cancel do Asaas é best-effort: loga warn e segue."""
+    client, fake = fake_client
+    _seed_swap_scenario(fake)
+    fake.tables["pagamentos"].append({
+        "id": "pag1", "venda_id": "v_a", "status": "sent",
+        "provider_payment_id": "as_001",
+    })
+
+    def boom(self, pid):
+        raise RuntimeError("asaas 400")
+    from integrations.asaas.client import AsaasClient
+    monkeypatch.setattr(AsaasClient, "cancel_payment", boom)
+
+    res = client.patch("/api/dashboard/packages/p1/clients/c1",
+                       json={"new_cliente_id": "c2"})
+    assert res.status_code == 200
+    pag = fake.tables["pagamentos"][0]
+    assert pag["status"] == "created"
+    assert pag["provider_payment_id"] is None
+    assert fake.tables["vendas"][0]["cliente_id"] == "c2"
