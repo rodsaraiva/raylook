@@ -1218,12 +1218,12 @@ def build_paid_summary(
     since: str | None = None,
     until: str | None = None,
 ) -> Dict[str, Any]:
-    """KPIs da aba Pagos: total recebido, nº cobranças pagas,
-    ticket médio e tempo médio (created_at → paid_at) em dias.
+    """KPIs da aba Pagos: total recebido, total comissões, ticket médio
+    e nº cobranças pagas.
     """
     empty = {
-        "total_paid": 0, "count": 0, "clients_count": 0,
-        "avg_ticket": 0, "avg_days_to_pay": 0,
+        "total_paid": 0, "total_commission": 0, "count": 0,
+        "clients_count": 0, "avg_ticket": 0,
     }
     if not supabase_domain_enabled():
         return empty
@@ -1248,15 +1248,15 @@ def build_paid_summary(
     venda_ids = list({str(p["venda_id"]) for p in pagamentos if p.get("venda_id")})
     vendas = _select_in_batches(
         client, "vendas",
-        columns="id,cliente_id,total_amount",
+        columns="id,cliente_id,total_amount,commission_amount",
         filter_field="id", values=venda_ids,
     )
     venda_by_id = {str(v["id"]): v for v in vendas}
 
     total = 0.0
+    total_commission = 0.0
     count = 0
     clientes = set()
-    days_to_pay_weighted = 0.0
 
     for pag in pagamentos:
         venda = venda_by_id.get(str(pag.get("venda_id")))
@@ -1264,21 +1264,17 @@ def build_paid_summary(
             continue
         valor = float(venda.get("total_amount") or 0)
         total += valor
+        total_commission += float(venda.get("commission_amount") or 0)
         count += 1
         if venda.get("cliente_id"):
             clientes.add(str(venda["cliente_id"]))
-        created_at = _parse_dt(pag.get("created_at"))
-        paid_at = _parse_dt(pag.get("paid_at"))
-        if created_at and paid_at:
-            delta = max(0, (paid_at.date() - created_at.date()).days)
-            days_to_pay_weighted += valor * delta
 
     return {
         "total_paid": round(total, 2),
+        "total_commission": round(total_commission, 2),
         "count": count,
         "clients_count": len(clientes),
         "avg_ticket": round(total / count, 2) if count > 0 else 0,
-        "avg_days_to_pay": round(days_to_pay_weighted / total, 2) if total > 0 else 0,
     }
 
 

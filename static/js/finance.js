@@ -332,7 +332,7 @@
         el("finance-paid-clients").textContent =
             `${s.clients_count || 0} cliente${s.clients_count === 1 ? "" : "s"}`;
         el("finance-paid-avg-ticket").textContent = fmtMoney(s.avg_ticket);
-        el("finance-paid-avg-days").textContent = (s.avg_days_to_pay || 0).toFixed(1) + "d";
+        el("finance-paid-commission").textContent = fmtMoney(s.total_commission);
     }
 
     async function loadPaid() {
