@@ -148,6 +148,27 @@ class LocalImageStorage:
     ) -> str:
         parent_folder_id = parent_folder_id or self.parent_folder_id
         ext = _ext_from_name(name, mime_type)
+
+        # Dedup: o mesmo (parent, name) chega N vezes via reprocessamento de
+        # webhook/backfill. Reusar o id existente evita explodir o disco
+        # (sem isso, 1 imagem virou 17k cópias com UUIDs distintos).
+        existing = self._client.select(
+            "drive_files",
+            columns="id",
+            filters=[
+                ("parent_id", "eq", parent_folder_id),
+                ("name", "eq", name),
+                ("deleted", "eq", 0),
+                ("is_folder", "eq", 0),
+            ],
+            limit=1,
+        ) or []
+        if existing:
+            existing_id = existing[0]["id"]
+            logger.info("local-storage: reusing file '%s' id=%s folder=%s",
+                        name, existing_id, parent_folder_id)
+            return existing_id
+
         file_id = _new_id()
         folder_dir = IMAGES_DIR / parent_folder_id
         folder_dir.mkdir(parents=True, exist_ok=True)
