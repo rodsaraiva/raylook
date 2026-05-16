@@ -129,6 +129,15 @@ services:
     networks:
       - raylook_internal
       - network_swarm_public
+    # Healthcheck via /health (definido em app/routers/metrics.py). É o gate
+    # que o update_config usa pra confirmar que o container novo respondeu
+    # antes de derrubar o velho.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health',timeout=3).status==200 else 1)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     deploy:
       mode: replicated
       replicas: 1
@@ -139,6 +148,17 @@ services:
         condition: on-failure
         delay: 5s
         max_attempts: 5
+      # Zero-downtime: sobe o container novo, espera healthcheck, só então
+      # mata o velho. Default do Swarm (stop-first) dá ~5-30s de 502.
+      update_config:
+        order: start-first
+        parallelism: 1
+        delay: 5s
+        monitor: 30s
+        failure_action: rollback
+      rollback_config:
+        order: start-first
+        parallelism: 1
       labels:
         - traefik.enable=true
         - traefik.docker.network=network_swarm_public
