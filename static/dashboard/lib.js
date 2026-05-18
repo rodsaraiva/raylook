@@ -140,6 +140,16 @@ const RaylookDashboard = (() => {
     // -----------------------------------------------------------------
     // Ações: chama endpoint, toast de feedback, chama reload global.
     // -----------------------------------------------------------------
+    function triggerEtiquetaDownload(pacoteId) {
+        const a = document.createElement("a");
+        a.href = `/api/dashboard/packages/${pacoteId}/etiqueta.pdf`;
+        a.download = "";  // força download em vez de navegação
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+
     async function doAction(pacoteId, action, opts = {}) {
         const { confirmText, successText, danger, okLabel, to, body } = opts;
         if (confirmText) {
@@ -163,6 +173,13 @@ const RaylookDashboard = (() => {
             const payload = await resp.json();
             if (window.RaylookModal) {
                 window.RaylookModal.toast(successText || msgForAction(action, payload), "success");
+            }
+            // Ao chegar em "separado" (avanço linear ou pulo "Gerar etiqueta"),
+            // dispara download automático do PDF. O endpoint já manda com
+            // Content-Disposition: attachment, então o <a download> baixa
+            // direto sem abrir aba.
+            if (action === "advance" && payload?.new_state === "separado") {
+                triggerEtiquetaDownload(pacoteId);
             }
             if (window.RaylookReload) await window.RaylookReload();
             return payload;

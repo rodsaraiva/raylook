@@ -222,6 +222,7 @@ const RaylookModal = (() => {
                 <button class="rl-btn-primary" data-action="advance" ${isFinal ? "disabled" : ""}>
                     ⏭️ Avançar etapa
                 </button>
+                ${data.pdf_file_name ? `<a class="rl-btn-ghost" href="/api/dashboard/packages/${data.id}/etiqueta.pdf" target="_blank" rel="noopener" style="text-decoration:none;">📄 Baixar etiqueta</a>` : ""}
                 ${!isFinal ? `<button class="rl-btn-danger" data-action="cancel">Cancelar pacote</button>` : ""}
                 <button class="rl-btn-ghost" data-close>Fechar</button>
             </div>
