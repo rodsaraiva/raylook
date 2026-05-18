@@ -186,8 +186,11 @@ CREATE TABLE IF NOT EXISTS pacotes (
     fornecedor text,
     payment_validated_at timestamptz,
     pending_reasons jsonb,
-    pending_observations text
+    pending_observations text,
+    friendly_id text
 );
+CREATE UNIQUE INDEX IF NOT EXISTS pacotes_friendly_id_uq
+    ON pacotes (friendly_id) WHERE friendly_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS pacotes_enquete_id_sequence_no_key
     ON pacotes (enquete_id, sequence_no);
 CREATE INDEX IF NOT EXISTS pacotes_enquete_status_idx ON pacotes (enquete_id, status);

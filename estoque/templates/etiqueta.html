@@ -8,11 +8,15 @@
         body { font-family: "Courier New", Courier, monospace; color: #000; }
         
         .header {
-            text-align: center; border-bottom: 2px solid #000; 
-            padding-bottom: 3px; margin-bottom: 5px; font-family: Helvetica, Arial, sans-serif;
+            text-align: center; border-bottom: 2px solid #000;
+            padding-bottom: 6px; margin-bottom: 5px; font-family: Helvetica, Arial, sans-serif;
         }
-        .header h1 { font-size: 20px; margin: 0; text-transform: uppercase; }
-        .header .meta { font-size: 12px; margin-top: 3px; }
+        .header .friendly-id {
+            font-size: 42px; font-weight: bold; letter-spacing: 2px;
+            margin: 0 0 2px 0; line-height: 1.05;
+        }
+        .header h1 { font-size: 14px; margin: 2px 0 0 0; text-transform: uppercase; font-weight: normal; }
+        .header .meta { font-size: 11px; margin-top: 2px; color: #444; }
 
         .labels-grid { width: 100%; border-collapse: collapse; }
         .label-cell { width: 100%; padding-bottom: 4px; }
@@ -35,8 +39,9 @@
 </head>
 <body>
     <div class="header">
-        <h1>PEDIDO DE ESTOQUE</h1>
-        <div class="meta">Enquete: {{ poll_title }} | Gerado em: {{ generated_at }}</div>
+        {% if friendly_id %}<div class="friendly-id">{{ friendly_id }}</div>{% endif %}
+        <h1>Pedido de Estoque · {{ poll_title }}</h1>
+        <div class="meta">Gerado em {{ generated_at }}</div>
     </div>
 
     <table class="labels-grid">

@@ -62,6 +62,7 @@ def _build_package_item(row: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "id": legacy_id,
         "source_package_id": package_uuid,
+        "friendly_id": row.get("friendly_id"),
         "poll_id": poll_id,
         "poll_title": row.get("custom_title") or enquete.get("titulo") or poll_id,
         "chat_id": enquete.get("chat_id"),
@@ -84,7 +85,7 @@ def _build_package_item(row: Dict[str, Any]) -> Dict[str, Any]:
 
 
 _APPROVED_SELECT = (
-    "id,sequence_no,total_qty,status,"
+    "id,sequence_no,friendly_id,total_qty,status,"
     "opened_at,closed_at,approved_at,cancelled_at,updated_at,"
     "custom_title,tag,pdf_status,pdf_file_name,pdf_sent_at,pdf_attempts,"
     "confirmed_by,cancelled_by,"

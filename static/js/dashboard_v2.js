@@ -536,7 +536,7 @@
         detail.innerHTML = `
             <div class="head">
                 <div class="head-img">${headImg}</div>
-                <h2>${L.escapeHtml(meta.item)} <span class="seq">#${p.sequence_no ?? "?"}</span></h2>
+                <h2>${L.escapeHtml(meta.item)} <span class="seq">${L.escapeHtml(p.friendly_id || (p.sequence_no != null ? `#${p.sequence_no}` : "—"))}</span></h2>
                 <div class="subtitle">${L.pill(state)} · ${L.escapeHtml(p.external_poll_id || "")}</div>
                 ${chipsHtml}
                 ${pendingHtml}

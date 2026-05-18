@@ -276,6 +276,12 @@ def create_manual_package_in_supabase(poll_id: str, vote_lines: List[Any]) -> Di
             returning="minimal",
         )
 
+    try:
+        from app.services.friendly_id_service import assign_friendly_id
+        assign_friendly_id(client, str(pacote["id"]))
+    except Exception:
+        logger.exception("falha ao atribuir friendly_id pacote=%s", pacote.get("id"))
+
     return {
         "package_id": str(pacote["id"]),
         "legacy_package_id": f"{poll_id}_{max(next_sequence - 1, 0)}",

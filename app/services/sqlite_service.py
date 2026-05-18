@@ -864,10 +864,45 @@ def _rpc_close_package(client: SQLiteRestClient, args: Dict[str, Any]) -> Dict[s
     }
 
 
+def _rpc_assign_pacote_friendly_id(client: SQLiteRestClient, args: Dict[str, Any]) -> Optional[str]:
+    pacote_id = args.get("p_pacote_id") or args.get("pacote_id")
+    ddmm = args.get("p_ddmm") or args.get("ddmm")
+    if not pacote_id or not ddmm:
+        return None
+    with client._connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            row = conn.execute(
+                "SELECT friendly_id FROM pacotes WHERE id = ?", [pacote_id]
+            ).fetchone()
+            if row is None:
+                conn.commit()
+                return None
+            if row[0]:
+                conn.commit()
+                return row[0]
+            seq_row = conn.execute(
+                "SELECT COUNT(*) + 1 FROM pacotes WHERE friendly_id LIKE ?",
+                [f"PAC%/{ddmm}"],
+            ).fetchone()
+            seq = int(seq_row[0]) if seq_row else 1
+            friendly = f"PAC{seq:03d}/{ddmm}"
+            conn.execute(
+                "UPDATE pacotes SET friendly_id = ?, updated_at = ? WHERE id = ?",
+                [friendly, _now_iso(), pacote_id],
+            )
+            conn.commit()
+            return friendly
+        except Exception:
+            conn.rollback()
+            raise
+
+
 _RPC_REGISTRY: Dict[str, Callable[[SQLiteRestClient, Dict[str, Any]], Any]] = {
     "next_pacote_sequence": _rpc_next_pacote_sequence,
     "get_customer_stats": _rpc_get_customer_stats,
     "close_package": _rpc_close_package,
+    "assign_pacote_friendly_id": _rpc_assign_pacote_friendly_id,
 }
 
 

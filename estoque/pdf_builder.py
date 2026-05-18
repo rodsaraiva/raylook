@@ -97,6 +97,7 @@ def build_pdf(package: Dict[str, Any], commission_per_piece: float = 5.0) -> byt
 
     context = {
         "poll_title": poll_title,
+        "friendly_id": package.get("friendly_id") or "",
         "generated_at": datetime.now().strftime("%d/%m/%Y %H:%M"),
         "votes": processed_votes,
         "unit_price": unit_price,

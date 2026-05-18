@@ -179,9 +179,10 @@ const RaylookModal = (() => {
         }).join("") || `<li style="list-style:none;padding:0;color:var(--text-muted);font-style:italic;">Sem transições registradas.</li>`;
 
         const prod = data.produto || {};
+        const pacoteRef = data.friendly_id || (data.sequence_no != null ? `seq #${data.sequence_no}` : "—");
         const title = prod.nome
-            ? `${escape(prod.nome)} — seq #${data.sequence_no ?? "?"}`
-            : `Pacote #${data.sequence_no ?? "?"}`;
+            ? `${escape(prod.nome)} — ${escape(pacoteRef)}`
+            : `Pacote ${escape(pacoteRef)}`;
         const totalValue = data.clientes.reduce((a, c) => a + (c.total_amount || 0), 0);
 
         const isFinal = data.state === "enviado" || data.state === "cancelled";

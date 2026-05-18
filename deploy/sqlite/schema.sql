@@ -187,8 +187,11 @@ CREATE TABLE IF NOT EXISTS pacotes (
     -- Motivos pelos quais o pacote foi pra pendente (JSON array de códigos)
     -- + observação livre quando reasons inclui "outros".
     pending_reasons TEXT,
-    pending_observations TEXT
+    pending_observations TEXT,
+    friendly_id TEXT
 );
+CREATE UNIQUE INDEX IF NOT EXISTS pacotes_friendly_id_uq
+    ON pacotes (friendly_id) WHERE friendly_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS pacotes_enquete_id_sequence_no_key
     ON pacotes (enquete_id, sequence_no);
 CREATE INDEX IF NOT EXISTS pacotes_enquete_status_idx ON pacotes (enquete_id, status);

@@ -337,6 +337,7 @@ def list_packages_by_state(
             "id": pkg["id"],
             "state": state,
             "sequence_no": pkg.get("sequence_no"),
+            "friendly_id": pkg.get("friendly_id"),
             "enquete_id": pkg.get("enquete_id"),
             "enquete_title": enq.get("titulo"),
             "external_poll_id": enq.get("external_poll_id"),
@@ -528,6 +529,7 @@ def get_package_detail(pacote_id: str) -> Dict[str, Any]:
         "id": pkg["id"],
         "state": state,
         "sequence_no": pkg.get("sequence_no"),
+        "friendly_id": pkg.get("friendly_id"),
         "capacidade_total": pkg.get("capacidade_total") or 24,
         "total_qty": pkg.get("total_qty") or 0,
         "produto": {k: prod.get(k) for k in ("nome", "descricao", "tamanho", "valor_unitario")} if prod else None,
@@ -652,6 +654,11 @@ async def advance_package(pacote_id: str, request: Request, to: Optional[str] = 
         client.update("pacotes",
                       {"status": "closed", "closed_at": now},
                       filters=[("id", "eq", pacote_id)])
+        try:
+            from app.services.friendly_id_service import assign_friendly_id
+            assign_friendly_id(client, pacote_id)
+        except Exception:
+            logger.exception("falha ao atribuir friendly_id pacote=%s", pacote_id)
         return {"status": "ok", "previous": "aberto", "new_state": "fechado"}
 
     if state == "fechado":
@@ -868,6 +875,7 @@ def get_package_etiqueta_pdf(pacote_id: str, request: Request) -> Response:
 
     package = {
         "id": pacote_id,
+        "friendly_id": pkg.get("friendly_id") or "",
         "poll_title": enq.get("titulo") or pkg.get("custom_title") or "Pedido",
         "votes": votes,
     }

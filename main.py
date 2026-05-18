@@ -1843,7 +1843,7 @@ async def get_inventory_packages(
         base_filters.append(("fornecedor", "ilike", f"*{tag.strip()}*"))
 
     columns = (
-        "id,sequence_no,total_qty,participants_count,status,tag,fornecedor,custom_title,"
+        "id,sequence_no,friendly_id,total_qty,participants_count,status,tag,fornecedor,custom_title,"
         "opened_at,closed_at,approved_at,cancelled_at,updated_at,"
         "pdf_status,pdf_file_name,pdf_sent_at,confirmed_by,cancelled_by,"
         "enquete:enquete_id(id,external_poll_id,titulo,chat_id,drive_file_id,"

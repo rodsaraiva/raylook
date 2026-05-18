@@ -652,6 +652,12 @@ class PackageService:
                             )
                         except Exception:
                             logger.warning("falha propagando metadados pro pacote %s", new_pkg_id)
+
+                    try:
+                        from app.services.friendly_id_service import assign_friendly_id
+                        assign_friendly_id(self.client, str(new_pkg_id))
+                    except Exception:
+                        logger.exception("falha ao atribuir friendly_id pacote=%s", new_pkg_id)
             except Exception:
                 logger.exception(
                     "F-001: close_package RPC falhou para enquete=%s, abortando rebuild",
