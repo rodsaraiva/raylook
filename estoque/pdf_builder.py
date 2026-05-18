@@ -87,7 +87,7 @@ def build_pdf(package: Dict[str, Any], commission_per_piece: float = 5.0) -> byt
         processed_votes.append({
             "order_num": i + 1,
             "name": v.get("name") or "Desconhecido",
-            "client_code": _client_code(v.get("phone", "")),
+            "phone": _format_phone(v.get("phone", "")),
             "qty": qty,
             "unit_price_fmt": _fmt_brl(unit_price),
             "subtotal_fmt": _fmt_brl(subtotal),

@@ -56,8 +56,7 @@
                                     <td valign="middle" class="left-col">
                                         <div class="order-num">Nº do Pedido: {{ vote.order_num }}</div>
                                         <div class="client-name">{{ vote.name }}</div>
-                                        <div class="client-code">Cód. Cliente: {{ vote.client_code }}</div>
-                                        <div class="card-footer">@raylook_assessoria</div>
+                                        <div class="client-code">{{ vote.phone }}</div>
                                     </td>
                                     <td valign="middle" class="right-col details">
                                         {% if unit_price > 0 %}
