@@ -782,8 +782,12 @@ def regress_package(pacote_id: str, request: Request) -> Dict[str, Any]:
         return {"status": "ok", "previous": "pendente", "new_state": "pago"}
 
     if state == "separado":
+        # Volta pra fila de separação. Atualizamos payment_validated_at pra
+        # refletir o momento do regress: o listing filtra "pendente" por esse
+        # timestamp, então sem isso o pacote sumiria da view atual.
         client.update("pacotes",
-                      {"pdf_sent_at": None, "pdf_status": None, "pdf_file_name": None},
+                      {"pdf_sent_at": None, "pdf_status": None, "pdf_file_name": None,
+                       "payment_validated_at": now},
                       filters=[("id", "eq", pacote_id)])
         return {"status": "ok", "previous": "separado", "new_state": "pendente"}
 
