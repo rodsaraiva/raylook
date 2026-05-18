@@ -187,6 +187,23 @@ const RaylookModal = (() => {
 
         const isFinal = data.state === "enviado" || data.state === "cancelled";
 
+        const REASON_LABELS = {
+            faltando_pecas: "Faltando peças",
+            tamanhos_trocados: "Tamanhos trocados",
+            cores_trocadas: "Cores trocadas",
+            modelo_errado: "Modelo errado",
+            pacote_com_defeito: "Pacote com defeito",
+            cancelado_fornecedor: "Cancelado pelo fornecedor",
+            outros: "Outros",
+        };
+        const pendingReasons = Array.isArray(data.pending_reasons) ? data.pending_reasons : [];
+        const pendingHtml = (data.state === "pendente" && pendingReasons.length) ? `
+            <div class="rl-section" style="background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.22);border-radius:8px;padding:10px 12px;">
+                <div style="font-size:0.75rem;color:#f87171;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin-bottom:6px;">Motivos da pendência</div>
+                <div>${pendingReasons.map(r => `<span style="display:inline-block;padding:2px 8px;margin:2px 4px 2px 0;border-radius:999px;background:rgba(248,113,113,0.16);color:#f87171;font-size:0.85rem;">${escape(REASON_LABELS[r] || r)}</span>`).join("")}</div>
+                ${data.pending_observations ? `<div style="margin-top:6px;font-size:0.85rem;color:var(--text-muted);font-style:italic;">"${escape(data.pending_observations)}"</div>` : ""}
+            </div>` : "";
+
         return `
             <button class="rl-modal-close" data-close>&times;</button>
             <h2>${title}</h2>
@@ -195,6 +212,7 @@ const RaylookModal = (() => {
                 <span>${data.total_qty ?? data.capacidade_total} / ${data.capacidade_total} peças</span>
                 ${data.enquete?.external_poll_id ? `<span>· ${escape(data.enquete.external_poll_id)}</span>` : ""}
             </div>
+            ${pendingHtml}
 
             <div class="rl-section">
                 <div class="rl-metrics">

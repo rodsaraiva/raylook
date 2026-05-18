@@ -543,6 +543,8 @@ def get_package_detail(pacote_id: str) -> Dict[str, Any]:
         "clientes": clientes_detail,
         "timeline": timeline,
         "pdf_file_name": pkg.get("pdf_file_name"),
+        "pending_reasons": pkg.get("pending_reasons") or [],
+        "pending_observations": pkg.get("pending_observations") or "",
     }
 
 

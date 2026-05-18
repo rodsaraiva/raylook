@@ -420,12 +420,22 @@
             const restoreBtn = (isAdmin && state === "cancelled")
                 ? `<button class="row-action" data-action="restore" data-id="${p.id}" title="Voltar pra fechado">Restaurar</button>`
                 : "";
+            const REASON_LABELS = {
+                faltando_pecas: "Faltando peças", tamanhos_trocados: "Tamanhos trocados",
+                cores_trocadas: "Cores trocadas", modelo_errado: "Modelo errado",
+                pacote_com_defeito: "Pacote com defeito", cancelado_fornecedor: "Cancelado pelo fornecedor",
+                outros: "Outros",
+            };
+            const pendingReasonsRow = (state === "pendente" && Array.isArray(p.pending_reasons) && p.pending_reasons.length)
+                ? `<div class="pkg-row-reasons" style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;">${p.pending_reasons.map(r => `<span style="display:inline-block;padding:1px 8px;border-radius:999px;background:rgba(248,113,113,0.14);color:#f87171;font-size:0.72rem;line-height:1.4;">${L.escapeHtml(REASON_LABELS[r] || r)}</span>`).join("")}${p.pending_observations ? `<span style="font-size:0.72rem;color:var(--text-muted);font-style:italic;line-height:1.4;">"${L.escapeHtml(p.pending_observations)}"</span>` : ""}</div>`
+                : "";
             return `
             <div class="pkg-row ${p.id === selectedId ? "selected" : ""}" data-id="${p.id}">
                 <div class="pkg-thumb">${thumb}</div>
                 <div class="pkg-row-main">
                     <div class="name">${L.escapeHtml(meta.item)}</div>
                     <div class="sub">${L.escapeHtml(subBits || L.clientesShort(p.clientes, 2))} · ${p.total_qty}/${p.capacidade_total}</div>
+                    ${pendingReasonsRow}
                 </div>
                 <div class="pkg-row-meta">${valueLabel}<div class="sub">há ${L.age(p.state_since)}</div></div>
                 <div class="pkg-row-actions">${backBtn}${etiquetaBtn}${actionBtn}${cancelBtn}${restoreBtn}</div>
