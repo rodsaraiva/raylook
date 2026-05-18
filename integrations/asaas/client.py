@@ -36,6 +36,26 @@ def _stub_response(method: str, path: str, payload: Optional[Dict[str, Any]] = N
     return {"id": fake_id}
 
 
+def _sanitize_name(text: str, max_length: int = 100) -> str:
+    """Sanitiza nome de cliente antes de enviar pro Asaas.
+
+    Asaas rejeita ou armazena lixo quando o `name` tem emojis, pontuação
+    ou números (já vimos clientes salvos como `.` e `🩷`). Mantém apenas
+    letras (incluindo acentuadas) e espaços; cai pra "Cliente" se sobrar
+    vazio depois da limpeza.
+    """
+    if not text:
+        return "Cliente"
+    cleaned_chars = []
+    for ch in str(text):
+        if unicodedata.category(ch)[0] == "L":
+            cleaned_chars.append(ch)
+        else:
+            cleaned_chars.append(" ")
+    cleaned = re.sub(r"\s+", " ", "".join(cleaned_chars)).strip()
+    return cleaned[:max_length] or "Cliente"
+
+
 def _sanitize_description(text: str, max_length: int = 250) -> str:
     """Remove caracteres que o Asaas rejeita em `description`.
 
@@ -114,7 +134,7 @@ class AsaasClient:
             pass
 
         return self._request("POST", "customers", json={
-            "name": name,
+            "name": _sanitize_name(name),
             "phone": phone,
             "cpfCnpj": cpf_cnpj,
             "notificationDisabled": True,
