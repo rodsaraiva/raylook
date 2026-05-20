@@ -385,7 +385,8 @@
     /* Todos os painéis ocupam a mesma célula do grid */
     .packages-area,
     #section-finance,
-    #section-clientes {
+    #section-clientes,
+    #section-enquetes {
         grid-area: 1 / 1;
     }
 
@@ -409,7 +410,8 @@
     }
 
     #section-finance,
-    #section-clientes {
+    #section-clientes,
+    #section-enquetes {
         opacity: 0;
         transform: translateX(32px);
         pointer-events: none;
@@ -417,13 +419,88 @@
         transition: transform 0.42s cubic-bezier(0.16,1,0.3,1), opacity 0.32s ease, visibility 0s linear 0.42s;
     }
     #section-finance.active,
-    #section-clientes.active {
+    #section-clientes.active,
+    #section-enquetes.active {
         opacity: 1;
         transform: translateX(0);
         pointer-events: all;
         visibility: visible;
         transition: transform 0.42s cubic-bezier(0.16,1,0.3,1), opacity 0.32s ease, visibility 0s linear 0s;
     }
+
+    /* ── Enquetes: layout lista + detalhe ── */
+    .enquetes-layout {
+        display: grid;
+        grid-template-columns: 1fr 420px;
+        gap: 14px;
+    }
+    .enquetes-detail {
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: var(--radius-md);
+        padding: 16px;
+        max-height: calc(100vh - 200px);
+        overflow-y: auto;
+    }
+    .enquetes-detail h3 { font-size: 14px; margin: 0 0 4px; color: var(--text-primary); }
+    .enquetes-detail .enq-meta { font-size: 11px; color: var(--text-muted); margin-bottom: 12px; }
+    .enquetes-detail .enq-stats {
+        display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 14px;
+    }
+    .enquetes-detail .enq-stat {
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 6px; padding: 8px 10px;
+    }
+    .enquetes-detail .enq-stat .lbl {
+        font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+        color: var(--text-muted); margin-bottom: 2px;
+    }
+    .enquetes-detail .enq-stat .val {
+        font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 700; color: var(--primary);
+    }
+    .enq-pacote {
+        margin-bottom: 12px; padding: 10px 12px;
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 8px;
+    }
+    .enq-pacote-head {
+        display: flex; align-items: center; justify-content: space-between;
+        font-size: 12px; margin-bottom: 8px;
+    }
+    .enq-pacote-head .pkg-id { font-weight: 700; color: var(--text-primary); }
+    .enq-pacote-head .pkg-state {
+        font-size: 10px; padding: 2px 8px; border-radius: 10px;
+        background: var(--accent-soft); color: var(--accent);
+        text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .enq-pacote-head .pkg-state[data-state="cancelled"] {
+        background: rgba(248,113,113,0.15); color: #f87171;
+    }
+    .enq-cliente {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 5px 0; font-size: 12px;
+        border-top: 1px solid rgba(255,255,255,0.04);
+    }
+    .enq-cliente:first-child { border-top: none; }
+    .enq-cliente .name { color: var(--text-primary); }
+    .enq-cliente .phone { color: var(--text-muted); font-size: 10px; margin-left: 6px; }
+    .enq-cliente .qty {
+        font-family: 'Outfit', sans-serif; font-weight: 700; color: var(--accent);
+        margin-right: 8px;
+    }
+    .enq-cliente .state {
+        font-size: 10px; padding: 1px 6px; border-radius: 8px;
+        background: rgba(255,255,255,0.05); color: var(--text-secondary);
+    }
+    .enq-cliente .state[data-state="enviado"],
+    .enq-cliente .state[data-state="separado"] { background: rgba(34,197,94,0.15); color: #4ade80; }
+    .enq-cliente .state[data-state="pago"],
+    .enq-cliente .state[data-state="pendente"] { background: rgba(59,130,246,0.15); color: #60a5fa; }
+    .enq-cliente .state[data-state="cancelled"] { background: rgba(248,113,113,0.15); color: #f87171; }
+    tr.enq-row { cursor: pointer; }
+    tr.enq-row.active td { background: var(--accent-soft); }
 
     .finance-view { display: none; }
     .finance-view.active { display: block; }
@@ -685,6 +762,23 @@
         <aside class="rail" id="rail">
             <!-- Grupos Comercial/Estoque injetados pelo dashboard_v2.js -->
         </aside>
+        <div class="rail-group" id="enquetes-group" data-group="enquetes">
+            <div class="rail-group-header" id="enquetes-group-header">
+                <span class="rail-group-label">Enquetes</span>
+                <span class="rail-group-total" id="enquetes-total-count">—</span>
+                <i class="fas fa-chevron-down rail-group-chevron"></i>
+            </div>
+            <div class="rail-group-body">
+                <div class="rail-step active" data-enquetes-view="list">
+                    <div class="num">1</div>
+                    <div>
+                        <div class="label">Por enquete</div>
+                        <div class="sub">pacotes e participantes</div>
+                    </div>
+                    <div class="count" id="enquetes-count-list">—</div>
+                </div>
+            </div>
+        </div>
         <div class="rail-group" id="fin-group" data-group="financeiro">
             <div class="rail-group-header" id="fin-group-header">
                 <span class="rail-group-label">Financeiro</span>
@@ -893,6 +987,49 @@
 
         </div><!-- /section-finance -->
 
+        <!-- PAINEL ENQUETES -->
+        <div id="section-enquetes">
+            <div class="enquetes-layout">
+                <!-- Lista de enquetes -->
+                <div class="enquetes-list-wrap">
+                    <div class="finance-bar-head">
+                        <div class="finance-bar-head-left">
+                            <span style="font-weight:700;font-size:13px;color:var(--text-primary);">Enquetes</span>
+                            <span id="enquetes-meta" style="font-size:11px;color:var(--text-muted);">—</span>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <label style="font-size:11px;color:var(--text-muted);">De
+                                <input type="date" id="enquetes-since" style="font-size:11px;margin-left:4px;">
+                            </label>
+                            <label style="font-size:11px;color:var(--text-muted);">Até
+                                <input type="date" id="enquetes-until" style="font-size:11px;margin-left:4px;">
+                            </label>
+                            <button class="fin-page-btn" id="enquetes-clear" type="button">Limpar</button>
+                            <input class="search-box" placeholder="🔍 Título…" id="enquetes-search" style="width:200px;">
+                        </div>
+                    </div>
+                    <table class="fin-table" id="enquetes-table">
+                        <thead>
+                            <tr>
+                                <th>Criada</th>
+                                <th>Título</th>
+                                <th>Fornecedor</th>
+                                <th>Pacotes</th>
+                                <th>Fechados</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="enquetes-table-body"></tbody>
+                    </table>
+                </div>
+
+                <!-- Detalhe da enquete -->
+                <aside class="enquetes-detail" id="enquetes-detail">
+                    <div class="empty-state">Selecione uma enquete</div>
+                </aside>
+            </div>
+        </div><!-- /section-enquetes -->
+
         <!-- PAINEL CLIENTES -->
         <div id="section-clientes">
             <div class="fin-table-wrap">
@@ -986,5 +1123,6 @@
 <script src="/static/js/finance-toggle.js"></script>
 <script src="/static/js/finance.js"></script>
 <script src="/static/js/clientes.js"></script>
+<script src="/static/js/enquetes.js"></script>
 </body>
 </html>

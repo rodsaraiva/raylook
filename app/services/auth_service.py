@@ -121,7 +121,7 @@ def can_restore(role: str) -> bool:
 def visible_groups(role: str) -> Tuple[str, ...]:
     """Quais dropdowns do rail o role enxerga (id usado em RAIL_GROUPS no JS)."""
     if role == "admin":
-        return ("comercial", "estoque", "logistica", "financeiro")
+        return ("comercial", "estoque", "logistica", "enquetes", "financeiro")
     if role == "estoque":
         return ("estoque",)
     if role == "logistica":

@@ -313,6 +313,7 @@
                 // Abrir um dropdown comercial/estoque deve fechar Financeiro e Clientes.
                 if (willOpen && window._financeOpen) window.toggleFinanceView();
                 if (willOpen && window._clientesOpen) window._clientesClose?.();
+                if (willOpen && window._enquetesOpen) window._enquetesClose?.();
                 if (willOpen) {
                     // Seleciona o primeiro estado do grupo — mesma UX que
                     // Financeiro/Clientes já têm (abrir = ir pra primeira aba).
@@ -334,6 +335,7 @@
             el.addEventListener("click", () => {
                 if (window._financeOpen) window.toggleFinanceView();
                 if (window._clientesOpen) window._clientesClose?.();
+                if (window._enquetesOpen) window._enquetesClose?.();
                 activeState = el.dataset.state;
                 listPage = 1;
                 const pkgs = currentItems();

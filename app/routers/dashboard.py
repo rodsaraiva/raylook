@@ -1517,3 +1517,201 @@ def swap_client_in_package(pacote_id: str, cliente_id: str, body: Dict[str, Any]
         "to": created,
         "pagamentos_removidos": len(pagamentos),
     }
+
+
+# ============================================================
+# Enquetes — visão por enquete (granularidade enquete → pacotes → clientes)
+# ============================================================
+
+@router.get("/enquetes")
+def list_enquetes(
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+    q: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Lista enquetes com contadores de pacotes por status. Filtro de data
+    aplica-se a `enquetes.created_at` (BRT). Opcional `q` busca por título
+    (case-insensitive)."""
+    client = SupabaseRestClient.from_settings()
+    since_iso, until_iso = _parse_date_range(since, until)
+
+    filters: List[Tuple[str, str, Any]] = []
+    if since_iso:
+        filters.append(("created_at", "gte", since_iso))
+    if until_iso:
+        filters.append(("created_at", "lte", until_iso))
+    enquetes = client.select("enquetes", filters=filters, order="created_at.desc") or []
+
+    if q:
+        needle = q.strip().lower()
+        if needle:
+            enquetes = [e for e in enquetes
+                        if needle in (e.get("titulo") or "").lower()]
+
+    enquete_ids = [e["id"] for e in enquetes]
+    pacotes = client.select(
+        "pacotes",
+        filters=[("enquete_id", "in", enquete_ids)],
+    ) if enquete_ids else []
+
+    counts_by_enq: Dict[str, Dict[str, int]] = {}
+    for pk in pacotes or []:
+        eid = pk.get("enquete_id")
+        if not eid:
+            continue
+        status = (pk.get("status") or "").lower() or "unknown"
+        bucket = counts_by_enq.setdefault(eid, {"total": 0})
+        bucket["total"] += 1
+        bucket[status] = bucket.get(status, 0) + 1
+
+    produto_ids = list({e["produto_id"] for e in enquetes if e.get("produto_id")})
+    produtos = client.select("produtos", filters=[("id", "in", produto_ids)]) if produto_ids else []
+    prod_map = {p["id"]: p for p in produtos or []}
+
+    items = []
+    for e in enquetes:
+        c = counts_by_enq.get(e["id"], {"total": 0})
+        prod = prod_map.get(e.get("produto_id"), {}) if e.get("produto_id") else {}
+        items.append({
+            "id": e["id"],
+            "titulo": e.get("titulo"),
+            "status": e.get("status"),
+            "fornecedor": e.get("fornecedor"),
+            "created_at": e.get("created_at"),
+            "produto": {
+                "id": prod.get("id"),
+                "nome": prod.get("nome"),
+            } if prod else None,
+            "pacotes_total": c.get("total", 0),
+            "pacotes_fechados": c.get("closed", 0) + c.get("approved", 0),
+            "pacotes_by_status": {
+                "open": c.get("open", 0),
+                "closed": c.get("closed", 0),
+                "approved": c.get("approved", 0),
+                "cancelled": c.get("cancelled", 0),
+            },
+        })
+    return {"items": items, "total": len(items)}
+
+
+@router.get("/enquetes/{enquete_id}")
+def get_enquete_detail(enquete_id: str) -> Dict[str, Any]:
+    """Detalhe de uma enquete: dados básicos + lista de pacotes, cada um com
+    seus clientes e o estado individual derivado (mesma lógica do detail de
+    pacote)."""
+    client = SupabaseRestClient.from_settings()
+    enq = client.select("enquetes", filters=[("id", "eq", enquete_id)], single=True)
+    if not enq:
+        raise HTTPException(404, "Enquete não encontrada")
+
+    prod = {}
+    if enq.get("produto_id"):
+        prod = client.select(
+            "produtos",
+            filters=[("id", "eq", enq["produto_id"])],
+            single=True,
+        ) or {}
+
+    pacotes = client.select(
+        "pacotes",
+        filters=[("enquete_id", "eq", enquete_id)],
+        order="sequence_no.asc",
+    ) or []
+    pacote_ids = [p["id"] for p in pacotes]
+
+    pcs = client.select(
+        "pacote_clientes",
+        filters=[("pacote_id", "in", pacote_ids)],
+    ) if pacote_ids else []
+    cliente_ids = list({pc["cliente_id"] for pc in pcs})
+    clientes = client.select("clientes", filters=[("id", "in", cliente_ids)]) if cliente_ids else []
+    cliente_map = {c["id"]: c for c in clientes or []}
+
+    vendas = client.select(
+        "vendas",
+        filters=[("pacote_id", "in", pacote_ids)],
+    ) if pacote_ids else []
+    venda_by_pc = {v["pacote_cliente_id"]: v for v in vendas or [] if v.get("pacote_cliente_id")}
+    venda_ids = [v["id"] for v in vendas or []]
+    pags = client.select(
+        "pagamentos",
+        filters=[("venda_id", "in", venda_ids)],
+    ) if venda_ids else []
+    pag_by_venda = {p["venda_id"]: p for p in pags or []}
+
+    pcs_by_pacote: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for pc in pcs or []:
+        pcs_by_pacote[pc["pacote_id"]].append(pc)
+
+    pags_by_pacote: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for v in vendas or []:
+        pag = pag_by_venda.get(v["id"])
+        if pag:
+            pags_by_pacote[v["pacote_id"]].append(pag)
+
+    pacotes_out: List[Dict[str, Any]] = []
+    for pk in pacotes:
+        pkg_pags = pags_by_pacote.get(pk["id"], [])
+        state = _derive_state(pk, pkg_pags)
+        clientes_detail = []
+        for pc in pcs_by_pacote.get(pk["id"], []):
+            c = cliente_map.get(pc["cliente_id"], {})
+            venda = venda_by_pc.get(pc["id"])
+            pag = pag_by_venda.get(venda["id"]) if venda else None
+            client_state = _derive_client_state(pk, pc, pag)
+            clientes_detail.append({
+                "cliente_id": pc["cliente_id"],
+                "nome": c.get("nome"),
+                "celular": c.get("celular"),
+                "qty": pc.get("qty"),
+                "total_amount": pc.get("total_amount"),
+                "venda_status": venda.get("status") if venda else None,
+                "pagamento_status": pag.get("status") if pag else None,
+                "paid_at": pag.get("paid_at") if pag else None,
+                "state": client_state or state,
+            })
+        clientes_detail.sort(key=lambda r: (r.get("nome") or "").lower())
+        pacotes_out.append({
+            "id": pk["id"],
+            "sequence_no": pk.get("sequence_no"),
+            "friendly_id": pk.get("friendly_id"),
+            "status": pk.get("status"),
+            "state": state,
+            "total_qty": pk.get("total_qty") or 0,
+            "capacidade_total": pk.get("capacidade_total") or 24,
+            "participants_count": pk.get("participants_count") or len(clientes_detail),
+            "opened_at": pk.get("opened_at") or pk.get("created_at"),
+            "closed_at": pk.get("closed_at"),
+            "approved_at": pk.get("approved_at"),
+            "shipped_at": pk.get("shipped_at"),
+            "cancelled_at": pk.get("cancelled_at"),
+            "clientes": clientes_detail,
+        })
+
+    # Contadores agregados pra header da enquete.
+    status_counts: Dict[str, int] = {}
+    for pk in pacotes:
+        s = (pk.get("status") or "").lower() or "unknown"
+        status_counts[s] = status_counts.get(s, 0) + 1
+
+    return {
+        "id": enq["id"],
+        "titulo": enq.get("titulo"),
+        "status": enq.get("status"),
+        "fornecedor": enq.get("fornecedor"),
+        "created_at": enq.get("created_at"),
+        "produto": {
+            "id": prod.get("id"),
+            "nome": prod.get("nome"),
+            "valor_unitario": prod.get("valor_unitario"),
+        } if prod else None,
+        "pacotes_total": len(pacotes),
+        "pacotes_fechados": status_counts.get("closed", 0) + status_counts.get("approved", 0),
+        "pacotes_by_status": {
+            "open": status_counts.get("open", 0),
+            "closed": status_counts.get("closed", 0),
+            "approved": status_counts.get("approved", 0),
+            "cancelled": status_counts.get("cancelled", 0),
+        },
+        "pacotes": pacotes_out,
+    }

@@ -12,9 +12,10 @@
         window._financeOpen = true;
         document.getElementById('packages-area')?.classList.add('retracted');
         document.getElementById('section-finance')?.classList.add('active');
-        // Acordeon: abrir financeiro fecha Comercial/Estoque/Logística/Clientes.
+        // Acordeon: abrir financeiro fecha Comercial/Estoque/Logística/Enquetes/Clientes.
         window._railCollapseGroups?.();
         window._clientesClose?.();
+        window._enquetesClose?.();
         setGroupOpen(true);
         if (view) window.financeSetView?.(view);
         window.financeRefresh?.();
@@ -29,7 +30,7 @@
         // Sem isso, abrir Financeiro a partir de Clientes (que dispara
         // closeFinance/closeClientes recíproco) acabava removendo retracted
         // recém-adicionado, sobrepondo packages-area com a section nova.
-        if (!window._clientesOpen) {
+        if (!window._clientesOpen && !window._enquetesOpen) {
             document.getElementById('packages-area')?.classList.remove('retracted');
         }
     }
