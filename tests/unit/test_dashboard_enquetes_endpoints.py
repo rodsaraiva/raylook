@@ -23,7 +23,33 @@ def test_list_enquetes_empty(fake_client):
     client, _ = fake_client
     res = client.get("/api/dashboard/enquetes")
     assert res.status_code == 200
-    assert res.json() == {"items": [], "total": 0}
+    body = res.json()
+    assert body["items"] == []
+    assert body["total"] == 0
+    assert body["page"] == 1
+    assert body["page_size"] == 50
+
+
+def test_list_enquetes_paginates(fake_client):
+    """Mais que page_size enquetes devolve apenas a primeira página + total."""
+    client, fake = fake_client
+    for i in range(7):
+        fake.tables["enquetes"].append({
+            "id": f"e{i}", "titulo": f"Enquete {i}", "status": "closed",
+            "created_at": f"2026-05-{10 + i:02d}T12:00:00+00:00",
+        })
+    res = client.get("/api/dashboard/enquetes?page=1&page_size=3")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["total"] == 7
+    assert body["page"] == 1
+    assert body["page_size"] == 3
+    assert len(body["items"]) == 3
+    # ordem desc: e6, e5, e4
+    assert [it["id"] for it in body["items"]] == ["e6", "e5", "e4"]
+    # página 3 traz 1 item (índice 6)
+    res2 = client.get("/api/dashboard/enquetes?page=3&page_size=3")
+    assert [it["id"] for it in res2.json()["items"]] == ["e0"]
 
 
 def test_list_enquetes_orders_desc_and_counts_pacotes(fake_client):

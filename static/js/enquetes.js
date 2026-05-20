@@ -5,6 +5,8 @@
     const state = {
         items: [],
         total: 0,
+        page: 1,
+        pageSize: 50,
         since: "",
         until: "",
         search: "",
@@ -78,7 +80,9 @@
         if (state.since) p.set("since", state.since);
         if (state.until) p.set("until", state.until);
         if (state.search) p.set("q", state.search);
-        const url = "/api/dashboard/enquetes" + (p.toString() ? "?" + p.toString() : "");
+        p.set("page", String(state.page));
+        p.set("page_size", String(state.pageSize));
+        const url = "/api/dashboard/enquetes?" + p.toString();
         try {
             const r = await fetch(url, { credentials: "same-origin" });
             if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -86,7 +90,6 @@
             state.items = data.items || [];
             state.total = data.total || 0;
             renderList();
-            // Atualiza contadores do sidebar.
             el("enquetes-total-count").textContent = String(state.total);
             el("enquetes-count-list").textContent = String(state.total);
         } catch (e) {
@@ -108,7 +111,6 @@
         } catch (e) {
             detail.innerHTML = `<div class="empty-state" style="color:#f87171;">Erro: ${escape(e.message)}</div>`;
         }
-        // Destaca linha ativa.
         document.querySelectorAll("#enquetes-table-body tr.enq-row").forEach((tr) =>
             tr.classList.toggle("active", tr.dataset.enqId === enqId));
     }
@@ -121,6 +123,12 @@
     function renderList() {
         const tbody = el("enquetes-table-body");
         if (!tbody) return;
+        const totalPages = Math.max(1, Math.ceil(state.total / state.pageSize));
+        el("enquetes-pagination-summary").textContent =
+            `Página ${state.page} de ${totalPages} (${state.total} resultados)`;
+        el("enquetes-page-prev").disabled = state.page <= 1;
+        el("enquetes-page-next").disabled = state.page >= totalPages;
+
         if (!state.items.length) {
             tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">Nenhuma enquete</td></tr>`;
             el("enquetes-meta").textContent = "0 enquetes";
@@ -214,6 +222,7 @@
             const v = e.target.value.trim();
             searchTimer = setTimeout(() => {
                 state.search = v;
+                state.page = 1;
                 loadList();
             }, 200);
         });
@@ -221,6 +230,7 @@
         const onDateChange = () => {
             state.since = el("enquetes-since")?.value || "";
             state.until = el("enquetes-until")?.value || "";
+            state.page = 1;
             loadList();
         };
         el("enquetes-since")?.addEventListener("change", onDateChange);
@@ -229,7 +239,16 @@
             if (el("enquetes-since")) el("enquetes-since").value = "";
             if (el("enquetes-until")) el("enquetes-until").value = "";
             state.since = ""; state.until = "";
+            state.page = 1;
             loadList();
+        });
+
+        el("enquetes-page-prev")?.addEventListener("click", () => {
+            if (state.page > 1) { state.page -= 1; loadList(); }
+        });
+        el("enquetes-page-next")?.addEventListener("click", () => {
+            const totalPages = Math.max(1, Math.ceil(state.total / state.pageSize));
+            if (state.page < totalPages) { state.page += 1; loadList(); }
         });
     });
 })();

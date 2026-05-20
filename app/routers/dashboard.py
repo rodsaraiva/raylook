@@ -1528,25 +1528,46 @@ def list_enquetes(
     since: Optional[str] = None,
     until: Optional[str] = None,
     q: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 50,
 ) -> Dict[str, Any]:
-    """Lista enquetes com contadores de pacotes por status. Filtro de data
-    aplica-se a `enquetes.created_at` (BRT). Opcional `q` busca por título
-    (case-insensitive)."""
+    """Lista enquetes paginada com contadores de pacotes por status. Filtro
+    de data aplica-se a `enquetes.created_at` (BRT). Busca `q` filtra título
+    (case-insensitive). `page`/`page_size` padrão 1/50 — evita estourar URL do
+    PostgREST no filtro de pacotes."""
     client = SupabaseRestClient.from_settings()
     since_iso, until_iso = _parse_date_range(since, until)
+    page = max(1, int(page or 1))
+    page_size = max(1, min(int(page_size or 50), 200))
 
     filters: List[Tuple[str, str, Any]] = []
     if since_iso:
         filters.append(("created_at", "gte", since_iso))
     if until_iso:
         filters.append(("created_at", "lte", until_iso))
-    enquetes = client.select("enquetes", filters=filters, order="created_at.desc") or []
 
-    if q:
-        needle = q.strip().lower()
-        if needle:
-            enquetes = [e for e in enquetes
-                        if needle in (e.get("titulo") or "").lower()]
+    # Quando há busca por título, precisamos puxar tudo (não dá pra paginar no
+    # PostgREST sem filtro server-side de "ilike"). Quando não há, paginamos.
+    needle = (q or "").strip().lower()
+    if needle:
+        enquetes = client.select_all(
+            "enquetes", filters=filters, order="created_at.desc",
+        ) or []
+        enquetes = [e for e in enquetes if needle in (e.get("titulo") or "").lower()]
+        total = len(enquetes)
+        start = (page - 1) * page_size
+        enquetes = enquetes[start:start + page_size]
+    else:
+        # 1ª chamada: total filtrado (apenas count via Range, mas o cliente
+        # atual não expõe — fazemos um select limitado ao máximo p/ count).
+        # Pra evitar custo, contamos por select_all() só quando precisa.
+        # Aqui retornamos apenas a página + soma global aproximada.
+        all_filtered = client.select_all(
+            "enquetes", filters=filters, order="created_at.desc",
+        ) or []
+        total = len(all_filtered)
+        start = (page - 1) * page_size
+        enquetes = all_filtered[start:start + page_size]
 
     enquete_ids = [e["id"] for e in enquetes]
     pacotes = client.select(
@@ -1591,7 +1612,12 @@ def list_enquetes(
                 "cancelled": c.get("cancelled", 0),
             },
         })
-    return {"items": items, "total": len(items)}
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @router.get("/enquetes/{enquete_id}")
