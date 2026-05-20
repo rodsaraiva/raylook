@@ -1593,12 +1593,14 @@ def list_enquetes(
     for e in enquetes:
         c = counts_by_enq.get(e["id"], {"total": 0})
         prod = prod_map.get(e.get("produto_id"), {}) if e.get("produto_id") else {}
+        drive_id = e.get("drive_file_id") or (prod.get("drive_file_id") if prod else None)
         items.append({
             "id": e["id"],
             "titulo": e.get("titulo"),
             "status": e.get("status"),
             "fornecedor": e.get("fornecedor"),
             "created_at": e.get("created_at"),
+            "image": f"/files/{drive_id}" if drive_id else None,
             "produto": {
                 "id": prod.get("id"),
                 "nome": prod.get("nome"),
@@ -1720,12 +1722,14 @@ def get_enquete_detail(enquete_id: str) -> Dict[str, Any]:
         s = (pk.get("status") or "").lower() or "unknown"
         status_counts[s] = status_counts.get(s, 0) + 1
 
+    drive_id = enq.get("drive_file_id") or (prod.get("drive_file_id") if prod else None)
     return {
         "id": enq["id"],
         "titulo": enq.get("titulo"),
         "status": enq.get("status"),
         "fornecedor": enq.get("fornecedor"),
         "created_at": enq.get("created_at"),
+        "image": f"/files/{drive_id}" if drive_id else None,
         "produto": {
             "id": prod.get("id"),
             "nome": prod.get("nome"),

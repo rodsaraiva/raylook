@@ -428,11 +428,39 @@
         transition: transform 0.42s cubic-bezier(0.16,1,0.3,1), opacity 0.32s ease, visibility 0s linear 0s;
     }
 
-    /* ── Enquetes: KPIs + layout lista + detalhe ── */
-    .enquetes-kpis {
-        display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
-        margin-bottom: 18px;
+    /* ── Enquetes: layout lista + detalhe ── */
+    .enq-thumb {
+        width: 40px; height: 40px; border-radius: 6px; object-fit: cover;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.08);
+        display: block;
     }
+    .enq-thumb-placeholder {
+        width: 40px; height: 40px; border-radius: 6px;
+        background: rgba(255,255,255,0.04);
+        border: 1px dashed rgba(255,255,255,0.10);
+        display: flex; align-items: center; justify-content: center;
+        color: var(--text-muted); font-size: 14px;
+    }
+    .enq-table td:first-child { padding: 6px 13px; vertical-align: middle; }
+    .enq-hero {
+        display: flex; gap: 12px; margin-bottom: 12px;
+    }
+    .enq-hero-img {
+        width: 72px; height: 72px; border-radius: 8px; object-fit: cover;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.10);
+        flex-shrink: 0;
+    }
+    .enq-hero-img-placeholder {
+        width: 72px; height: 72px; border-radius: 8px;
+        background: rgba(255,255,255,0.04);
+        border: 1px dashed rgba(255,255,255,0.10);
+        display: flex; align-items: center; justify-content: center;
+        color: var(--text-muted); font-size: 22px;
+        flex-shrink: 0;
+    }
+    .enq-hero-body { min-width: 0; flex: 1; }
     .enquetes-layout {
         display: grid;
         grid-template-columns: 1fr 440px;
@@ -1058,30 +1086,6 @@
 
         <!-- PAINEL ENQUETES -->
         <div id="section-enquetes">
-            <!-- KPIs agregados -->
-            <div class="enquetes-kpis">
-                <div class="fin-kpi">
-                    <div class="lbl">Enquetes</div>
-                    <div class="val" id="enquetes-kpi-total">—</div>
-                    <div class="meta" id="enquetes-kpi-meta">no período filtrado</div>
-                </div>
-                <div class="fin-kpi">
-                    <div class="lbl">Pacotes fechados</div>
-                    <div class="val" id="enquetes-kpi-fechados">—</div>
-                    <div class="meta">closed + approved</div>
-                </div>
-                <div class="fin-kpi">
-                    <div class="lbl">Pacotes abertos</div>
-                    <div class="val" id="enquetes-kpi-abertos">—</div>
-                    <div class="meta">em formação</div>
-                </div>
-                <div class="fin-kpi">
-                    <div class="lbl">Pacotes cancelados</div>
-                    <div class="val" id="enquetes-kpi-cancelled">—</div>
-                    <div class="meta">no período</div>
-                </div>
-            </div>
-
             <div class="enquetes-layout">
                 <!-- Lista de enquetes -->
                 <div class="fin-table-wrap">
@@ -1092,9 +1096,10 @@
                         </div>
                         <input class="search-box" placeholder="🔍 Título…" id="enquetes-search" style="width:240px;">
                     </div>
-                    <table class="fin-table" id="enquetes-table">
+                    <table class="fin-table enq-table" id="enquetes-table">
                         <thead>
                             <tr>
+                                <th style="width:48px;"></th>
                                 <th>Criada</th>
                                 <th>Título</th>
                                 <th>Fornecedor</th>

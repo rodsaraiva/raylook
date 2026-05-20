@@ -105,12 +105,11 @@
             state.items = data.items || [];
             state.total = data.total || 0;
             renderList();
-            renderKpis();
             el("enquetes-total-count").textContent = String(state.total);
             el("enquetes-count-list").textContent = String(state.total);
         } catch (e) {
             el("enquetes-table-body").innerHTML =
-                `<tr><td colspan="6" style="text-align:center;padding:24px;color:#f87171;">Erro: ${escape(e.message)}</td></tr>`;
+                `<tr><td colspan="7" style="text-align:center;padding:24px;color:#f87171;">Erro: ${escape(e.message)}</td></tr>`;
         }
     }
 
@@ -137,26 +136,9 @@
     window.enquetesRefresh = refresh;
 
     // ---- render ----
-    function renderKpis() {
-        let openP = 0, closedP = 0, cancelledP = 0;
-        state.items.forEach((e) => {
-            const s = e.pacotes_by_status || {};
-            openP += s.open || 0;
-            closedP += (s.closed || 0) + (s.approved || 0);
-            cancelledP += s.cancelled || 0;
-        });
-        el("enquetes-kpi-total").textContent = String(state.total);
-        el("enquetes-kpi-fechados").textContent = String(closedP);
-        el("enquetes-kpi-abertos").textContent = String(openP);
-        el("enquetes-kpi-cancelled").textContent = String(cancelledP);
-        const f = window.dashboardFilter || {};
-        if (f.since && f.until) {
-            el("enquetes-kpi-meta").textContent = f.since === f.until
-                ? `criadas em ${f.since}`
-                : `criadas de ${f.since} a ${f.until}`;
-        } else {
-            el("enquetes-kpi-meta").textContent = "sem filtro de data";
-        }
+    function thumbCell(url) {
+        if (!url) return `<div class="enq-thumb-placeholder">📷</div>`;
+        return `<img class="enq-thumb" loading="lazy" src="${escape(url)}" alt="" onerror="this.outerHTML='<div class=\\'enq-thumb-placeholder\\'>📷</div>'">`;
     }
 
     function renderList() {
@@ -169,7 +151,7 @@
         el("enquetes-page-next").disabled = state.page >= totalPages;
 
         if (!state.items.length) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">Nenhuma enquete no período</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);">Nenhuma enquete no período</td></tr>`;
             el("enquetes-meta").textContent = "0 enquetes";
             return;
         }
@@ -179,6 +161,7 @@
             const title = e.titulo || "—";
             return `
                 <tr class="enq-row ${state.selectedId === e.id ? "active" : ""}" data-enq-id="${escape(e.id)}">
+                    <td>${thumbCell(e.image)}</td>
                     <td style="white-space:nowrap;">${escape(fmtDate(e.created_at))}</td>
                     <td title="${escape(title)}">${escape(title.length > 60 ? title.slice(0, 60) + "…" : title)}</td>
                     <td>${escape(e.fornecedor || "—")}</td>
@@ -234,14 +217,23 @@
                 </div>`;
         }).join("") || `<div style="font-size:12px;color:var(--text-muted);font-style:italic;text-align:center;padding:16px 0;">Nenhum pacote nessa enquete ainda</div>`;
 
+        const heroImg = d.image
+            ? `<img class="enq-hero-img" loading="lazy" src="${escape(d.image)}" alt=""
+                  onerror="this.outerHTML='<div class=\\'enq-hero-img-placeholder\\'>📷</div>'">`
+            : `<div class="enq-hero-img-placeholder">📷</div>`;
         detail.innerHTML = `
             <div class="enq-detail-head">
-                <h3>${escape(d.titulo || "Enquete")}</h3>
-                <div class="enq-meta">
-                    <span>${escape(fmtDateTime(d.created_at))}</span>
-                    ${statusBadge(d.status)}
-                    ${d.fornecedor ? `<span>· ${escape(d.fornecedor)}</span>` : ""}
-                    ${d.produto?.nome ? `<span>· ${escape(d.produto.nome)}</span>` : ""}
+                <div class="enq-hero">
+                    ${heroImg}
+                    <div class="enq-hero-body">
+                        <h3>${escape(d.titulo || "Enquete")}</h3>
+                        <div class="enq-meta">
+                            <span>${escape(fmtDateTime(d.created_at))}</span>
+                            ${statusBadge(d.status)}
+                            ${d.fornecedor ? `<span>· ${escape(d.fornecedor)}</span>` : ""}
+                            ${d.produto?.nome ? `<span>· ${escape(d.produto.nome)}</span>` : ""}
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="enq-stats">
