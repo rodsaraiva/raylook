@@ -202,6 +202,7 @@
         updateFilterSummary();
         load();
         if (window._financeOpen) window.financeRefresh?.();
+        if (window._enquetesOpen) window.enquetesRefresh?.();
     }
     document.querySelectorAll(".filter-pill").forEach(btn =>
         btn.addEventListener("click", () => setFilterPreset(btn.dataset.filter))
@@ -219,6 +220,7 @@
         updateFilterSummary();
         load();
         if (window._financeOpen) window.financeRefresh?.();
+        if (window._enquetesOpen) window.enquetesRefresh?.();
     });
 
     function currentItems() {

@@ -428,104 +428,148 @@
         transition: transform 0.42s cubic-bezier(0.16,1,0.3,1), opacity 0.32s ease, visibility 0s linear 0s;
     }
 
-    /* ── Enquetes: filtro + layout lista + detalhe ── */
-    .enquetes-filter-bar {
-        display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
-        margin-bottom: 14px; padding: 10px 14px;
-        background: rgba(255,255,255,0.03);
-        border: 1px solid var(--card-border);
-        border-radius: var(--radius-md);
-    }
-    .enquetes-filter-bar .label {
-        font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
-        color: var(--text-muted); font-weight: 700;
-    }
-    .enquetes-filter-bar input[type="date"] {
-        background: rgba(255,255,255,0.05); color: var(--text-primary);
-        border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
-        padding: 5px 8px; font-size: 12px; font-family: inherit;
-        color-scheme: dark;
-    }
-    .enquetes-filter-bar .sep { color: var(--text-muted); font-size: 12px; }
-    .enquetes-filter-bar .search-box.enquetes-search-input {
-        width: 220px; height: 30px; padding: 0 10px; font-size: 12px;
-    }
-    .enquetes-filter-bar .filter-summary {
-        margin-left: auto; font-size: 12px; color: var(--text-muted);
-        font-variant-numeric: tabular-nums;
+    /* ── Enquetes: KPIs + layout lista + detalhe ── */
+    .enquetes-kpis {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+        margin-bottom: 18px;
     }
     .enquetes-layout {
         display: grid;
-        grid-template-columns: 1fr 420px;
+        grid-template-columns: 1fr 440px;
         gap: 14px;
+        align-items: start;
     }
     .enquetes-detail {
         background: var(--card-bg);
         border: 1px solid var(--card-border);
         border-radius: var(--radius-md);
-        padding: 16px;
-        max-height: calc(100vh - 200px);
+        padding: 18px;
+        max-height: calc(100vh - 240px);
         overflow-y: auto;
+        position: sticky; top: 20px;
     }
-    .enquetes-detail h3 { font-size: 14px; margin: 0 0 4px; color: var(--text-primary); }
-    .enquetes-detail .enq-meta { font-size: 11px; color: var(--text-muted); margin-bottom: 12px; }
-    .enquetes-detail .enq-stats {
-        display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 14px;
+    .enquetes-detail .empty-state {
+        text-align: center; color: var(--text-muted); font-style: italic;
+        padding: 40px 12px; font-size: 12px;
     }
-    .enquetes-detail .enq-stat {
+    .enq-detail-head {
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+        padding-bottom: 12px; margin-bottom: 14px;
+    }
+    .enq-detail-head h3 {
+        font-size: 15px; margin: 0 0 4px; color: var(--text-primary);
+        line-height: 1.3; font-weight: 700;
+    }
+    .enq-detail-head .enq-meta {
+        font-size: 11px; color: var(--text-muted); display: flex;
+        flex-wrap: wrap; gap: 4px 10px;
+    }
+    .enq-stats {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+        margin-bottom: 16px;
+    }
+    .enq-stat {
         background: rgba(255,255,255,0.03);
         border: 1px solid rgba(255,255,255,0.06);
-        border-radius: 6px; padding: 8px 10px;
+        border-radius: 6px; padding: 8px 6px;
+        text-align: center;
     }
-    .enquetes-detail .enq-stat .lbl {
-        font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
-        color: var(--text-muted); margin-bottom: 2px;
+    .enq-stat .lbl {
+        font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em;
+        color: var(--text-muted); margin-bottom: 4px;
     }
-    .enquetes-detail .enq-stat .val {
-        font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 700; color: var(--primary);
+    .enq-stat .val {
+        font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 700;
+        color: var(--primary); line-height: 1;
+    }
+    .enq-stat.warn .val { color: #f87171; }
+    .enq-stat.ok .val { color: #4ade80; }
+    .enq-pacotes-list {
+        display: flex; flex-direction: column; gap: 10px;
     }
     .enq-pacote {
-        margin-bottom: 12px; padding: 10px 12px;
+        padding: 12px;
         background: rgba(255,255,255,0.03);
         border: 1px solid rgba(255,255,255,0.06);
-        border-radius: 8px;
+        border-radius: 10px;
     }
     .enq-pacote-head {
         display: flex; align-items: center; justify-content: space-between;
-        font-size: 12px; margin-bottom: 8px;
+        gap: 8px; margin-bottom: 10px;
     }
-    .enq-pacote-head .pkg-id { font-weight: 700; color: var(--text-primary); }
+    .enq-pacote-head .pkg-id {
+        font-family: 'Outfit', sans-serif;
+        font-weight: 700; font-size: 13px; color: var(--text-primary);
+    }
+    .enq-pacote-head .pkg-fill {
+        font-size: 11px; color: var(--text-muted); margin-left: 6px;
+    }
     .enq-pacote-head .pkg-state {
-        font-size: 10px; padding: 2px 8px; border-radius: 10px;
+        font-size: 10px; padding: 3px 10px; border-radius: 999px;
         background: var(--accent-soft); color: var(--accent);
-        text-transform: uppercase; letter-spacing: 0.04em;
+        text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700;
     }
-    .enq-pacote-head .pkg-state[data-state="cancelled"] {
-        background: rgba(248,113,113,0.15); color: #f87171;
-    }
+    .enq-pacote-head .pkg-state[data-state="aberto"] { background: rgba(148,163,184,0.15); color: #94a3b8; }
+    .enq-pacote-head .pkg-state[data-state="fechado"] { background: rgba(234,179,8,0.15); color: #facc15; }
+    .enq-pacote-head .pkg-state[data-state="confirmado"] { background: rgba(59,130,246,0.15); color: #60a5fa; }
+    .enq-pacote-head .pkg-state[data-state="enviado"],
+    .enq-pacote-head .pkg-state[data-state="separado"] { background: rgba(34,197,94,0.15); color: #4ade80; }
+    .enq-pacote-head .pkg-state[data-state="cancelled"] { background: rgba(248,113,113,0.15); color: #f87171; }
     .enq-cliente {
         display: flex; align-items: center; justify-content: space-between;
-        padding: 5px 0; font-size: 12px;
-        border-top: 1px solid rgba(255,255,255,0.04);
+        padding: 6px 0; font-size: 12px;
+        border-top: 1px dashed rgba(255,255,255,0.05);
     }
-    .enq-cliente:first-child { border-top: none; }
-    .enq-cliente .name { color: var(--text-primary); }
-    .enq-cliente .phone { color: var(--text-muted); font-size: 10px; margin-left: 6px; }
+    .enq-cliente:first-of-type { border-top: none; padding-top: 0; }
+    .enq-cliente:last-child { padding-bottom: 0; }
+    .enq-cliente .cli-info { min-width: 0; }
+    .enq-cliente .name {
+        color: var(--text-primary); font-weight: 600;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        max-width: 200px; display: inline-block; vertical-align: middle;
+    }
+    .enq-cliente .phone {
+        color: var(--text-muted); font-size: 10px; margin-left: 6px;
+        font-variant-numeric: tabular-nums;
+    }
+    .enq-cliente .cli-right { display: flex; align-items: center; gap: 8px; }
     .enq-cliente .qty {
-        font-family: 'Outfit', sans-serif; font-weight: 700; color: var(--accent);
-        margin-right: 8px;
+        font-family: 'Outfit', sans-serif; font-weight: 700;
+        color: var(--accent); font-size: 12px;
+        background: var(--accent-soft);
+        padding: 2px 8px; border-radius: 6px;
     }
     .enq-cliente .state {
-        font-size: 10px; padding: 1px 6px; border-radius: 8px;
+        font-size: 9px; padding: 2px 7px; border-radius: 999px;
         background: rgba(255,255,255,0.05); color: var(--text-secondary);
+        text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700;
     }
     .enq-cliente .state[data-state="enviado"],
     .enq-cliente .state[data-state="separado"] { background: rgba(34,197,94,0.15); color: #4ade80; }
     .enq-cliente .state[data-state="pago"],
     .enq-cliente .state[data-state="pendente"] { background: rgba(59,130,246,0.15); color: #60a5fa; }
+    .enq-cliente .state[data-state="confirmado"] { background: rgba(234,179,8,0.15); color: #facc15; }
+    .enq-cliente .state[data-state="aberto"],
+    .enq-cliente .state[data-state="fechado"] { background: rgba(148,163,184,0.12); color: #94a3b8; }
     .enq-cliente .state[data-state="cancelled"] { background: rgba(248,113,113,0.15); color: #f87171; }
-    tr.enq-row { cursor: pointer; }
-    tr.enq-row.active td { background: var(--accent-soft); }
+    tr.enq-row { cursor: pointer; transition: background 0.15s; }
+    tr.enq-row:hover td { background: rgba(255,255,255,0.025); }
+    tr.enq-row.active td {
+        background: var(--accent-soft);
+        box-shadow: inset 2px 0 0 var(--accent);
+    }
+    tr.enq-row td.pkg-num {
+        text-align: right; font-family: 'Outfit', sans-serif; font-weight: 700;
+        font-variant-numeric: tabular-nums;
+    }
+    .enq-status-badge {
+        display: inline-block; font-size: 10px; padding: 2px 8px;
+        border-radius: 999px; text-transform: uppercase;
+        letter-spacing: 0.05em; font-weight: 700;
+    }
+    .enq-status-badge[data-status="open"] { background: rgba(148,163,184,0.15); color: #94a3b8; }
+    .enq-status-badge[data-status="closed"] { background: rgba(234,179,8,0.15); color: #facc15; }
+    .enq-status-badge[data-status="cancelled"] { background: rgba(248,113,113,0.15); color: #f87171; }
 
     .finance-view { display: none; }
     .finance-view.active { display: block; }
@@ -1014,28 +1058,48 @@
 
         <!-- PAINEL ENQUETES -->
         <div id="section-enquetes">
-            <!-- Barra de filtros -->
-            <div class="enquetes-filter-bar">
-                <span class="label">Criadas entre</span>
-                <input type="date" id="enquetes-since" aria-label="Data inicial">
-                <span class="sep">→</span>
-                <input type="date" id="enquetes-until" aria-label="Data final">
-                <button class="filter-pill" id="enquetes-clear" type="button">Limpar</button>
-                <input class="search-box enquetes-search-input" placeholder="🔍 Buscar título…" id="enquetes-search">
-                <span class="filter-summary" id="enquetes-meta">—</span>
+            <!-- KPIs agregados -->
+            <div class="enquetes-kpis">
+                <div class="fin-kpi">
+                    <div class="lbl">Enquetes</div>
+                    <div class="val" id="enquetes-kpi-total">—</div>
+                    <div class="meta" id="enquetes-kpi-meta">no período filtrado</div>
+                </div>
+                <div class="fin-kpi">
+                    <div class="lbl">Pacotes fechados</div>
+                    <div class="val" id="enquetes-kpi-fechados">—</div>
+                    <div class="meta">closed + approved</div>
+                </div>
+                <div class="fin-kpi">
+                    <div class="lbl">Pacotes abertos</div>
+                    <div class="val" id="enquetes-kpi-abertos">—</div>
+                    <div class="meta">em formação</div>
+                </div>
+                <div class="fin-kpi">
+                    <div class="lbl">Pacotes cancelados</div>
+                    <div class="val" id="enquetes-kpi-cancelled">—</div>
+                    <div class="meta">no período</div>
+                </div>
             </div>
 
             <div class="enquetes-layout">
                 <!-- Lista de enquetes -->
-                <div class="enquetes-list-wrap">
+                <div class="fin-table-wrap">
+                    <div class="finance-bar-head">
+                        <div class="finance-bar-head-left">
+                            <span style="font-weight:700;font-size:13px;color:var(--text-primary);">Enquetes</span>
+                            <span id="enquetes-meta" style="font-size:11px;color:var(--text-muted);">—</span>
+                        </div>
+                        <input class="search-box" placeholder="🔍 Título…" id="enquetes-search" style="width:240px;">
+                    </div>
                     <table class="fin-table" id="enquetes-table">
                         <thead>
                             <tr>
                                 <th>Criada</th>
                                 <th>Título</th>
                                 <th>Fornecedor</th>
-                                <th>Pacotes</th>
-                                <th>Fechados</th>
+                                <th style="text-align:right;">Pacotes</th>
+                                <th style="text-align:right;">Fechados</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
@@ -1050,7 +1114,7 @@
 
                 <!-- Detalhe da enquete -->
                 <aside class="enquetes-detail" id="enquetes-detail">
-                    <div class="empty-state">Selecione uma enquete</div>
+                    <div class="empty-state">Selecione uma enquete pra ver pacotes e participantes</div>
                 </aside>
             </div>
         </div><!-- /section-enquetes -->

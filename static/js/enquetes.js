@@ -1,4 +1,6 @@
-/* Aba Enquetes — granularidade por enquete (pacotes + participantes). */
+/* Aba Enquetes — granularidade por enquete (pacotes + participantes).
+ * Filtro de data vem do window.dashboardFilter (filtro global da topbar).
+ */
 (function () {
     "use strict";
 
@@ -7,8 +9,6 @@
         total: 0,
         page: 1,
         pageSize: 50,
-        since: "",
-        until: "",
         search: "",
         selectedId: null,
         detail: null,
@@ -36,14 +36,23 @@
         } catch (_) { return "—"; }
     }
 
+    const STATE_LABELS = {
+        aberto: "Aberto", fechado: "Fechado", confirmado: "Confirmado",
+        pago: "Pago", pendente: "Pendente", separado: "Separado",
+        enviado: "Enviado", cancelled: "Cancelado",
+    };
+
     function statePill(stateName) {
         if (!stateName) return "";
-        const label = ({
-            aberto: "Aberto", fechado: "Fechado", confirmado: "Confirmado",
-            pago: "Pago", pendente: "Pendente", separado: "Separado",
-            enviado: "Enviado", cancelled: "Cancelado",
-        })[stateName] || stateName;
+        const label = STATE_LABELS[stateName] || stateName;
         return `<span class="pkg-state" data-state="${escape(stateName)}">${escape(label)}</span>`;
+    }
+
+    function statusBadge(status) {
+        if (!status) return "—";
+        const lbl = status === "open" ? "Aberta" : status === "closed" ? "Fechada"
+            : status === "cancelled" ? "Cancelada" : status;
+        return `<span class="enq-status-badge" data-status="${escape(status)}">${escape(lbl)}</span>`;
     }
 
     // ---- toggle / view ----
@@ -75,21 +84,28 @@
     window._enquetesClose = closeEnquetes;
 
     // ---- fetch ----
-    async function loadList() {
+    function globalFilterQS() {
+        const f = window.dashboardFilter || {};
         const p = new URLSearchParams();
-        if (state.since) p.set("since", state.since);
-        if (state.until) p.set("until", state.until);
+        if (f.since) p.set("since", f.since);
+        if (f.until) p.set("until", f.until);
+        return p;
+    }
+
+    async function loadList() {
+        const p = globalFilterQS();
         if (state.search) p.set("q", state.search);
         p.set("page", String(state.page));
         p.set("page_size", String(state.pageSize));
-        const url = "/api/dashboard/enquetes?" + p.toString();
         try {
-            const r = await fetch(url, { credentials: "same-origin" });
+            const r = await fetch("/api/dashboard/enquetes?" + p.toString(),
+                { credentials: "same-origin" });
             if (!r.ok) throw new Error(`HTTP ${r.status}`);
             const data = await r.json();
             state.items = data.items || [];
             state.total = data.total || 0;
             renderList();
+            renderKpis();
             el("enquetes-total-count").textContent = String(state.total);
             el("enquetes-count-list").textContent = String(state.total);
         } catch (e) {
@@ -118,8 +134,31 @@
     async function refresh() {
         await loadList();
     }
+    window.enquetesRefresh = refresh;
 
     // ---- render ----
+    function renderKpis() {
+        let openP = 0, closedP = 0, cancelledP = 0;
+        state.items.forEach((e) => {
+            const s = e.pacotes_by_status || {};
+            openP += s.open || 0;
+            closedP += (s.closed || 0) + (s.approved || 0);
+            cancelledP += s.cancelled || 0;
+        });
+        el("enquetes-kpi-total").textContent = String(state.total);
+        el("enquetes-kpi-fechados").textContent = String(closedP);
+        el("enquetes-kpi-abertos").textContent = String(openP);
+        el("enquetes-kpi-cancelled").textContent = String(cancelledP);
+        const f = window.dashboardFilter || {};
+        if (f.since && f.until) {
+            el("enquetes-kpi-meta").textContent = f.since === f.until
+                ? `criadas em ${f.since}`
+                : `criadas de ${f.since} a ${f.until}`;
+        } else {
+            el("enquetes-kpi-meta").textContent = "sem filtro de data";
+        }
+    }
+
     function renderList() {
         const tbody = el("enquetes-table-body");
         if (!tbody) return;
@@ -130,21 +169,22 @@
         el("enquetes-page-next").disabled = state.page >= totalPages;
 
         if (!state.items.length) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">Nenhuma enquete</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">Nenhuma enquete no período</td></tr>`;
             el("enquetes-meta").textContent = "0 enquetes";
             return;
         }
         tbody.innerHTML = state.items.map((e) => {
             const fech = e.pacotes_fechados || 0;
             const total = e.pacotes_total || 0;
+            const title = e.titulo || "—";
             return `
                 <tr class="enq-row ${state.selectedId === e.id ? "active" : ""}" data-enq-id="${escape(e.id)}">
-                    <td>${escape(fmtDate(e.created_at))}</td>
-                    <td title="${escape(e.titulo || "")}">${escape((e.titulo || "—").slice(0, 60))}</td>
+                    <td style="white-space:nowrap;">${escape(fmtDate(e.created_at))}</td>
+                    <td title="${escape(title)}">${escape(title.length > 60 ? title.slice(0, 60) + "…" : title)}</td>
                     <td>${escape(e.fornecedor || "—")}</td>
-                    <td>${total}</td>
-                    <td>${fech}</td>
-                    <td>${escape(e.status || "—")}</td>
+                    <td class="pkg-num">${total}</td>
+                    <td class="pkg-num">${fech}</td>
+                    <td>${statusBadge(e.status)}</td>
                 </tr>`;
         }).join("");
         el("enquetes-meta").textContent = `${state.total} enquete${state.total === 1 ? "" : "s"}`;
@@ -160,46 +200,57 @@
             return;
         }
         const byStatus = d.pacotes_by_status || {};
+        const fechados = (byStatus.closed || 0) + (byStatus.approved || 0);
+        const total = d.pacotes_total || 0;
+        const cancelClass = (byStatus.cancelled || 0) > 0 ? "warn" : "";
+        const fechClass = fechados > 0 ? "ok" : "";
+
         const pacotesHtml = (d.pacotes || []).map((pk) => {
             const totalQty = pk.total_qty || 0;
             const capacidade = pk.capacidade_total || 24;
-            const friendly = pk.friendly_id || pk.sequence_no || pk.id.slice(0, 8);
+            const friendly = pk.friendly_id || (pk.sequence_no ? "#" + pk.sequence_no : "#" + (pk.id || "").slice(0, 6));
             const clientesHtml = (pk.clientes || []).map((c) => `
                 <div class="enq-cliente">
-                    <div>
+                    <div class="cli-info">
                         <span class="name">${escape(c.nome || "?")}</span>
                         <span class="phone">${escape(c.celular || "")}</span>
                     </div>
-                    <div>
+                    <div class="cli-right">
                         <span class="qty">${c.qty}p</span>
-                        <span class="state" data-state="${escape(c.state || "")}">${escape(c.state || "—")}</span>
+                        <span class="state" data-state="${escape(c.state || "")}">${escape(STATE_LABELS[c.state] || c.state || "—")}</span>
                     </div>
                 </div>
-            `).join("") || `<div style="font-size:11px;color:var(--text-muted);font-style:italic;">Sem participantes</div>`;
+            `).join("") || `<div style="font-size:11px;color:var(--text-muted);font-style:italic;padding-top:4px;">Sem participantes registrados</div>`;
             return `
                 <div class="enq-pacote">
                     <div class="enq-pacote-head">
-                        <span class="pkg-id">#${escape(friendly)} · ${totalQty}/${capacidade}p</span>
+                        <div>
+                            <span class="pkg-id">${escape(friendly)}</span>
+                            <span class="pkg-fill">${totalQty}/${capacidade} peças</span>
+                        </div>
                         ${statePill(pk.state)}
                     </div>
                     ${clientesHtml}
                 </div>`;
-        }).join("") || `<div style="font-size:12px;color:var(--text-muted);font-style:italic;">Nenhum pacote ainda</div>`;
+        }).join("") || `<div style="font-size:12px;color:var(--text-muted);font-style:italic;text-align:center;padding:16px 0;">Nenhum pacote nessa enquete ainda</div>`;
 
         detail.innerHTML = `
-            <h3>${escape(d.titulo || "Enquete")}</h3>
-            <div class="enq-meta">
-                ${escape(fmtDateTime(d.created_at))}
-                ${d.fornecedor ? " · " + escape(d.fornecedor) : ""}
-                ${d.produto?.nome ? " · " + escape(d.produto.nome) : ""}
+            <div class="enq-detail-head">
+                <h3>${escape(d.titulo || "Enquete")}</h3>
+                <div class="enq-meta">
+                    <span>${escape(fmtDateTime(d.created_at))}</span>
+                    ${statusBadge(d.status)}
+                    ${d.fornecedor ? `<span>· ${escape(d.fornecedor)}</span>` : ""}
+                    ${d.produto?.nome ? `<span>· ${escape(d.produto.nome)}</span>` : ""}
+                </div>
             </div>
             <div class="enq-stats">
-                <div class="enq-stat"><div class="lbl">Pacotes</div><div class="val">${d.pacotes_total || 0}</div></div>
-                <div class="enq-stat"><div class="lbl">Fechados</div><div class="val">${d.pacotes_fechados || 0}</div></div>
+                <div class="enq-stat"><div class="lbl">Pacotes</div><div class="val">${total}</div></div>
+                <div class="enq-stat ${fechClass}"><div class="lbl">Fechados</div><div class="val">${fechados}</div></div>
                 <div class="enq-stat"><div class="lbl">Abertos</div><div class="val">${byStatus.open || 0}</div></div>
-                <div class="enq-stat"><div class="lbl">Cancelados</div><div class="val">${byStatus.cancelled || 0}</div></div>
+                <div class="enq-stat ${cancelClass}"><div class="lbl">Cancelados</div><div class="val">${byStatus.cancelled || 0}</div></div>
             </div>
-            ${pacotesHtml}
+            <div class="enq-pacotes-list">${pacotesHtml}</div>
         `;
     }
 
@@ -225,22 +276,6 @@
                 state.page = 1;
                 loadList();
             }, 200);
-        });
-
-        const onDateChange = () => {
-            state.since = el("enquetes-since")?.value || "";
-            state.until = el("enquetes-until")?.value || "";
-            state.page = 1;
-            loadList();
-        };
-        el("enquetes-since")?.addEventListener("change", onDateChange);
-        el("enquetes-until")?.addEventListener("change", onDateChange);
-        el("enquetes-clear")?.addEventListener("click", () => {
-            if (el("enquetes-since")) el("enquetes-since").value = "";
-            if (el("enquetes-until")) el("enquetes-until").value = "";
-            state.since = ""; state.until = "";
-            state.page = 1;
-            loadList();
         });
 
         el("enquetes-page-prev")?.addEventListener("click", () => {
