@@ -362,7 +362,15 @@ def list_packages_by_state(
                     }
                 )
 
-        total_qty = sum(c["qty"] for c in clientes_out) or pkg.get("total_qty") or 0
+        # Pra pacote 'open' o tamanho correto é o que o `rebuild_for_poll`
+        # gravou no banco — `clientes_out` aqui é o pool de votos candidatos
+        # (todos votos da enquete sem dono ainda) e pode somar mais que o
+        # open real quando rebuild está fora de sincronia (ex.: pacote
+        # cancelado libera votos antes do próximo rebuild).
+        if (pkg.get("status") or "").lower() == "open":
+            total_qty = pkg.get("total_qty") or 0
+        else:
+            total_qty = sum(c["qty"] for c in clientes_out) or pkg.get("total_qty") or 0
         total_value = round(sum((c.get("total_amount") or 0.0) for c in clientes_out), 2) or None
 
         pags_summary = {
