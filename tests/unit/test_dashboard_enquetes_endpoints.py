@@ -193,6 +193,41 @@ def test_get_enquete_detail_returns_pacotes_with_clientes_and_states(fake_client
     assert p2_out["clientes"] == []  # sem pacote_clientes
 
 
+def test_list_enquetes_cleans_product_name_from_whatsapp_title(fake_client):
+    """Nome do produto vem cru do WhatsApp (REF=CAMISA + TOP 💰 *VALOR=$* 31 …).
+    O endpoint deve devolver só o texto entre REF= e o próximo marcador."""
+    client, fake = fake_client
+    fake.tables["enquetes"].append({
+        "id": "e1", "titulo": "tit", "status": "closed",
+        "produto_id": "prod1",
+        "created_at": "2026-05-10T12:00:00+00:00",
+    })
+    fake.tables["produtos"].append({
+        "id": "prod1",
+        "nome": "➡️ *REF=* CAMISA + TOP 💰 *VALOR=$* 31 🔖 *TECIDO=* LINHO",
+        "valor_unitario": 31.0,
+    })
+    res = client.get("/api/dashboard/enquetes")
+    assert res.status_code == 200
+    item = res.json()["items"][0]
+    assert item["produto"]["nome"] == "CAMISA + TOP"
+
+
+def test_clean_product_name_handles_already_clean(fake_client):
+    """Quando o nome já vem limpo, deixa como está."""
+    from app.routers.dashboard import _clean_product_name
+    assert _clean_product_name("Camiseta Polo M") == "Camiseta Polo M"
+    assert _clean_product_name("") == ""
+    assert _clean_product_name(None) is None
+
+
+def test_clean_product_name_strips_emojis_and_separators(fake_client):
+    """Sem REF=, devolve sem asteriscos e emojis-bullet iniciais."""
+    from app.routers.dashboard import _clean_product_name
+    assert _clean_product_name("*Calça Jeans*") == "Calça Jeans"
+    assert _clean_product_name("➡️ Vestido midi") == "Vestido midi"
+
+
 def test_get_enquete_detail_handles_pacote_without_produto(fake_client):
     """Enquete sem produto_id ou produto inexistente não deve quebrar."""
     client, fake = fake_client

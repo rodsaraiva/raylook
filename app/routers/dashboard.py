@@ -20,6 +20,7 @@ protótipos iniciais e foi migrada quando o router virou produção.
 
 from __future__ import annotations
 
+import re
 import uuid
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
@@ -92,6 +93,48 @@ def _age_str(iso: Optional[str]) -> str:
     if secs < 86400:
         return f"{secs // 3600} h"
     return f"{secs // 86400} d"
+
+
+# Marcadores que delimitam o nome do produto no título cru das enquetes do
+# WhatsApp: emojis tipicamente usados como bullet OU asterisco seguido de
+# palavra-chave conhecida (VALOR, TECIDO, TAMANHO, CATEGORIA, ASSESSORIA,
+# COR, CORES, MARCA, MODELO, OBS). Captura é gulosa até qualquer um deles.
+_PRODUCT_NAME_STOP = re.compile(
+    r"(?=\s*(?:\*\s*(?:VALOR|TECIDO|TAMANHOS?|CATEGORIA|ASSESSORIA|"
+    r"COR(?:ES)?|MARCA|MODELO|OBS|PRE[ÇC]O)\s*=|"
+    r"[💰🔖📏📍🏷️🎨🛒🛍️📦📌]))",
+    re.IGNORECASE,
+)
+_REF_PREFIX = re.compile(r"^.*?\*?\s*REF\s*=\s*\*?\s*", re.IGNORECASE | re.DOTALL)
+
+
+def _clean_product_name(raw: Optional[str]) -> Optional[str]:
+    """Extrai o nome do produto do título cru da enquete.
+
+    Os títulos do WhatsApp seguem o padrão:
+        ➡️ *REF=* CAMISA + TOP 💰 *VALOR=$* 31 🔖 *TECIDO=* LINHO ...
+
+    Devolve só o texto entre REF= e o próximo marcador (emoji/keyword).
+    Se não houver REF=, retorna o título limpando emojis e asteriscos.
+    """
+    if not raw:
+        return raw
+    s = str(raw).strip()
+    if not s:
+        return s
+    # Tem "REF=" explícito? Tira tudo antes e corta no próximo marcador.
+    m = _REF_PREFIX.match(s)
+    if m:
+        rest = s[m.end():]
+        stop = _PRODUCT_NAME_STOP.search(rest)
+        nome = (rest[:stop.start()] if stop else rest).strip()
+    else:
+        nome = s
+    # Limpa asteriscos, emojis-bullet e espaços duplicados sobrantes.
+    nome = re.sub(r"[*_]", "", nome)
+    nome = re.sub(r"^[\s➡️📌📦🛒🛍️]+", "", nome)
+    nome = re.sub(r"\s+", " ", nome).strip(" -—:")
+    return nome or raw
 
 
 def _derive_client_state(
@@ -1603,7 +1646,7 @@ def list_enquetes(
             "image": f"/files/{drive_id}" if drive_id else None,
             "produto": {
                 "id": prod.get("id"),
-                "nome": prod.get("nome"),
+                "nome": _clean_product_name(prod.get("nome")),
                 "valor_unitario": prod.get("valor_unitario"),
             } if prod else None,
             "pacotes_total": c.get("total", 0),
@@ -1733,7 +1776,7 @@ def get_enquete_detail(enquete_id: str) -> Dict[str, Any]:
         "image": f"/files/{drive_id}" if drive_id else None,
         "produto": {
             "id": prod.get("id"),
-            "nome": prod.get("nome"),
+            "nome": _clean_product_name(prod.get("nome")),
             "valor_unitario": prod.get("valor_unitario"),
         } if prod else None,
         "pacotes_total": len(pacotes),
