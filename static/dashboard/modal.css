@@ -184,14 +184,37 @@
 .rl-swap-candidate:hover {
     background: var(--accent-soft); border-color: var(--accent);
 }
-.rl-swap-candidate:disabled { opacity: 0.4; cursor: wait; }
+.rl-swap-candidate:disabled,
+.rl-swap-candidate:has(input:disabled) { opacity: 0.4; cursor: wait; }
+.rl-swap-candidate input[type="checkbox"] {
+    margin-right: 10px; flex-shrink: 0;
+    width: 16px; height: 16px; accent-color: var(--accent);
+}
+.rl-swap-candidate-info { flex: 1; }
 .rl-swap-candidate-info .name { font-weight: 700; font-size: 13px; }
 .rl-swap-candidate-info .phone { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 .rl-swap-candidate-qty {
     font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700;
     color: var(--accent); white-space: nowrap;
 }
-.rl-swap-actions { margin-top: 10px; text-align: right; }
+.rl-swap-summary {
+    margin-top: 8px; padding: 8px 12px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    font-size: 12px; font-weight: 600;
+    color: var(--text-secondary); text-align: center;
+}
+.rl-swap-summary.ok {
+    color: var(--accent); border-color: var(--accent);
+    background: var(--accent-soft);
+}
+.rl-swap-summary.over { color: #ff7676; border-color: #ff7676; }
+.rl-swap-actions {
+    margin-top: 10px;
+    display: flex; gap: 8px; justify-content: flex-end;
+}
+.rl-swap-actions button[disabled] { opacity: 0.4; cursor: not-allowed; }
 
 /* Modal de confirmação (substitui o confirm() nativo) */
 .rl-confirm-overlay {

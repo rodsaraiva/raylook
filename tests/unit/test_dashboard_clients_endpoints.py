@@ -216,9 +216,9 @@ def test_resend_pix_404_when_package_missing(fake_client):
 
 
 # ── /swap-candidates ───────────────────────────────────────────────────────
-def test_swap_candidates_returns_voters_with_same_qty(fake_client):
-    """Pacote fechado tem c1 com qty=6. c2 votou na mesma enquete também
-    com qty=6 e não está consumido — deve ser candidato."""
+def test_swap_candidates_returns_voters_with_qty_lte_target(fake_client):
+    """Pacote tem c1 com qty=6. c2 votou qty=6 e c3 votou qty=3 — ambos
+    são candidatos válidos (qty <= 6 permite composições por soma)."""
     client, fake = fake_client
     fake.tables["pacotes"].append({
         "id": "p1", "status": "approved", "enquete_id": "e1",
@@ -230,16 +230,22 @@ def test_swap_candidates_returns_voters_with_same_qty(fake_client):
         {"id": "c1", "nome": "Ana", "celular": "5511"},
         {"id": "c2", "nome": "Bia", "celular": "5522"},
         {"id": "c3", "nome": "Caio", "celular": "5533"},
+        {"id": "c4", "nome": "Dani", "celular": "5544"},
     ])
     fake.tables["votos"].extend([
         {"id": "v2", "enquete_id": "e1", "cliente_id": "c2", "qty": 6, "status": "in"},
         {"id": "v3", "enquete_id": "e1", "cliente_id": "c3", "qty": 3, "status": "in"},
+        {"id": "v4", "enquete_id": "e1", "cliente_id": "c4", "qty": 12, "status": "in"},
     ])
     res = client.get("/api/dashboard/packages/p1/swap-candidates/c1")
     assert res.status_code == 200
     body = res.json()
-    assert [c["id"] for c in body] == ["c2"]
-    assert body[0]["qty"] == 6
+    assert body["target_qty"] == 6
+    by_id = {c["id"]: c for c in body["candidates"]}
+    # c2 (qty=6) e c3 (qty=3) entram. c4 (qty=12) fica fora (> target).
+    assert set(by_id.keys()) == {"c2", "c3"}
+    assert by_id["c2"]["qty"] == 6
+    assert by_id["c3"]["qty"] == 3
 
 
 def test_swap_candidates_empty_when_no_match(fake_client):
@@ -252,27 +258,45 @@ def test_swap_candidates_empty_when_no_match(fake_client):
     })
     res = client.get("/api/dashboard/packages/p1/swap-candidates/c1")
     assert res.status_code == 200
-    assert res.json() == []
+    assert res.json() == {"target_qty": 6, "candidates": []}
 
 
 # ── PATCH /packages/{id}/clients/{cli} (swap) ──────────────────────────────
-def _seed_swap_scenario(fake):
+def _seed_swap_scenario(fake, *, exit_qty=6, replacements=(("c2", 6),)):
+    """Cenário: c1 está num pacote aprovado com `exit_qty` peças. Para cada
+    (cliente_id, qty) em `replacements`, semeia voto correspondente."""
     fake.tables["pacotes"].append({
         "id": "p1", "status": "approved", "enquete_id": "e1",
     })
-    fake.tables["pacote_clientes"].append({
-        "id": "pc1", "pacote_id": "p1", "cliente_id": "c1", "qty": 6,
+    fake.tables["enquetes"].append({
+        "id": "e1", "produto_id": "prod1",
     })
-    fake.tables["clientes"].extend([
-        {"id": "c1", "nome": "Ana", "celular": "5511"},
-        {"id": "c2", "nome": "Bia", "celular": "5522"},
-    ])
-    fake.tables["votos"].append(
-        {"id": "v2", "enquete_id": "e1", "cliente_id": "c2", "qty": 6, "status": "in"},
-    )
+    fake.tables["produtos"].append({
+        "id": "prod1", "valor_unitario": 10.0,
+    })
+    fake.tables["pacote_clientes"].append({
+        "id": "pc1", "pacote_id": "p1", "cliente_id": "c1",
+        "voto_id": "v1", "produto_id": "prod1",
+        "qty": exit_qty, "unit_price": 10.0,
+        "subtotal": 10.0 * exit_qty, "commission_percent": 0,
+        "commission_amount": 5.0 * exit_qty,
+        "total_amount": 10.0 * exit_qty + 5.0 * exit_qty,
+        "status": "closed",
+    })
+    fake.tables["clientes"].extend([{"id": "c1", "nome": "Ana", "celular": "5511"}])
+    fake.tables["votos"].append({
+        "id": "v1", "enquete_id": "e1", "cliente_id": "c1",
+        "qty": exit_qty, "status": "in",
+    })
+    for cid, qty in replacements:
+        fake.tables["clientes"].append({"id": cid, "nome": cid.upper(), "celular": f"55{cid}"})
+        fake.tables["votos"].append({
+            "id": f"v_{cid}", "enquete_id": "e1", "cliente_id": cid,
+            "qty": qty, "status": "in",
+        })
     fake.tables["vendas"].append({
         "id": "v_a", "pacote_id": "p1", "pacote_cliente_id": "pc1",
-        "cliente_id": "c1", "total_amount": 100.0,
+        "cliente_id": "c1", "total_amount": 10.0 * exit_qty + 5.0 * exit_qty,
     })
 
 
@@ -284,14 +308,16 @@ def test_swap_blocks_when_pagamento_already_paid(fake_client):
         "provider_payment_id": "as_001",
     })
     res = client.patch("/api/dashboard/packages/p1/clients/c1",
-                       json={"new_cliente_id": "c2"})
+                       json={"new_cliente_ids": ["c2"]})
     assert res.status_code == 409
     # estado preservado
     assert fake.tables["pacote_clientes"][0]["cliente_id"] == "c1"
     assert fake.tables["pagamentos"][0]["status"] == "paid"
 
 
-def test_swap_resets_pagamento_and_cancels_asaas(fake_client, monkeypatch):
+def test_swap_single_replaces_pc_and_recreates_venda_pagamento(fake_client, monkeypatch):
+    """Swap 1:1 com qty igual — fluxo simples antigo, agora deletando e
+    recriando venda+pagamento."""
     client, fake = fake_client
     _seed_swap_scenario(fake)
     fake.tables["pagamentos"].append({
@@ -310,19 +336,126 @@ def test_swap_resets_pagamento_and_cancels_asaas(fake_client, monkeypatch):
     )
 
     res = client.patch("/api/dashboard/packages/p1/clients/c1",
-                       json={"new_cliente_id": "c2"})
+                       json={"new_cliente_ids": ["c2"]})
     assert res.status_code == 200, res.text
     body = res.json()
     assert body["action"] == "swapped"
-    assert body["pagamentos_resetados"] == 1
+    assert body["pagamentos_removidos"] == 1
+    assert body["to"] == [{"cliente_id": "c2", "qty": 6}]
     assert cancel_calls == ["as_001"]
+
+    # Pagamento antigo foi deletado; novo criado status=created sem provider id.
+    assert len(fake.tables["pagamentos"]) == 1
     pag = fake.tables["pagamentos"][0]
     assert pag["status"] == "created"
-    assert pag["provider_payment_id"] is None
-    assert pag["payment_link"] is None
-    assert pag["pix_payload"] is None
-    assert fake.tables["vendas"][0]["cliente_id"] == "c2"
-    assert fake.tables["pacote_clientes"][0]["cliente_id"] == "c2"
+    assert pag.get("provider_payment_id") in (None, "")
+
+    # Venda antiga deletada; nova vinculada ao novo pacote_cliente do c2.
+    assert len(fake.tables["vendas"]) == 1
+    venda = fake.tables["vendas"][0]
+    assert venda["cliente_id"] == "c2"
+    assert venda["qty"] == 6
+
+    # Pacote_clientes: pc1 (c1) sumiu; um novo para c2.
+    pcs = fake.tables["pacote_clientes"]
+    assert len(pcs) == 1
+    assert pcs[0]["cliente_id"] == "c2"
+    assert pcs[0]["qty"] == 6
+    assert pcs[0]["voto_id"] == "v_c2"
+
+
+def test_swap_split_one_into_two(fake_client, monkeypatch):
+    """Trocar 1 de 12 por 2 de 6 — caso novo, núcleo da feature."""
+    client, fake = fake_client
+    _seed_swap_scenario(fake, exit_qty=12, replacements=(("c2", 6), ("c3", 6), ("c4", 3)))
+    fake.tables["pagamentos"].append({
+        "id": "pag1", "venda_id": "v_a", "status": "sent",
+        "provider_payment_id": "as_001",
+    })
+    from integrations.asaas.client import AsaasClient
+    monkeypatch.setattr(AsaasClient, "cancel_payment", lambda self, pid: None)
+
+    res = client.patch("/api/dashboard/packages/p1/clients/c1",
+                       json={"new_cliente_ids": ["c2", "c3"]})
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["to"] == [{"cliente_id": "c2", "qty": 6}, {"cliente_id": "c3", "qty": 6}]
+
+    pcs = sorted(fake.tables["pacote_clientes"], key=lambda r: r["cliente_id"])
+    assert [p["cliente_id"] for p in pcs] == ["c2", "c3"]
+    assert all(p["qty"] == 6 for p in pcs)
+    assert pcs[0]["voto_id"] == "v_c2"
+    assert pcs[1]["voto_id"] == "v_c3"
+
+    vendas = sorted(fake.tables["vendas"], key=lambda r: r["cliente_id"])
+    assert [v["cliente_id"] for v in vendas] == ["c2", "c3"]
+    assert all(v["qty"] == 6 for v in vendas)
+
+    # Um pagamento por nova venda, todos status='created'.
+    assert len(fake.tables["pagamentos"]) == 2
+    assert all(p["status"] == "created" for p in fake.tables["pagamentos"])
+
+
+def test_swap_split_six_into_three_plus_three(fake_client, monkeypatch):
+    """1 de 6 → 2 de 3 — caso pedido pelo usuário."""
+    client, fake = fake_client
+    _seed_swap_scenario(fake, exit_qty=6, replacements=(("c2", 3), ("c3", 3), ("c4", 6)))
+    from integrations.asaas.client import AsaasClient
+    monkeypatch.setattr(AsaasClient, "cancel_payment", lambda self, pid: None)
+
+    res = client.patch("/api/dashboard/packages/p1/clients/c1",
+                       json={"new_cliente_ids": ["c2", "c3"]})
+    assert res.status_code == 200, res.text
+    assert res.json()["to"] == [{"cliente_id": "c2", "qty": 3}, {"cliente_id": "c3", "qty": 3}]
+    pcs = sorted(fake.tables["pacote_clientes"], key=lambda r: r["cliente_id"])
+    assert [p["qty"] for p in pcs] == [3, 3]
+
+
+def test_swap_rejects_when_sum_doesnt_match(fake_client):
+    client, fake = fake_client
+    _seed_swap_scenario(fake, exit_qty=12, replacements=(("c2", 6), ("c3", 3)))
+    # Soma = 9, alvo = 12 → 400
+    res = client.patch("/api/dashboard/packages/p1/clients/c1",
+                       json={"new_cliente_ids": ["c2", "c3"]})
+    assert res.status_code == 400
+    assert "Soma das quantidades" in res.json()["detail"]
+    # Nada mexido.
+    assert fake.tables["pacote_clientes"][0]["cliente_id"] == "c1"
+
+
+def test_swap_rejects_duplicates(fake_client):
+    client, fake = fake_client
+    _seed_swap_scenario(fake, exit_qty=6, replacements=(("c2", 3),))
+    res = client.patch("/api/dashboard/packages/p1/clients/c1",
+                       json={"new_cliente_ids": ["c2", "c2"]})
+    assert res.status_code == 400
+    assert "duplicatas" in res.json()["detail"]
+
+
+def test_swap_rejects_when_candidate_already_in_package(fake_client):
+    client, fake = fake_client
+    _seed_swap_scenario(fake, exit_qty=6, replacements=(("c2", 6), ("c3", 6)))
+    # c3 já está no pacote
+    fake.tables["pacote_clientes"].append({
+        "id": "pc2", "pacote_id": "p1", "cliente_id": "c3",
+        "voto_id": "v_c3", "qty": 6,
+    })
+    res = client.patch("/api/dashboard/packages/p1/clients/c1",
+                       json={"new_cliente_ids": ["c3"]})
+    assert res.status_code == 400
+
+
+def test_swap_rejects_when_candidate_in_other_active_package(fake_client):
+    client, fake = fake_client
+    _seed_swap_scenario(fake, exit_qty=6, replacements=(("c2", 6),))
+    # c2 também está num outro pacote aprovado
+    fake.tables["pacotes"].append({"id": "p2", "status": "approved", "enquete_id": "e1"})
+    fake.tables["pacote_clientes"].append({
+        "id": "pc2", "pacote_id": "p2", "cliente_id": "c2", "qty": 6,
+    })
+    res = client.patch("/api/dashboard/packages/p1/clients/c1",
+                       json={"new_cliente_ids": ["c2"]})
+    assert res.status_code == 400
 
 
 def test_swap_proceeds_even_if_asaas_cancel_fails(fake_client, monkeypatch):
@@ -340,12 +473,12 @@ def test_swap_proceeds_even_if_asaas_cancel_fails(fake_client, monkeypatch):
     monkeypatch.setattr(AsaasClient, "cancel_payment", boom)
 
     res = client.patch("/api/dashboard/packages/p1/clients/c1",
-                       json={"new_cliente_id": "c2"})
+                       json={"new_cliente_ids": ["c2"]})
     assert res.status_code == 200
-    pag = fake.tables["pagamentos"][0]
-    assert pag["status"] == "created"
-    assert pag["provider_payment_id"] is None
+    # Venda antiga deletada e nova criada com c2.
+    assert len(fake.tables["vendas"]) == 1
     assert fake.tables["vendas"][0]["cliente_id"] == "c2"
+    assert fake.tables["pacote_clientes"][0]["cliente_id"] == "c2"
 
 
 # ── GET /clientes/list + /clientes/stats ───────────────────────────────────

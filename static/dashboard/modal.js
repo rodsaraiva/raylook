@@ -345,12 +345,15 @@ const RaylookModal = (() => {
         form.dataset.swapForm = "1";
         form.innerHTML = `
             <div class="rl-swap-head">
-                Substituir <strong>${escape(currentLabel)}</strong> por
-                outro voto da mesma enquete.
+                Substituir <strong>${escape(currentLabel)}</strong> por um ou
+                mais clientes da mesma enquete (a soma das peças precisa
+                bater).
             </div>
             <div data-swap-list><div class="rl-swap-loading">Buscando candidatos…</div></div>
+            <div class="rl-swap-summary" data-swap-summary hidden></div>
             <div class="rl-swap-actions">
                 <button class="cancel" data-swap-cancel>Cancelar</button>
+                <button class="primary" data-swap-confirm hidden disabled>Substituir</button>
             </div>
         `;
         const section = body.querySelector(".rl-section:nth-of-type(2)") || body.querySelector(".rl-section");
@@ -358,38 +361,70 @@ const RaylookModal = (() => {
         form.querySelector("[data-swap-cancel]").addEventListener("click", () => form.remove());
 
         const list = form.querySelector("[data-swap-list]");
+        const summary = form.querySelector("[data-swap-summary]");
+        const confirmBtn = form.querySelector("[data-swap-confirm]");
         try {
             const resp = await fetch(`/api/dashboard/packages/${pacoteId}/swap-candidates/${currentClienteId}`,
                 { credentials: "include" });
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const candidates = await resp.json();
+            const data = await resp.json();
+            const target = Number(data.target_qty || 0);
+            const candidates = Array.isArray(data.candidates) ? data.candidates : [];
             if (!candidates.length) {
                 list.innerHTML = `<div class="rl-swap-empty">
-                    Nenhum outro cliente votou nessa enquete com a mesma quantidade.
+                    Nenhum cliente disponível pra substituir (precisa ter voto
+                    na enquete com até ${target} peças e não estar em outro pacote).
                 </div>`;
                 return;
             }
+            // Ordena: maior qty primeiro (caso de match direto fica no topo).
+            candidates.sort((a, b) => (b.qty || 0) - (a.qty || 0));
             list.innerHTML = candidates.map(c => `
-                <button class="rl-swap-candidate" data-swap-pick="${c.id}">
+                <label class="rl-swap-candidate" data-swap-row="${c.id}">
+                    <input type="checkbox" data-swap-pick="${c.id}" data-qty="${c.qty}">
                     <div class="rl-swap-candidate-info">
                         <div class="name">${escape(c.nome || "?")}</div>
                         <div class="phone">${escape(c.celular || "")}</div>
                     </div>
                     <div class="rl-swap-candidate-qty">${c.qty} peças</div>
-                </button>
+                </label>
             `).join("");
-            list.querySelectorAll("[data-swap-pick]").forEach(btn =>
-                btn.addEventListener("click", async () => {
-                    const newLabel = clienteLabel(
-                        btn.querySelector(".name").textContent,
-                        btn.querySelector(".phone").textContent,
-                    );
-                    if (!await confirmModal(`Substituir ${currentLabel} por ${newLabel}?`, { okLabel: "Substituir" })) return;
-                    list.querySelectorAll("button").forEach(b => b.disabled = true);
-                    await clientAction(pacoteId, `clients/${currentClienteId}`, "PATCH",
-                                       { new_cliente_id: btn.dataset.swapPick });
-                })
-            );
+            summary.hidden = false;
+            confirmBtn.hidden = false;
+
+            const checkboxes = Array.from(list.querySelectorAll("[data-swap-pick]"));
+            const refresh = () => {
+                const picked = checkboxes.filter(cb => cb.checked);
+                const soma = picked.reduce((acc, cb) => acc + Number(cb.dataset.qty || 0), 0);
+                summary.textContent = `${soma} de ${target} peças selecionadas`;
+                summary.classList.toggle("ok", soma === target);
+                summary.classList.toggle("over", soma > target);
+                confirmBtn.disabled = !(soma === target);
+            };
+            checkboxes.forEach(cb => cb.addEventListener("change", refresh));
+            refresh();
+
+            confirmBtn.addEventListener("click", async () => {
+                const ids = checkboxes.filter(cb => cb.checked).map(cb => cb.dataset.swapPick);
+                if (!ids.length) return;
+                const labels = checkboxes
+                    .filter(cb => cb.checked)
+                    .map(cb => {
+                        const row = cb.closest("[data-swap-row]");
+                        return clienteLabel(
+                            row.querySelector(".name").textContent,
+                            row.querySelector(".phone").textContent,
+                        );
+                    });
+                const msg = ids.length === 1
+                    ? `Substituir ${currentLabel} por ${labels[0]}?`
+                    : `Substituir ${currentLabel} por ${ids.length} clientes (${labels.join(", ")})?`;
+                if (!await confirmModal(msg, { okLabel: "Substituir" })) return;
+                confirmBtn.disabled = true;
+                checkboxes.forEach(cb => cb.disabled = true);
+                await clientAction(pacoteId, `clients/${currentClienteId}`, "PATCH",
+                                   { new_cliente_ids: ids });
+            });
         } catch (e) {
             list.innerHTML = `<div class="rl-swap-empty">Erro: ${escape(e.message)}</div>`;
         }

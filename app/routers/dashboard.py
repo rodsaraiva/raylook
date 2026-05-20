@@ -1242,11 +1242,18 @@ def remove_client_from_package(pacote_id: str, cliente_id: str) -> Dict[str, Any
     return {"status": "ok", "action": "pacote_cliente_removed"}
 
 
-def _swap_eligible_voters(client: SupabaseRestClient, pacote_id: str, cliente_id: str) -> List[Dict[str, Any]]:
-    """Lista clientes elegíveis pra substituir alguém num pacote: precisam ter
-    voto status='in'/'wait' na MESMA enquete, com a MESMA qty do voto saindo,
-    não estar já no pacote, e não terem sido consumidos por outro pacote dessa
-    enquete (closed/approved/etc)."""
+def _swap_eligible_voters(client: SupabaseRestClient, pacote_id: str, cliente_id: str) -> Dict[str, Any]:
+    """Substitutos elegíveis pra trocar alguém num pacote.
+
+    Cada candidato precisa: ter voto status != 'out' na MESMA enquete, qty
+    <= qty alvo (pra permitir composição por soma — ex: trocar 1 de 12 por
+    2 de 6), não estar já no pacote, e não ter sido consumido por outro
+    pacote ativo dessa enquete.
+
+    Retorna `{"target_qty": int, "candidates": [{id, nome, celular, qty,
+    voto_id}, ...]}`. O frontend usa `target_qty` pra validar que a soma
+    das qtys escolhidas bate antes de submeter.
+    """
     pkg = client.select("pacotes", filters=[("id", "eq", pacote_id)], single=True) or {}
     pc_atual = client.select(
         "pacote_clientes",
@@ -1254,13 +1261,21 @@ def _swap_eligible_voters(client: SupabaseRestClient, pacote_id: str, cliente_id
         single=True,
     )
     if not pc_atual:
-        return []
+        return {"target_qty": 0, "candidates": []}
     qty_alvo = int(pc_atual.get("qty") or 0)
     enquete_id = pkg.get("enquete_id")
     if not enquete_id or qty_alvo <= 0:
-        return []
+        return {"target_qty": qty_alvo, "candidates": []}
 
-    # Clientes já consumidos por pacotes não-cancelados da mesma enquete
+    # Clientes já no pacote atual (não podem ser substitutos — duplicaria
+    # unique (pacote_id, cliente_id)). O que está saindo é o único exceto.
+    own_pcs = client.select(
+        "pacote_clientes",
+        filters=[("pacote_id", "eq", pacote_id)],
+    ) or []
+    own_ids = {pc["cliente_id"] for pc in own_pcs if pc["cliente_id"] != cliente_id}
+
+    # Clientes consumidos por OUTROS pacotes não-cancelados da mesma enquete
     pcs_enq = client.select("pacote_clientes") or []
     pacotes_enq = {p["id"]: p for p in client.select("pacotes",
         filters=[("enquete_id", "eq", enquete_id)]) or []}
@@ -1269,63 +1284,112 @@ def _swap_eligible_voters(client: SupabaseRestClient, pacote_id: str, cliente_id
         pkt = pacotes_enq.get(pc["pacote_id"])
         if not pkt:
             continue
-        status = (pkt.get("status") or "").lower()
-        if status == "cancelled":
+        if (pkt.get("status") or "").lower() == "cancelled":
             continue
-        if pc["pacote_id"] == pacote_id and pc["cliente_id"] == cliente_id:
-            # o que está saindo não bloqueia
-            continue
+        if pc["pacote_id"] == pacote_id:
+            continue  # do próprio pacote — tratado em own_ids
         consumed.add(pc["cliente_id"])
 
     votos = client.select(
         "votos",
         filters=[
             ("enquete_id", "eq", enquete_id),
-            ("qty", "eq", qty_alvo),
+            ("qty", "lte", qty_alvo),
             ("status", "neq", "out"),
         ],
     ) or []
-    candidate_ids = {v["cliente_id"] for v in votos
-                     if v["cliente_id"] != cliente_id and v["cliente_id"] not in consumed}
-    if not candidate_ids:
-        return []
+    # Um voto por cliente (filtra qty>0 e dedupa preferindo o mais "novo" se houver).
+    voto_by_cliente: Dict[str, Dict[str, Any]] = {}
+    for v in votos:
+        cli = v.get("cliente_id")
+        qty = int(v.get("qty") or 0)
+        if not cli or qty <= 0:
+            continue
+        if cli == cliente_id or cli in consumed or cli in own_ids:
+            continue
+        voto_by_cliente[cli] = v  # último vence
+
+    if not voto_by_cliente:
+        return {"target_qty": qty_alvo, "candidates": []}
+
     rows = client.select("clientes",
-                         filters=[("id", "in", list(candidate_ids))],
+                         filters=[("id", "in", list(voto_by_cliente.keys()))],
                          order="nome.asc") or []
-    return [{"id": c["id"], "nome": c.get("nome"), "celular": c.get("celular"), "qty": qty_alvo}
-            for c in rows]
+    candidates = []
+    for c in rows:
+        v = voto_by_cliente.get(c["id"])
+        if not v:
+            continue
+        candidates.append({
+            "id": c["id"],
+            "nome": c.get("nome"),
+            "celular": c.get("celular"),
+            "qty": int(v["qty"]),
+            "voto_id": v["id"],
+        })
+    return {"target_qty": qty_alvo, "candidates": candidates}
 
 
 @router.get("/packages/{pacote_id}/swap-candidates/{cliente_id}")
-def list_swap_candidates(pacote_id: str, cliente_id: str) -> List[Dict[str, Any]]:
-    """Quem pode substituir o cliente atual: precisa ter votado na mesma enquete
-    com mesma qty e não estar já consumido."""
+def list_swap_candidates(pacote_id: str, cliente_id: str) -> Dict[str, Any]:
+    """Quem pode substituir o cliente atual. Retorna `target_qty` (qty a ser
+    coberta pela combinação) e lista de candidatos com a qty individual de
+    cada voto."""
     client = SupabaseRestClient.from_settings()
     return _swap_eligible_voters(client, pacote_id, cliente_id)
 
 
 @router.patch("/packages/{pacote_id}/clients/{cliente_id}")
 def swap_client_in_package(pacote_id: str, cliente_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
-    """Troca o cliente no pacote por outro que tenha votado na mesma enquete."""
-    new_cliente_id = body.get("new_cliente_id")
-    if not new_cliente_id:
-        raise HTTPException(400, "new_cliente_id é obrigatório")
-    if new_cliente_id == cliente_id:
+    """Troca o cliente no pacote por um ou mais substitutos cuja soma das qtys
+    seja igual à qty do cliente que sai (ex.: 1 de 12 → 2 de 6).
+
+    Payload: `{ "new_cliente_ids": ["c1", "c2", ...] }`.
+
+    Cada substituto precisa ter voto na mesma enquete (qty <= qty alvo, status
+    != 'out') e não estar consumido. O cliente que sai não pode ter pagamento
+    'paid'. Cobranças Asaas existentes são canceladas best-effort. Venda e
+    pagamento antigos são deletados; um par (venda + pagamento status='created')
+    é criado por substituto — a cobrança Asaas nova nasce lazy quando o cliente
+    abrir o portal.
+    """
+    raw_ids = body.get("new_cliente_ids")
+    if not isinstance(raw_ids, list) or not raw_ids:
+        raise HTTPException(400, "new_cliente_ids deve ser uma lista não vazia")
+    new_cliente_ids: List[str] = [str(x) for x in raw_ids if x]
+    if not new_cliente_ids:
+        raise HTTPException(400, "new_cliente_ids deve ser uma lista não vazia")
+    if len(set(new_cliente_ids)) != len(new_cliente_ids):
+        raise HTTPException(400, "new_cliente_ids contém duplicatas")
+    if cliente_id in new_cliente_ids:
         raise HTTPException(400, "novo cliente igual ao atual")
 
-    eligible = {c["id"] for c in _swap_eligible_voters(
-        SupabaseRestClient.from_settings(), pacote_id, cliente_id)}
-    if new_cliente_id not in eligible:
-        raise HTTPException(400, "Substituto precisa ter votado na mesma enquete com a mesma quantidade")
-
     client = SupabaseRestClient.from_settings()
+    elig = _swap_eligible_voters(client, pacote_id, cliente_id)
+    target_qty = int(elig.get("target_qty") or 0)
+    cand_by_id = {c["id"]: c for c in elig.get("candidates", [])}
+    if target_qty <= 0:
+        raise HTTPException(404, "Cliente não está no pacote")
+
+    missing = [cid for cid in new_cliente_ids if cid not in cand_by_id]
+    if missing:
+        raise HTTPException(
+            400,
+            "Substituto inválido: precisa ter voto na mesma enquete com qty <= "
+            f"{target_qty} e não estar em outro pacote",
+        )
+
+    soma = sum(int(cand_by_id[cid]["qty"]) for cid in new_cliente_ids)
+    if soma != target_qty:
+        raise HTTPException(
+            400,
+            f"Soma das quantidades dos substitutos ({soma}) precisa ser igual à "
+            f"qty do cliente saindo ({target_qty})",
+        )
+
     pkg = client.select("pacotes", filters=[("id", "eq", pacote_id)], single=True)
     if not pkg:
         raise HTTPException(404, "Pacote não encontrado")
-
-    new_cli = client.select("clientes", filters=[("id", "eq", new_cliente_id)], single=True)
-    if not new_cli:
-        raise HTTPException(404, "Novo cliente não encontrado")
 
     pc = client.select(
         "pacote_clientes",
@@ -1335,23 +1399,12 @@ def swap_client_in_package(pacote_id: str, cliente_id: str, body: Dict[str, Any]
     if not pc:
         raise HTTPException(404, "Cliente não está no pacote")
 
-    # Evita colisão: se o novo cliente já está no pacote, bloqueia
-    dupe = client.select(
-        "pacote_clientes",
-        filters=[("pacote_id", "eq", pacote_id), ("cliente_id", "eq", new_cliente_id)],
-        single=True,
-    )
-    if dupe:
-        raise HTTPException(400, "Novo cliente já está no pacote")
-
     vendas = client.select(
         "vendas",
         filters=[("pacote_cliente_id", "eq", pc["id"])],
     ) or []
     venda_ids = [v["id"] for v in vendas]
 
-    # Pagamentos vinculados às vendas — bloqueia swap se algum já foi pago
-    # (cliente que já liquidou não pode "sair" do pacote sem estorno manual).
     pagamentos = []
     if venda_ids:
         pagamentos = client.select(
@@ -1361,44 +1414,106 @@ def swap_client_in_package(pacote_id: str, cliente_id: str, body: Dict[str, Any]
     if any(str(p.get("status") or "").lower() == "paid" for p in pagamentos):
         raise HTTPException(409, "Cliente já pagou — não pode ser substituído")
 
-    # Cancela cobranças no Asaas (best-effort) e zera os ponteiros locais.
-    # A nova cobrança será criada lazy quando o substituto clicar em
-    # "pagar" no portal (mesmo fluxo do generate_pix_for_payment).
+    # Cancela cobranças Asaas (best-effort) antes de derrubar pagamentos locais.
     from integrations.asaas.client import AsaasClient
     asaas = AsaasClient()
-    now_iso = datetime.now(timezone.utc).isoformat()
     for pag in pagamentos:
         provider_id = pag.get("provider_payment_id")
-        if provider_id:
-            try:
-                asaas.cancel_payment(provider_id)
-            except Exception as exc:
-                logger.warning(
-                    "swap: falha cancelando cobrança Asaas %s (pagamento=%s): %s",
-                    provider_id, pag.get("id"), exc,
-                )
-        client.update(
-            "pagamentos",
-            {
-                "provider_payment_id": None,
-                "provider_customer_id": None,
-                "payment_link": None,
-                "pix_payload": None,
-                "due_date": None,
-                "paid_at": None,
-                "status": "created",
-                "updated_at": now_iso,
-            },
-            filters=[("id", "eq", pag["id"])],
-        )
+        if not provider_id:
+            continue
+        try:
+            asaas.cancel_payment(provider_id)
+        except Exception as exc:
+            logger.warning(
+                "swap: falha cancelando cobrança Asaas %s (pagamento=%s): %s",
+                provider_id, pag.get("id"), exc,
+            )
 
-    client.update("pacote_clientes",
-                  {"cliente_id": new_cliente_id},
-                  filters=[("id", "eq", pc["id"])])
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    # Resolve produto + unit_price da enquete pra calcular financeiros dos novos pcs.
+    produto_id = pc.get("produto_id")
+    unit_price = float(pc.get("unit_price") or 0)
+    if (not produto_id or unit_price <= 0) and pkg.get("enquete_id"):
+        enq = client.select(
+            "enquetes",
+            filters=[("id", "eq", pkg["enquete_id"])],
+            single=True,
+        ) or {}
+        if not produto_id:
+            produto_id = enq.get("produto_id")
+        if unit_price <= 0 and enq.get("produto_id"):
+            prod = client.select(
+                "produtos",
+                filters=[("id", "eq", enq["produto_id"])],
+                single=True,
+            ) or {}
+            unit_price = float(prod.get("valor_unitario") or 0)
+
+    commission_percent = float(pc.get("commission_percent") or 0)
+    commission_per_piece = float(settings.COMMISSION_PER_PIECE)
+
+    # Derruba pagamentos → vendas → pacote_cliente do cliente saindo.
+    for pag in pagamentos:
+        client.delete("pagamentos", filters=[("id", "eq", pag["id"])])
     for v in vendas:
-        client.update("vendas",
-                      {"cliente_id": new_cliente_id},
-                      filters=[("id", "eq", v["id"])])
-    return {"status": "ok", "action": "swapped",
-            "from_cliente_id": cliente_id, "to_cliente_id": new_cliente_id,
-            "pagamentos_resetados": len(pagamentos)}
+        client.delete("vendas", filters=[("id", "eq", v["id"])])
+    client.delete("pacote_clientes", filters=[("id", "eq", pc["id"])])
+
+    had_vendas = bool(vendas)
+
+    # Cria N pacote_clientes (+ vendas + pagamentos quando o pacote já tinha).
+    created = []
+    for cid in new_cliente_ids:
+        cand = cand_by_id[cid]
+        qty = int(cand["qty"])
+        subtotal = round(unit_price * qty, 2)
+        commission_amount = round(qty * commission_per_piece, 2)
+        total_amount = round(subtotal + commission_amount, 2)
+        pc_row = client.insert("pacote_clientes", {
+            "pacote_id": pacote_id,
+            "cliente_id": cid,
+            "voto_id": cand["voto_id"],
+            "produto_id": produto_id,
+            "qty": qty,
+            "unit_price": unit_price,
+            "subtotal": subtotal,
+            "commission_percent": commission_percent,
+            "commission_amount": commission_amount,
+            "total_amount": total_amount,
+            "status": pc.get("status") or "closed",
+            "created_at": now_iso,
+            "updated_at": now_iso,
+        })
+        pc_new = pc_row[0] if isinstance(pc_row, list) else pc_row
+        if had_vendas:
+            venda_row = client.insert("vendas", {
+                "pacote_id": pacote_id,
+                "cliente_id": cid,
+                "produto_id": produto_id,
+                "pacote_cliente_id": pc_new["id"],
+                "qty": qty,
+                "unit_price": unit_price,
+                "subtotal": subtotal,
+                "commission_percent": commission_percent,
+                "commission_amount": commission_amount,
+                "total_amount": total_amount,
+                "status": "approved",
+                "sold_at": now_iso,
+            })
+            venda_new = venda_row[0] if isinstance(venda_row, list) else venda_row
+            client.insert("pagamentos", {
+                "venda_id": venda_new["id"],
+                "provider": "asaas",
+                "status": "created",
+                "payload_json": {},
+            })
+        created.append({"cliente_id": cid, "qty": qty})
+
+    return {
+        "status": "ok",
+        "action": "swapped",
+        "from_cliente_id": cliente_id,
+        "to": created,
+        "pagamentos_removidos": len(pagamentos),
+    }
