@@ -133,8 +133,8 @@
         } catch (e) {
             detail.innerHTML = `<div class="empty-state" style="color:#f87171;">Erro: ${escape(e.message)}</div>`;
         }
-        document.querySelectorAll("#enquetes-table-body tr.enq-row").forEach((tr) =>
-            tr.classList.toggle("active", tr.dataset.enqId === enqId));
+        document.querySelectorAll("#enquetes-table-body .enq-card").forEach((card) =>
+            card.classList.toggle("active", card.dataset.enqId === enqId));
     }
 
     async function refresh() {
@@ -143,14 +143,17 @@
     window.enquetesRefresh = refresh;
 
     // ---- render ----
-    function thumbCell(url) {
-        if (!url) return `<div class="enq-thumb-placeholder">📷</div>`;
-        return `<img class="enq-thumb" loading="lazy" src="${escape(url)}" alt="" onerror="this.outerHTML='<div class=\\'enq-thumb-placeholder\\'>📷</div>'">`;
+    function thumbCell(url, size) {
+        const klass = size === "hero" ? "enq-hero-img" : "enq-thumb";
+        const phClass = size === "hero" ? "enq-hero-img-placeholder" : "enq-thumb-placeholder";
+        if (!url) return `<div class="${phClass}">📷</div>`;
+        return `<img class="${klass}" loading="lazy" src="${escape(url)}" alt=""
+            onerror="this.outerHTML='<div class=\\'${phClass}\\'>📷</div>'">`;
     }
 
     function renderList() {
-        const tbody = el("enquetes-table-body");
-        if (!tbody) return;
+        const container = el("enquetes-table-body");
+        if (!container) return;
         const totalPages = Math.max(1, Math.ceil(state.total / state.pageSize));
         el("enquetes-pagination-summary").textContent =
             `Página ${state.page} de ${totalPages} (${state.total} resultados)`;
@@ -158,35 +161,43 @@
         el("enquetes-page-next").disabled = state.page >= totalPages;
 
         if (!state.items.length) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);">Nenhuma enquete no período</td></tr>`;
+            container.innerHTML = `<div class="enq-empty-list">Nenhuma enquete no período</div>`;
             el("enquetes-meta").textContent = "0 enquetes";
             return;
         }
-        tbody.innerHTML = state.items.map((e) => {
+        container.innerHTML = state.items.map((e) => {
             const fech = e.pacotes_fechados || 0;
             const total = e.pacotes_total || 0;
-            const prodNome = (e.produto?.nome || "").trim();
+            const prodNome = (e.produto?.nome || "").trim() || (e.titulo || "Sem nome");
             const valor = Number(e.produto?.valor_unitario || 0);
             const valorStr = valor > 0 ? fmtMoney(valor) : "";
             const titleAttr = e.titulo ? ` title="${escape(e.titulo)}"` : "";
-            const prodCell = prodNome
-                ? `<div class="enq-prod-name">${escape(prodNome)}</div>` +
-                  (valorStr ? `<div class="enq-prod-price">${escape(valorStr)}</div>` : "")
-                : `<span style="color:var(--text-muted);font-style:italic;">${escape(e.titulo || "—")}</span>`;
+            const fechClass = fech > 0 ? "ok" : "";
             return `
-                <tr class="enq-row ${state.selectedId === e.id ? "active" : ""}" data-enq-id="${escape(e.id)}">
-                    <td>${thumbCell(e.image)}</td>
-                    <td style="white-space:nowrap;">${escape(fmtDate(e.created_at))}</td>
-                    <td${titleAttr}>${prodCell}</td>
-                    <td>${escape(e.fornecedor || "—")}</td>
-                    <td class="pkg-num">${total}</td>
-                    <td class="pkg-num">${fech}</td>
-                    <td>${statusBadge(e.status)}</td>
-                </tr>`;
+                <button type="button" class="enq-card ${state.selectedId === e.id ? "active" : ""}"
+                        data-enq-id="${escape(e.id)}"${titleAttr}>
+                    ${thumbCell(e.image)}
+                    <div class="enq-card-body">
+                        <div class="enq-card-line1">
+                            <span class="enq-prod-name">${escape(prodNome)}</span>
+                            ${valorStr ? `<span class="enq-prod-price">${escape(valorStr)}</span>` : ""}
+                        </div>
+                        <div class="enq-card-line2">
+                            <span>${escape(fmtDate(e.created_at))}</span>
+                            ${e.fornecedor ? `<span class="sep">·</span><span class="fornecedor">${escape(e.fornecedor)}</span>` : ""}
+                            <span class="sep">·</span>
+                            ${statusBadge(e.status)}
+                        </div>
+                    </div>
+                    <div class="enq-card-stats">
+                        <div class="enq-mini-stat"><div class="num">${total}</div><div class="lbl">pacs</div></div>
+                        <div class="enq-mini-stat ${fechClass}"><div class="num">${fech}</div><div class="lbl">fech</div></div>
+                    </div>
+                </button>`;
         }).join("");
         el("enquetes-meta").textContent = `${state.total} enquete${state.total === 1 ? "" : "s"}`;
-        tbody.querySelectorAll("tr.enq-row").forEach((tr) =>
-            tr.addEventListener("click", () => loadDetail(tr.dataset.enqId)));
+        container.querySelectorAll(".enq-card").forEach((card) =>
+            card.addEventListener("click", () => loadDetail(card.dataset.enqId)));
     }
 
     function renderDetail() {
@@ -205,6 +216,8 @@
         const pacotesHtml = (d.pacotes || []).map((pk) => {
             const totalQty = pk.total_qty || 0;
             const capacidade = pk.capacidade_total || 24;
+            const pct = Math.min(100, Math.round((totalQty / Math.max(1, capacidade)) * 100));
+            const fullClass = totalQty >= capacidade ? "full" : "";
             const friendly = pk.friendly_id || (pk.sequence_no ? "#" + pk.sequence_no : "#" + (pk.id || "").slice(0, 6));
             const clientesHtml = (pk.clientes || []).map((c) => `
                 <div class="enq-cliente">
@@ -227,26 +240,26 @@
                         </div>
                         ${statePill(pk.state)}
                     </div>
+                    <div class="enq-pacote-progress ${fullClass}"><div class="fill" style="width:${pct}%"></div></div>
                     ${clientesHtml}
                 </div>`;
         }).join("") || `<div style="font-size:12px;color:var(--text-muted);font-style:italic;text-align:center;padding:16px 0;">Nenhum pacote nessa enquete ainda</div>`;
 
-        const heroImg = d.image
-            ? `<img class="enq-hero-img" loading="lazy" src="${escape(d.image)}" alt=""
-                  onerror="this.outerHTML='<div class=\\'enq-hero-img-placeholder\\'>📷</div>'">`
-            : `<div class="enq-hero-img-placeholder">📷</div>`;
+        const prodNome = (d.produto?.nome || "").trim() || d.titulo || "Enquete";
+        const valor = Number(d.produto?.valor_unitario || 0);
+        const valorStr = valor > 0 ? fmtMoney(valor) : "";
         detail.innerHTML = `
             <div class="enq-detail-head">
                 <div class="enq-hero">
-                    ${heroImg}
+                    ${thumbCell(d.image, "hero")}
                     <div class="enq-hero-body">
-                        <h3>${escape(d.titulo || "Enquete")}</h3>
+                        <h3 title="${escape(d.titulo || "")}">${escape(prodNome)}</h3>
                         <div class="enq-meta">
                             <span>${escape(fmtDateTime(d.created_at))}</span>
                             ${statusBadge(d.status)}
                             ${d.fornecedor ? `<span>· ${escape(d.fornecedor)}</span>` : ""}
-                            ${d.produto?.nome ? `<span>· ${escape(d.produto.nome)}</span>` : ""}
                         </div>
+                        ${valorStr ? `<div class="enq-hero-price">${escape(valorStr)} <span style="font-size:11px;color:var(--text-muted);font-weight:400;">por peça</span></div>` : ""}
                     </div>
                 </div>
             </div>
