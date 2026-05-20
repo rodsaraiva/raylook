@@ -190,8 +190,7 @@
                         </div>
                     </div>
                     <div class="enq-card-stats">
-                        <div class="enq-mini-stat"><div class="num">${total}</div><div class="lbl">pacs</div></div>
-                        <div class="enq-mini-stat ${fechClass}"><div class="num">${fech}</div><div class="lbl">fech</div></div>
+                        <div class="enq-mini-stat ${fechClass}"><div class="num">${fech}</div><div class="lbl">fechados</div></div>
                     </div>
                 </button>`;
         }).join("");
