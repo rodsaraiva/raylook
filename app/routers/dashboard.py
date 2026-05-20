@@ -1604,6 +1604,7 @@ def list_enquetes(
             "produto": {
                 "id": prod.get("id"),
                 "nome": prod.get("nome"),
+                "valor_unitario": prod.get("valor_unitario"),
             } if prod else None,
             "pacotes_total": c.get("total", 0),
             "pacotes_fechados": c.get("closed", 0) + c.get("approved", 0),

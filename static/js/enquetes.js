@@ -28,6 +28,13 @@
         catch (_) { return "—"; }
     }
 
+    function fmtMoney(v) {
+        const n = Number(v || 0);
+        try {
+            return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+        } catch (_) { return "R$ " + n.toFixed(2); }
+    }
+
     function fmtDateTime(iso) {
         if (!iso) return "—";
         try {
@@ -158,12 +165,19 @@
         tbody.innerHTML = state.items.map((e) => {
             const fech = e.pacotes_fechados || 0;
             const total = e.pacotes_total || 0;
-            const title = e.titulo || "—";
+            const prodNome = (e.produto?.nome || "").trim();
+            const valor = Number(e.produto?.valor_unitario || 0);
+            const valorStr = valor > 0 ? fmtMoney(valor) : "";
+            const titleAttr = e.titulo ? ` title="${escape(e.titulo)}"` : "";
+            const prodCell = prodNome
+                ? `<div class="enq-prod-name">${escape(prodNome)}</div>` +
+                  (valorStr ? `<div class="enq-prod-price">${escape(valorStr)}</div>` : "")
+                : `<span style="color:var(--text-muted);font-style:italic;">${escape(e.titulo || "—")}</span>`;
             return `
                 <tr class="enq-row ${state.selectedId === e.id ? "active" : ""}" data-enq-id="${escape(e.id)}">
                     <td>${thumbCell(e.image)}</td>
                     <td style="white-space:nowrap;">${escape(fmtDate(e.created_at))}</td>
-                    <td title="${escape(title)}">${escape(title.length > 60 ? title.slice(0, 60) + "…" : title)}</td>
+                    <td${titleAttr}>${prodCell}</td>
                     <td>${escape(e.fornecedor || "—")}</td>
                     <td class="pkg-num">${total}</td>
                     <td class="pkg-num">${fech}</td>
