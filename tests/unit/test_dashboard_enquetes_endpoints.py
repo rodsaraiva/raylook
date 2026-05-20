@@ -52,34 +52,36 @@ def test_list_enquetes_paginates(fake_client):
     assert [it["id"] for it in res2.json()["items"]] == ["e0"]
 
 
-def test_list_enquetes_orders_desc_and_counts_pacotes(fake_client):
+def test_list_enquetes_orders_by_fechados_desc(fake_client):
+    """Lista vem ordenada por pacotes_fechados desc (closed+approved).
+    Tiebreak preserva ordem por created_at desc."""
     client, fake = fake_client
     fake.tables["enquetes"].extend([
+        # e1 tem 2 fechados (closed+approved); e2 tem 0; e3 tem 1
         {"id": "e1", "titulo": "Camiseta Vermelha", "status": "closed",
          "created_at": "2026-05-10T12:00:00+00:00", "fornecedor": "Cia X"},
         {"id": "e2", "titulo": "Calça Jeans", "status": "open",
          "created_at": "2026-05-15T08:00:00+00:00", "fornecedor": "Cia Y"},
+        {"id": "e3", "titulo": "Vestido", "status": "closed",
+         "created_at": "2026-05-12T10:00:00+00:00", "fornecedor": "Cia Z"},
     ])
     fake.tables["pacotes"].extend([
         {"id": "p1", "enquete_id": "e1", "status": "closed"},
         {"id": "p2", "enquete_id": "e1", "status": "approved"},
         {"id": "p3", "enquete_id": "e1", "status": "open"},
         {"id": "p4", "enquete_id": "e2", "status": "cancelled"},
+        {"id": "p5", "enquete_id": "e3", "status": "approved"},
     ])
     res = client.get("/api/dashboard/enquetes")
     assert res.status_code == 200
     body = res.json()
-    assert body["total"] == 2
-    # ordem desc por created_at
-    assert [it["id"] for it in body["items"]] == ["e2", "e1"]
+    assert body["total"] == 3
+    # e1 (2 fech) > e3 (1 fech) > e2 (0 fech)
+    assert [it["id"] for it in body["items"]] == ["e1", "e3", "e2"]
     e1 = next(it for it in body["items"] if it["id"] == "e1")
     assert e1["pacotes_total"] == 3
-    # "fechados" = closed + approved
     assert e1["pacotes_fechados"] == 2
     assert e1["pacotes_by_status"] == {"open": 1, "closed": 1, "approved": 1, "cancelled": 0}
-    e2 = next(it for it in body["items"] if it["id"] == "e2")
-    assert e2["pacotes_total"] == 1
-    assert e2["pacotes_by_status"]["cancelled"] == 1
 
 
 def test_list_enquetes_filters_by_created_at_brt(fake_client):

@@ -1589,44 +1589,47 @@ def list_enquetes(
     if until_iso:
         filters.append(("created_at", "lte", until_iso))
 
-    # Quando há busca por título, precisamos puxar tudo (não dá pra paginar no
-    # PostgREST sem filtro server-side de "ilike"). Quando não há, paginamos.
+    # Traz TODAS as enquetes do filtro de data + busca, calcula contagem de
+    # pacotes (em batches pra não estourar URL do PostgREST com in.(...)) e
+    # ordena por pacotes_fechados desc antes de paginar.
+    all_filtered = client.select_all(
+        "enquetes", filters=filters, order="created_at.desc",
+    ) or []
     needle = (q or "").strip().lower()
     if needle:
-        enquetes = client.select_all(
-            "enquetes", filters=filters, order="created_at.desc",
-        ) or []
-        enquetes = [e for e in enquetes if needle in (e.get("titulo") or "").lower()]
-        total = len(enquetes)
-        start = (page - 1) * page_size
-        enquetes = enquetes[start:start + page_size]
-    else:
-        # 1ª chamada: total filtrado (apenas count via Range, mas o cliente
-        # atual não expõe — fazemos um select limitado ao máximo p/ count).
-        # Pra evitar custo, contamos por select_all() só quando precisa.
-        # Aqui retornamos apenas a página + soma global aproximada.
-        all_filtered = client.select_all(
-            "enquetes", filters=filters, order="created_at.desc",
-        ) or []
-        total = len(all_filtered)
-        start = (page - 1) * page_size
-        enquetes = all_filtered[start:start + page_size]
+        all_filtered = [e for e in all_filtered
+                        if needle in (e.get("titulo") or "").lower()]
 
-    enquete_ids = [e["id"] for e in enquetes]
-    pacotes = client.select(
-        "pacotes",
-        filters=[("enquete_id", "in", enquete_ids)],
-    ) if enquete_ids else []
-
+    all_ids = [e["id"] for e in all_filtered]
     counts_by_enq: Dict[str, Dict[str, int]] = {}
-    for pk in pacotes or []:
-        eid = pk.get("enquete_id")
-        if not eid:
-            continue
-        status = (pk.get("status") or "").lower() or "unknown"
-        bucket = counts_by_enq.setdefault(eid, {"total": 0})
-        bucket["total"] += 1
-        bucket[status] = bucket.get(status, 0) + 1
+    # Lote de 100 ids por chamada — cada id ~36 chars + sep, fica em ~3.7k bytes,
+    # bem abaixo do limite de URL do PostgREST.
+    BATCH = 100
+    for i in range(0, len(all_ids), BATCH):
+        chunk = all_ids[i:i + BATCH]
+        rows = client.select(
+            "pacotes",
+            filters=[("enquete_id", "in", chunk)],
+        ) or []
+        for pk in rows:
+            eid = pk.get("enquete_id")
+            if not eid:
+                continue
+            status = (pk.get("status") or "").lower() or "unknown"
+            bucket = counts_by_enq.setdefault(eid, {"total": 0})
+            bucket["total"] += 1
+            bucket[status] = bucket.get(status, 0) + 1
+
+    def _fechados(e: Dict[str, Any]) -> int:
+        c = counts_by_enq.get(e["id"], {})
+        return c.get("closed", 0) + c.get("approved", 0)
+
+    # Ordena por fechados desc (tiebreak: created_at desc — já está nessa ordem
+    # vinda do select_all, então sorted estável preserva).
+    all_filtered.sort(key=_fechados, reverse=True)
+    total = len(all_filtered)
+    start = (page - 1) * page_size
+    enquetes = all_filtered[start:start + page_size]
 
     produto_ids = list({e["produto_id"] for e in enquetes if e.get("produto_id")})
     produtos = client.select("produtos", filters=[("id", "in", produto_ids)]) if produto_ids else []

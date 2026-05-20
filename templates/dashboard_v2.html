@@ -506,12 +506,15 @@
         font-variant-numeric: tabular-nums; flex-shrink: 0;
     }
     .enq-card-line2 {
-        display: flex; align-items: center; gap: 8px;
+        display: flex; align-items: center; gap: 6px;
         font-size: 11px; color: var(--text-muted);
-        flex-wrap: wrap;
+        flex-wrap: wrap; row-gap: 4px;
     }
-    .enq-card-line2 .sep { opacity: 0.4; }
-    .enq-card-line2 .fornecedor { white-space: nowrap; }
+    .enq-card-line2 .sep { opacity: 0.4; flex-shrink: 0; }
+    .enq-card-line2 .fornecedor {
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        max-width: 140px;
+    }
     .enq-card-stats {
         display: flex; gap: 6px; align-items: center;
         margin-left: auto; flex-shrink: 0;
@@ -699,6 +702,7 @@
         display: inline-block; font-size: 10px; padding: 2px 8px;
         border-radius: 999px; text-transform: uppercase;
         letter-spacing: 0.05em; font-weight: 700;
+        white-space: nowrap; flex-shrink: 0;
     }
     .enq-status-badge[data-status="open"] { background: rgba(148,163,184,0.15); color: #94a3b8; }
     .enq-status-badge[data-status="closed"] { background: rgba(234,179,8,0.15); color: #facc15; }
