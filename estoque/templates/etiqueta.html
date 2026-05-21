@@ -54,7 +54,7 @@
                             <table class="item-card-table" border="0" cellspacing="0" cellpadding="0">
                                 <tr>
                                     <td valign="middle" class="left-col">
-                                        <div class="order-num">Nº do Pedido: {{ vote.order_num }}</div>
+                                        <div class="order-num">Nº do Pedido: {{ vote.order_num }}{% if friendly_id %} · Pacote: {{ friendly_id }}{% endif %}</div>
                                         <div class="client-name">{{ vote.name }}</div>
                                         <div class="client-code">{{ vote.phone }}</div>
                                     </td>
