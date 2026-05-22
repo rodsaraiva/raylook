@@ -383,6 +383,38 @@ async def portal_pedidos(request: Request):
     })
 
 
+def _is_admin_request(request: Request) -> bool:
+    """Verifica se a request tem sessão admin do dashboard. O middleware do
+    dashboard pula tudo em /portal/*, então a checagem é feita aqui."""
+    if os.getenv("DASHBOARD_AUTH_DISABLED", "").strip().lower() in ("true", "1", "yes"):
+        return True
+    from app.services import auth_service as _auth
+    role = _auth.read_session_token(request.cookies.get("dash_session", ""))
+    return role == "admin"
+
+
+@router.get("/preview/{cliente_id}", response_class=HTMLResponse)
+async def portal_preview(request: Request, cliente_id: str):
+    """Renderiza o portal_pedidos como o cliente vê, em modo somente leitura.
+    Acessado pelo admin a partir da aba Clientes do dashboard."""
+    if not _is_admin_request(request):
+        return RedirectResponse("/login", status_code=302)
+
+    client = ps.get_client_by_id(cliente_id)
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+
+    orders = ps.get_client_orders(client["id"])
+    kpis = ps.get_client_kpis(orders)
+
+    return _templates().TemplateResponse(request, "portal_pedidos.html", {
+        "cliente": client,
+        "orders": orders,
+        "kpis": kpis,
+        "read_only": True,
+    })
+
+
 # ---------------------------------------------------------------------------
 # API de status (polling leve para auto-atualização)
 # ---------------------------------------------------------------------------

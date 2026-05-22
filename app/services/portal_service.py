@@ -112,6 +112,20 @@ def get_client_by_phone(phone: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+def get_client_by_id(cliente_id: str) -> Optional[Dict[str, Any]]:
+    if not cliente_id:
+        return None
+    rows = _client().select(
+        "clientes",
+        columns="id,nome,celular,email,cpf_cnpj",
+        filters=[("id", "eq", str(cliente_id))],
+        limit=1,
+    )
+    if isinstance(rows, list) and rows:
+        return rows[0]
+    return None
+
+
 def get_client_by_session(token: str) -> Optional[Dict[str, Any]]:
     if not token:
         return None

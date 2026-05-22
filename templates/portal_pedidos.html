@@ -9,7 +9,14 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/portal.css">
 </head>
-<body>
+<body{% if read_only %} class="portal-readonly"{% endif %}>
+    {% if read_only %}
+    <div class="readonly-banner">
+        <i class="fas fa-eye"></i>
+        Visualização admin · você está vendo o portal como <strong>{{ cliente.nome or cliente.celular or 'cliente' }}</strong>
+        <button type="button" class="readonly-close" onclick="window.close()" title="Fechar">✕</button>
+    </div>
+    {% endif %}
     <div class="page">
         <header>
             <div class="logo-text">
@@ -17,7 +24,9 @@
             </div>
             <div class="header-right">
                 <div class="avatar">{{ cliente.nome[0] | upper if cliente.nome else 'C' }}</div>
+                {% if not read_only %}
                 <a href="/portal/logout" class="logout-btn" title="Sair"><i class="fas fa-sign-out-alt"></i></a>
+                {% endif %}
             </div>
         </header>
 
@@ -41,7 +50,7 @@
         </div>
 
         <!-- Pagar Todos -->
-        {% if kpis.pending_count > 1 %}
+        {% if kpis.pending_count > 1 and not read_only %}
         <div class="pay-all-section">
             <button type="button" class="btn-pay-all" id="btnPayAll" data-valor="R$ {{ '%.2f' | format(kpis.total_pending) | replace('.', ',') }}">
                 <i class="fas fa-bolt"></i>
@@ -146,13 +155,17 @@
                             <span>Pagamento confirmado</span>
                             {% endif %}
                         </div>
-                        {% elif order.pagamento_id %}
+                        {% elif order.pagamento_id and not read_only %}
                         <button type="button" class="btn-pay"
                             data-pagamento="{{ order.pagamento_id }}"
                             data-nome="{{ order.enquete_titulo or order.produto_nome }}"
                             data-valor="R$ {{ '%.2f' | format(order.total_amount) | replace('.', ',') }}">
                             <i class="fas fa-bolt"></i> Pagar
                         </button>
+                        {% elif order.pagamento_id and read_only %}
+                        <span class="btn-pay btn-pay-disabled" aria-disabled="true">
+                            <i class="fas fa-bolt"></i> Pagar
+                        </span>
                         {% endif %}
                     </div>
                 </div>
@@ -206,6 +219,8 @@
         </button>
     </div>
 
+    {% if not read_only %}
     <script src="/static/js/portal-sheet.js"></script>
+    {% endif %}
 </body>
 </html>

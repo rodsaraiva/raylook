@@ -131,6 +131,11 @@
                 <td${cpfStyle}>${escapeHtml(c.cpf_cnpj || "—")}</td>
                 <td>${fmtDate(c.created_at)}</td>
                 <td style="text-align:right;">
+                    <button class="btn-history btn-preview-portal"
+                            data-cliente-id="${escapeHtml(c.id)}"
+                            title="Ver portal do cliente (somente leitura)">
+                        <i class="fas fa-eye"></i>
+                    </button>
                     <button class="btn-history btn-rename"
                             data-cliente-id="${escapeHtml(c.id)}"
                             data-nome="${escapeHtml(nomeRaw)}"
@@ -239,6 +244,14 @@
             const btn = e.target.closest(".btn-rename[data-cliente-id]");
             if (!btn) return;
             openRename(btn.dataset.clienteId, btn.dataset.nome || "");
+        });
+
+        // Preview do portal (read-only) — abre em nova aba
+        document.addEventListener("click", (e) => {
+            const btn = e.target.closest(".btn-preview-portal[data-cliente-id]");
+            if (!btn) return;
+            window.open(`/portal/preview/${encodeURIComponent(btn.dataset.clienteId)}`,
+                        "_blank", "noopener,noreferrer");
         });
 
         // Modal
