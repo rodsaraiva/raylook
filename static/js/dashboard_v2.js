@@ -400,7 +400,7 @@
             let actionBtn = "";
             if (state === "pago") {
                 if (canDoAdvance("pago", "pendente"))
-                    actionBtn += `<button class="row-action" data-action="advance" data-to="pendente" data-id="${p.id}" title="Validar pagamento e mover pra fila Pendente">Marcar pendente</button>`;
+                    actionBtn += `<button class="row-action" data-action="advance" data-to="pendente" data-id="${p.id}" title="Tirar da fila e marcar com problema (precisa de motivo)">Marcar pendente</button>`;
                 if (canDoAdvance("pago", "separado"))
                     actionBtn += `<button class="row-action" data-action="advance" data-to="separado" data-id="${p.id}" title="Gerar etiqueta e pular pra Separado">Gerar etiqueta</button>`;
             } else if (state !== "aberto" && action.action && canDoAdvance(state, null)) {
