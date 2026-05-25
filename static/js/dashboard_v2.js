@@ -360,6 +360,20 @@
         el.querySelector("#list-pg-next").addEventListener("click", () => { listPage++; renderList(); });
     }
 
+    // Telefones vêm como dígitos crus do WhatsApp (ex.: "5511987654321"). Formato
+    // BR amigável quando o tamanho casa; senão devolve original (defensivo).
+    function fmtPhone(raw) {
+        if (!raw) return "";
+        const d = String(raw).replace(/\D/g, "");
+        if (d.length === 13 && d.startsWith("55"))
+            return `(${d.slice(2, 4)}) ${d.slice(4, 9)}-${d.slice(9)}`;
+        if (d.length === 11)
+            return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+        if (d.length === 10)
+            return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+        return raw;
+    }
+
     // Renderiza uma linha cliente-row (separado/enviado): foco no cliente,
     // pacote-pai como subtítulo. Botão de avanço atua apenas neste cliente.
     function renderClientRow(p) {
@@ -385,14 +399,20 @@
             ? `<a class="row-action" href="/api/dashboard/packages/${p.pacote_id}/etiqueta.pdf" target="_blank" rel="noopener" title="Baixar PDF da etiqueta">📄 Etiqueta</a>`
             : "";
         const valueLabel = p.total_amount ? L.moneyFull(p.total_amount) : "—";
+        const phone = fmtPhone(p.cliente_phone);
+        const produtoNome = meta.item || p.produto_name || "—";
+        // Sub linha 1: telefone + produto. Sub linha 2: pacote + qty + idade.
+        const subTop = [phone, produtoNome].filter(Boolean).map(L.escapeHtml).join(" · ");
+        const subBottom = `${pacoteTag} · ${p.qty} peça${p.qty === 1 ? "" : "s"} · há ${L.age(p.state_since)}`;
         return `
         <div class="pkg-row client-row ${p.id === selectedId ? "selected" : ""}" data-id="${p.id}" data-client-row="1" data-pacote-id="${p.pacote_id}">
             <div class="pkg-thumb">${thumb}</div>
             <div class="pkg-row-main">
                 <div class="name">${L.escapeHtml(p.cliente_nome || "Cliente")}</div>
-                <div class="sub">${L.escapeHtml(meta.item || p.produto_name || "")} · ${pacoteTag} · ${p.qty} peça${p.qty === 1 ? "" : "s"}</div>
+                <div class="sub">${subTop}</div>
+                <div class="sub">${subBottom}</div>
             </div>
-            <div class="pkg-row-meta">${valueLabel}<div class="sub">há ${L.age(p.state_since)}</div></div>
+            <div class="pkg-row-meta">${valueLabel}</div>
             <div class="pkg-row-actions">${etiquetaBtn}${actionBtn}</div>
         </div>`;
     }
@@ -574,7 +594,7 @@
             <div class="summary-grid">
                 <div class="summary-cell"><div class="l">Peças</div><div class="v">${p.qty || 0}</div></div>
                 <div class="summary-cell"><div class="l">Valor</div><div class="v money">${value}</div></div>
-                <div class="summary-cell"><div class="l">Telefone</div><div class="v" style="font-size:0.85rem;">${L.escapeHtml(p.cliente_phone || "—")}</div></div>
+                <div class="summary-cell"><div class="l">Telefone</div><div class="v" style="font-size:0.85rem;">${L.escapeHtml(fmtPhone(p.cliente_phone) || "—")}</div></div>
                 <div class="summary-cell"><div class="l">No estado há</div><div class="v">${L.age(p.state_since)}</div></div>
             </div>
             <div class="detail-actions">
