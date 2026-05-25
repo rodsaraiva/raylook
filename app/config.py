@@ -96,6 +96,11 @@ if _USE_PYDANTIC:
 
         ADHOC_PACKAGES_ENABLED: bool = False
 
+        # Cutoff ISO (timestamptz). Pacotes com closed_at >= esse valor exigem
+        # `fornecedor` no body do advance fechado→confirmado. Default None =
+        # comportamento legado (não exige). Ligar em prod via deploy/.env.
+        PACOTE_REQUER_FORNECEDOR_DESDE: Optional[str] = None
+
         WHAPI_TOKEN: Optional[str] = None
         WHAPI_API_URL: str = os.getenv("WHAPI_API_URL") or os.getenv("WHAPI_URL", "https://gate.whapi.cloud")
 
@@ -183,6 +188,8 @@ else:
         DATA_BACKEND: str = os.getenv("DATA_BACKEND", "sqlite").strip().lower()
 
         ADHOC_PACKAGES_ENABLED: bool = os.getenv("ADHOC_PACKAGES_ENABLED", "").lower() == "true"
+
+        PACOTE_REQUER_FORNECEDOR_DESDE: Optional[str] = os.getenv("PACOTE_REQUER_FORNECEDOR_DESDE") or None
 
         WHAPI_TOKEN: Optional[str] = os.getenv("WHAPI_TOKEN")
         WHAPI_API_URL: str = os.getenv("WHAPI_API_URL") or os.getenv("WHAPI_URL", "https://gate.whapi.cloud")

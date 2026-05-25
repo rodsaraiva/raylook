@@ -1980,6 +1980,27 @@ async def set_enquete_fornecedor(poll_id: str, request: PackageTagRequest):
     return {"status": "success", "poll_id": poll_id, "enquete_id": enquete_id, "fornecedor": fornecedor_value}
 
 
+@app.get("/api/enquetes/fornecedores")
+async def list_enquetes_fornecedores():
+    """Lista distinct de fornecedores cadastrados em enquetes — alimenta o
+    dropdown do modal de confirmar pacote. Ordenado alfabético, case-insensitive,
+    sem duplicatas. Cache curto no front (~30s)."""
+    if not supabase_domain_enabled():
+        return {"items": []}
+    sb = SupabaseRestClient.from_settings()
+    rows = sb.select("enquetes", columns="fornecedor") or []
+    seen: dict = {}  # lower → original
+    for r in rows:
+        v = (r.get("fornecedor") or "").strip()
+        if not v:
+            continue
+        key = v.lower()
+        if key not in seen:
+            seen[key] = v
+    items = sorted(seen.values(), key=lambda s: s.lower())
+    return {"items": items}
+
+
 @app.post("/api/packages/{pkg_id}/tag")
 async def set_package_tag(pkg_id: str, request: PackageTagRequest):
     """

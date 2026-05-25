@@ -1294,6 +1294,36 @@
     </div>
 </div>
 
+<!-- Modal pra escolher fornecedor antes de confirmar pacote -->
+<div id="fornecedor-overlay" class="admin-pwd-overlay"></div>
+<div id="fornecedor-modal" class="admin-pwd-modal pending-modal" role="dialog" aria-labelledby="fornecedor-title">
+    <h3 id="fornecedor-title">Confirmar pacote</h3>
+    <p class="admin-pwd-help">Selecione o fornecedor desta enquete. A escolha fica gravada no pacote e na enquete.</p>
+
+    <label for="fornecedor-select" class="pending-label">Fornecedor</label>
+    <div class="pending-select-wrap">
+        <select id="fornecedor-select" class="pending-select">
+            <option value="" disabled selected>Carregando fornecedores…</option>
+        </select>
+        <i class="fas fa-chevron-down pending-select-caret" aria-hidden="true"></i>
+    </div>
+
+    <button type="button" class="btn-ghost" id="fornecedor-toggle-novo" style="margin-top:8px;font-size:0.85rem;">
+        <i class="fas fa-plus"></i> Adicionar novo fornecedor
+    </button>
+
+    <div id="fornecedor-novo-wrap" class="pending-obs-wrap" hidden>
+        <label for="fornecedor-novo-input" class="pending-label">Novo fornecedor</label>
+        <input type="text" id="fornecedor-novo-input" class="pending-textarea" placeholder="Nome do fornecedor" autocomplete="off" style="width:100%;font-family:inherit;">
+    </div>
+
+    <div id="fornecedor-error" class="admin-pwd-error"></div>
+    <div class="admin-pwd-actions">
+        <button type="button" class="btn-ghost" id="fornecedor-cancel">Cancelar</button>
+        <button type="button" class="btn-primary" id="fornecedor-ok" disabled>Confirmar</button>
+    </div>
+</div>
+
 <!-- Modal de senha admin (regress de estoque/logística) -->
 <div id="admin-pwd-overlay" class="admin-pwd-overlay"></div>
 <div id="admin-pwd-modal" class="admin-pwd-modal" role="dialog" aria-labelledby="admin-pwd-title">

@@ -700,6 +700,67 @@ VALID_PENDING_REASONS = {
 }
 
 
+def _fornecedor_required_for(pkg: Dict[str, Any]) -> bool:
+    """True se o pacote cai dentro do gate de 'fornecedor obrigatório'.
+    Critério: settings.PACOTE_REQUER_FORNECEDOR_DESDE setado E pkg.closed_at
+    igual ou maior que o cutoff. Default (env não setada) = False, preserva
+    comportamento legado."""
+    cutoff = getattr(settings, "PACOTE_REQUER_FORNECEDOR_DESDE", None) or None
+    if not cutoff:
+        return False
+    closed_at = pkg.get("closed_at")
+    if not closed_at:
+        return False
+    return closed_at >= cutoff
+
+
+async def _persist_fornecedor_or_raise(
+    request: Request,
+    client: SupabaseRestClient,
+    pkg: Dict[str, Any],
+) -> None:
+    """Lê body.fornecedor e grava em pacotes.fornecedor + enquetes.fornecedor
+    (se ainda NULL). Levanta 400 fornecedor_required se o gate está ligado
+    e o body veio sem fornecedor. Idempotente: se pacote já tem fornecedor
+    setado e body vazio, deixa quieto."""
+    if not _fornecedor_required_for(pkg):
+        return
+    if pkg.get("fornecedor"):
+        return  # já preenchido (provavelmente herdado da enquete)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    fornecedor_raw = body.get("fornecedor") if isinstance(body, dict) else None
+    fornecedor = (str(fornecedor_raw) if fornecedor_raw else "").strip()
+    if not fornecedor:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "fornecedor_required",
+                    "message": "Selecione o fornecedor para confirmar este pacote."},
+        )
+    pacote_id = pkg["id"]
+    client.update(
+        "pacotes",
+        {"fornecedor": fornecedor},
+        filters=[("id", "eq", pacote_id)],
+    )
+    enquete_id = pkg.get("enquete_id")
+    if enquete_id:
+        enq = client.select(
+            "enquetes",
+            columns="id,fornecedor",
+            filters=[("id", "eq", enquete_id)],
+            single=True,
+        ) or {}
+        if not (enq.get("fornecedor") or "").strip():
+            client.update(
+                "enquetes",
+                {"fornecedor": fornecedor},
+                filters=[("id", "eq", enquete_id)],
+            )
+
+
 async def _persist_pending_reasons(
     request: Request,
     client: SupabaseRestClient,
@@ -756,6 +817,14 @@ async def advance_package(pacote_id: str, request: Request, to: Optional[str] = 
     if going_to_pendente and not skip_reasons:
         await _persist_pending_reasons(request, client, pacote_id)
 
+    # Fornecedor obrigatório no fechado→confirmado (gated por cutoff env var).
+    # Pulos via to=<estado posterior> setam skip_fornecedor_required pra não
+    # exigir o body fornecedor em cada step intermediário da recursão.
+    skip_fornecedor = getattr(request.state, "skip_fornecedor_required", False)
+    going_to_confirmado = (to == "confirmado") or (to is None and state == "fechado")
+    if going_to_confirmado and not skip_fornecedor:
+        await _persist_fornecedor_or_raise(request, client, pkg)
+
     now = client.now_iso()
 
     if to:
@@ -772,6 +841,10 @@ async def advance_package(pacote_id: str, request: Request, to: Optional[str] = 
         # to != pendente passando por pendente é intermediário — pula o check.
         if to != "pendente":
             request.state.skip_pending_reasons = True
+        # to != confirmado passando por fechado→confirmado intermediário — pula
+        # o gate de fornecedor (admin pulando várias etapas via API).
+        if to != "confirmado":
+            request.state.skip_fornecedor_required = True
         while cur_idx < target_idx and steps < len(FLOW_STATES):
             await advance_package(pacote_id, request, to=None)  # avança 1 step
             pkg, vendas, pags, pcs = _load_pkg_and_pags(client, pacote_id)

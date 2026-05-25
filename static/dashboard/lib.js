@@ -262,12 +262,36 @@ const RaylookDashboard = (() => {
         return { label: "Ver", action: null, drilldown: true, ghost: true };
     }
 
+    // Cache em memória de fornecedores (TTL 30s). Modal de confirmar pacote
+    // chama com alta frequência; sem cache cada abertura faz round-trip.
+    let _fornecedoresCache = { at: 0, items: null };
+    async function fetchFornecedores() {
+        const now = Date.now();
+        if (_fornecedoresCache.items && (now - _fornecedoresCache.at) < 30_000) {
+            return _fornecedoresCache.items;
+        }
+        try {
+            const resp = await fetch("/api/enquetes/fornecedores", { credentials: "include" });
+            if (!resp.ok) return _fornecedoresCache.items || [];
+            const data = await resp.json();
+            const items = Array.isArray(data.items) ? data.items : [];
+            _fornecedoresCache = { at: now, items };
+            return items;
+        } catch {
+            return _fornecedoresCache.items || [];
+        }
+    }
+    function invalidateFornecedoresCache() {
+        _fornecedoresCache = { at: 0, items: null };
+    }
+
     return {
         STATES, STATE_LABELS, PAY_LABELS, payLabel, fetchData,
         money, moneyFull, age, agingBucket,
         pill, productEmoji, clientesShort, initials, escapeHtml,
         parsePollTitle,
         doAction, primaryActionFor, promptAdminPassword,
+        fetchFornecedores, invalidateFornecedoresCache,
     };
 })();
 

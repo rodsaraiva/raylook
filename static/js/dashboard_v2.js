@@ -95,6 +95,85 @@
         });
     }
 
+    // Modal pra escolher fornecedor na confirmação de pacote. Carrega
+    // distinct das enquetes (cache 30s) + opção de digitar novo. Resolve
+    // com { fornecedor: "X" } ou null se cancelado.
+    function promptFornecedor() {
+        return new Promise(async (resolve) => {
+            const ov = document.getElementById("fornecedor-overlay");
+            const md = document.getElementById("fornecedor-modal");
+            const select = document.getElementById("fornecedor-select");
+            const toggleNovo = document.getElementById("fornecedor-toggle-novo");
+            const novoWrap = document.getElementById("fornecedor-novo-wrap");
+            const novoInput = document.getElementById("fornecedor-novo-input");
+            const ok = document.getElementById("fornecedor-ok");
+            const cancel = document.getElementById("fornecedor-cancel");
+            const err = document.getElementById("fornecedor-error");
+            if (!ov || !md || !select || !ok) { resolve(null); return; }
+
+            select.innerHTML = `<option value="" disabled selected>Carregando fornecedores…</option>`;
+            novoWrap.hidden = true;
+            novoInput.value = "";
+            err.textContent = "";
+            ok.disabled = true;
+            ov.classList.add("open");
+            md.classList.add("open");
+
+            const items = await L.fetchFornecedores();
+            const placeholder = items.length
+                ? "Selecione um fornecedor…"
+                : "Nenhum cadastrado — use 'Adicionar novo' abaixo";
+            select.innerHTML = `<option value="" disabled selected>${L.escapeHtml(placeholder)}</option>`
+                + items.map(f => `<option value="${L.escapeHtml(f)}">${L.escapeHtml(f)}</option>`).join("");
+            setTimeout(() => select.focus(), 30);
+
+            function refreshOkState() {
+                const hasSelect = !!select.value;
+                const hasNovo = !novoWrap.hidden && novoInput.value.trim().length > 0;
+                ok.disabled = !(hasSelect || hasNovo);
+            }
+            function onToggleNovo(e) {
+                e.preventDefault();
+                novoWrap.hidden = !novoWrap.hidden;
+                if (!novoWrap.hidden) {
+                    select.value = "";
+                    setTimeout(() => novoInput.focus(), 30);
+                }
+                refreshOkState();
+            }
+            function cleanup() {
+                ov.classList.remove("open");
+                md.classList.remove("open");
+                select.removeEventListener("change", refreshOkState);
+                novoInput.removeEventListener("input", refreshOkState);
+                toggleNovo.removeEventListener("click", onToggleNovo);
+                ok.removeEventListener("click", onOk);
+                cancel.removeEventListener("click", onCancel);
+                ov.removeEventListener("click", onCancel);
+            }
+            function onOk() {
+                const novo = novoInput.value.trim();
+                const escolhido = !novoWrap.hidden && novo ? novo : (select.value || "");
+                if (!escolhido) {
+                    err.textContent = "Escolha um fornecedor ou cadastre um novo.";
+                    return;
+                }
+                // Invalida cache pra próxima abertura puxar fornecedor recém-criado.
+                if (!novoWrap.hidden && novo) L.invalidateFornecedoresCache?.();
+                cleanup();
+                resolve({ fornecedor: escolhido });
+            }
+            function onCancel() { cleanup(); resolve(null); }
+
+            select.addEventListener("change", refreshOkState);
+            novoInput.addEventListener("input", refreshOkState);
+            toggleNovo.addEventListener("click", onToggleNovo);
+            ok.addEventListener("click", onOk);
+            cancel.addEventListener("click", onCancel);
+            ov.addEventListener("click", onCancel);
+        });
+    }
+
     // RBAC frontend (espelho de auth_service.can_advance no backend).
     function canDoAdvance(fromState, toState) {
         if (currentRole === "admin") return true;
@@ -475,7 +554,7 @@
                 if (canDoAdvance("pago", "separado"))
                     actionBtn += `<button class="row-action" data-action="advance" data-to="separado" data-id="${p.id}" title="Gerar etiqueta e pular pra Separado">Gerar etiqueta</button>`;
             } else if (state !== "aberto" && action.action && canDoAdvance(state, null)) {
-                actionBtn = `<button class="row-action" data-action="${action.action}" data-id="${p.id}"${confirmAttr}>${L.escapeHtml(action.label)}</button>`;
+                actionBtn = `<button class="row-action" data-action="${action.action}" data-id="${p.id}" data-state="${state}"${confirmAttr}>${L.escapeHtml(action.label)}</button>`;
             }
             // Voltar / Cancelar / Restaurar são exclusivos do admin.
             // Botão de download da etiqueta — aparece quando pdf_sent_at está set
@@ -562,6 +641,16 @@
                     if (!result) { btn.disabled = false; return; }
                     opts.body = result;
                     delete opts.confirmText;  // já tem o modal de motivos
+                }
+                // Confirmar pacote (fechado→confirmado): pede fornecedor antes.
+                const isAdvanceFechado = btn.dataset.action === "advance"
+                    && btn.dataset.state === "fechado"
+                    && (!opts.to || opts.to === "confirmado");
+                if (isAdvanceFechado) {
+                    const forn = await promptFornecedor();
+                    if (!forn) { btn.disabled = false; return; }
+                    opts.body = forn;
+                    delete opts.confirmText;
                 }
                 // Cliente-row: o ID-alvo da URL é o pacote, não o pacote_cliente.
                 const targetId = btn.dataset.pacoteId || btn.dataset.id;
@@ -713,6 +802,14 @@
                 const result = await promptPendingReasons();
                 if (!result) return;
                 opts.body = result;
+                delete opts.confirmText;
+            }
+            // Confirmar pacote (fechado→confirmado): pede fornecedor antes.
+            const isAdvanceFechado = state === "fechado" && (!opts.to || opts.to === "confirmado");
+            if (isAdvanceFechado) {
+                const forn = await promptFornecedor();
+                if (!forn) return;
+                opts.body = forn;
                 delete opts.confirmText;
             }
             await L.doAction(p.id, "advance", opts);
