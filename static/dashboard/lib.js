@@ -151,7 +151,7 @@ const RaylookDashboard = (() => {
     }
 
     async function doAction(pacoteId, action, opts = {}) {
-        const { confirmText, successText, danger, okLabel, to, body } = opts;
+        const { confirmText, successText, danger, okLabel, to, body, clienteId } = opts;
         if (confirmText) {
             const ask = window.RaylookModal?.confirm
                 ? window.RaylookModal.confirm(confirmText, { danger: danger || action === "cancel", okLabel })
@@ -165,7 +165,11 @@ const RaylookDashboard = (() => {
                 init.headers = { "Content-Type": "application/json" };
                 init.body = JSON.stringify(body);
             }
-            const resp = await fetch(`/api/dashboard/packages/${pacoteId}/${action}${qs}`, init);
+            // Ação por cliente (granularidade fina pra separado/enviado): URL inclui /clients/{cli}/.
+            const url = clienteId
+                ? `/api/dashboard/packages/${pacoteId}/clients/${clienteId}/${action}${qs}`
+                : `/api/dashboard/packages/${pacoteId}/${action}${qs}`;
+            const resp = await fetch(url, init);
             if (!resp.ok) {
                 const e = await resp.json().catch(() => ({ detail: `HTTP ${resp.status}` }));
                 throw new Error(e.detail || "Falha");

@@ -161,7 +161,11 @@ def _derive_client_state(
     return "pago"
 
 
-def _derive_state(pacote: Dict[str, Any], pagamentos: List[Dict[str, Any]]) -> str:
+def _derive_state(
+    pacote: Dict[str, Any],
+    pagamentos: List[Dict[str, Any]],
+    pacote_clientes: Optional[List[Dict[str, Any]]] = None,
+) -> str:
     status = (pacote.get("status") or "").lower()
     if status == "open":
         return "aberto"
@@ -169,8 +173,18 @@ def _derive_state(pacote: Dict[str, Any], pagamentos: List[Dict[str, Any]]) -> s
         return "fechado"
     if status == "cancelled":
         return "cancelled"
-    # approved ou demais
-    if pacote.get("shipped_at"):
+    # approved ou demais. Estado 'enviado' agora é por cliente:
+    # pkg vira 'enviado' só quando TODOS pacote_clientes têm shipped_at.
+    # Se há pc.shipped_at parcial, pkg fica em 'separado' até o último sair.
+    # Fallback: pkg.shipped_at sem pacote_clientes (legado/backfill) ainda vale.
+    pcs = pacote_clientes or []
+    if pcs:
+        shipped_count = sum(1 for pc in pcs if pc.get("shipped_at"))
+        if shipped_count == len(pcs):
+            return "enviado"
+        # algum cliente já saiu mas não todos → segue como "separado"
+    elif pacote.get("shipped_at"):
+        # legado: pacote marcado como enviado mas sem pacote_clientes carregados
         return "enviado"
     statuses = [(p.get("status") or "").lower() for p in pagamentos]
     all_paid = bool(statuses) and all(s == "paid" for s in statuses)
@@ -309,14 +323,16 @@ def list_packages_by_state(
 
     for pkg in pacotes:
         pags = pagamentos_by_pacote.get(pkg["id"], [])
-        state = _derive_state(pkg, pags)
+        pcs_of_pkg = pc_by_pacote.get(pkg["id"], [])
+        state = _derive_state(pkg, pags, pcs_of_pkg)
 
         # Refina o filtro de data: queries SQL fazem corte amplo por
         # status+algum_timestamp, mas o estado derivado pode usar OUTRO
         # timestamp (ex.: pacote 'approved' veio pela query approved_at,
         # mas state='enviado' usa shipped_at). Pula se o timestamp do
-        # estado real não está no range.
-        if since_iso or until_iso:
+        # estado real não está no range. Pra separado/enviado, filtro
+        # é aplicado por pacote_cliente dentro do loop de cliente-rows.
+        if (since_iso or until_iso) and state not in ("separado", "enviado"):
             state_ts = pkg.get(state_ts_map.get(state, "updated_at"))
             if not state_ts:
                 continue
@@ -384,6 +400,59 @@ def list_packages_by_state(
         state_ts_field = state_ts_map.get(state, "updated_at")
 
         drive_id = (enq.get("drive_file_id") or (prod.get("drive_file_id") if prod else None))
+
+        # Separado e Enviado têm granularidade de cliente: cada pacote_cliente
+        # vira uma linha independente. Um pacote pode aparecer em ambas as
+        # seções simultaneamente (parcialmente enviado).
+        if state in ("separado", "enviado"):
+            pkg_vendas = vendas_by_pacote.get(pkg["id"], [])
+            for pc in pcs_of_pkg:
+                # Fallback pkg.* pra pacotes legados sem pc.shipped_at/pc.pdf_sent_at
+                # (backfill faz a propagação no banco; isto é rede de segurança).
+                pc_shipped_at = pc.get("shipped_at") or pkg.get("shipped_at")
+                pc_pdf_sent_at = pc.get("pdf_sent_at") or pkg.get("pdf_sent_at")
+                if pc_shipped_at:
+                    row_state, row_ts = "enviado", pc_shipped_at
+                elif pc_pdf_sent_at:
+                    row_state, row_ts = "separado", pc_pdf_sent_at
+                else:
+                    continue
+                if since_iso and row_ts < since_iso:
+                    continue
+                if until_iso and row_ts > until_iso:
+                    continue
+                c = cliente_map.get(pc["cliente_id"], {})
+                pag = next(
+                    (p for p in pags if _venda_for_pc(p, pkg_vendas, pc["id"])),
+                    None,
+                )
+                grouped[row_state].append({
+                    "type": "client_row",
+                    "id": pc["id"],
+                    "state": row_state,
+                    "pacote_id": pkg["id"],
+                    "cliente_id": pc["cliente_id"],
+                    "cliente_nome": c.get("nome"),
+                    "cliente_phone": c.get("celular"),
+                    "qty": pc.get("qty"),
+                    "total_amount": pc.get("total_amount"),
+                    "payment_status": pag.get("status") if pag else None,
+                    "pacote_friendly_id": pkg.get("friendly_id"),
+                    "pacote_sequence_no": pkg.get("sequence_no"),
+                    "enquete_id": pkg.get("enquete_id"),
+                    "enquete_title": enq.get("titulo"),
+                    "external_poll_id": enq.get("external_poll_id"),
+                    "produto_name": prod.get("nome") if prod else None,
+                    "image": f"/files/{drive_id}" if drive_id else None,
+                    "unit_price": unit_price,
+                    "pdf_sent_at": pc_pdf_sent_at,
+                    "shipped_at": pc_shipped_at,
+                    "state_since": row_ts,
+                    "age": _age_str(row_ts),
+                    "created_at": pkg.get("created_at"),
+                })
+            continue
+
         item = {
             "id": pkg["id"],
             "state": state,
@@ -417,10 +486,16 @@ def list_packages_by_state(
 
     # Fechado é ordenado pela data de fechamento (mais recente encima);
     # demais estados herdam o order=updated_at.desc da query.
+    # Separado/enviado são cliente-rows, ordena pelo timestamp da linha.
     grouped["fechado"].sort(
         key=lambda it: it.get("state_since") or "",
         reverse=True,
     )
+    for s in ("separado", "enviado"):
+        grouped[s].sort(
+            key=lambda it: it.get("state_since") or "",
+            reverse=True,
+        )
 
     counts = {s: len(grouped[s]) for s in FLOW_STATES}
     counts["cancelled"] = len(cancelled)
@@ -547,7 +622,7 @@ def get_package_detail(pacote_id: str) -> Dict[str, Any]:
                 "is_voter_only": True,
             })
 
-    state = _derive_state(pkg, pags)
+    state = _derive_state(pkg, pags, pcs)
 
     # Timeline de transições (a partir dos timestamps existentes)
     timeline: List[Dict[str, Any]] = []
@@ -604,6 +679,9 @@ def get_package_detail(pacote_id: str) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 def _load_pkg_and_pags(client: SupabaseRestClient, pacote_id: str):
+    """Retorna (pkg, vendas, pagamentos, pacote_clientes). Pacote_clientes
+    é usado pra _derive_state diferenciar 'separado parcial' (algum pc.shipped_at
+    mas não todos) de 'enviado'."""
     pkg = client.select("pacotes", filters=[("id", "eq", pacote_id)], single=True)
     if not pkg:
         raise HTTPException(404, "Pacote não encontrado")
@@ -612,7 +690,8 @@ def _load_pkg_and_pags(client: SupabaseRestClient, pacote_id: str):
     if vendas:
         venda_ids = [v["id"] for v in vendas]
         pags = client.select("pagamentos", filters=[("venda_id", "in", venda_ids)]) or []
-    return pkg, vendas, pags
+    pcs = client.select("pacote_clientes", filters=[("pacote_id", "eq", pacote_id)]) or []
+    return pkg, vendas, pags, pcs
 
 
 VALID_PENDING_REASONS = {
@@ -663,8 +742,8 @@ async def advance_package(pacote_id: str, request: Request, to: Optional[str] = 
     exige body JSON com `{reasons: [...], observations?: '...'}`.
     """
     client = SupabaseRestClient.from_settings()
-    pkg, vendas, pags = _load_pkg_and_pags(client, pacote_id)
-    state = _derive_state(pkg, pags)
+    pkg, vendas, pags, pcs = _load_pkg_and_pags(client, pacote_id)
+    state = _derive_state(pkg, pags, pcs)
     role = _role_from(request)
     if not _auth.can_advance(role, state, to):
         raise HTTPException(403, f"Role '{role}' não pode avançar de '{state}'" + (f" pra '{to}'" if to else ""))
@@ -695,8 +774,8 @@ async def advance_package(pacote_id: str, request: Request, to: Optional[str] = 
             request.state.skip_pending_reasons = True
         while cur_idx < target_idx and steps < len(FLOW_STATES):
             await advance_package(pacote_id, request, to=None)  # avança 1 step
-            pkg, vendas, pags = _load_pkg_and_pags(client, pacote_id)
-            state = _derive_state(pkg, pags)
+            pkg, vendas, pags, pcs = _load_pkg_and_pags(client, pacote_id)
+            state = _derive_state(pkg, pags, pcs)
             if state not in FLOW_STATES:
                 break
             cur_idx = FLOW_STATES.index(state)
@@ -774,11 +853,24 @@ async def advance_package(pacote_id: str, request: Request, to: Optional[str] = 
             "pdf_status": "sent",
             "pdf_file_name": f"etiqueta-{pkg.get('sequence_no') or 'n'}.pdf",
         }, filters=[("id", "eq", pacote_id)])
+        # Propaga pra todos os pacote_clientes (separado é granular por cliente).
+        client.update(
+            "pacote_clientes",
+            {"pdf_sent_at": now},
+            filters=[("pacote_id", "eq", pacote_id), ("pdf_sent_at", "is", "null")],
+        )
         return {"status": "ok", "previous": "pendente", "new_state": "separado"}
 
     if state == "separado":
+        # Atalho admin/logística: marca o pacote inteiro como enviado.
+        # Marca todos os pacote_clientes que ainda não foram enviados + pkg.shipped_at.
+        client.update(
+            "pacote_clientes",
+            {"shipped_at": now},
+            filters=[("pacote_id", "eq", pacote_id), ("shipped_at", "is", "null")],
+        )
         client.update("pacotes",
-                      {"shipped_at": now, "shipped_by": "simulated@dev"},
+                      {"shipped_at": now, "shipped_by": role},
                       filters=[("id", "eq", pacote_id)])
         return {"status": "ok", "previous": "separado", "new_state": "enviado"}
 
@@ -796,8 +888,8 @@ def regress_package(pacote_id: str, request: Request) -> Dict[str, Any]:
     if not _auth.can_regress(role):
         raise HTTPException(403, "Apenas o administrador pode reverter etapas.")
     client = SupabaseRestClient.from_settings()
-    pkg, vendas, pags = _load_pkg_and_pags(client, pacote_id)
-    state = _derive_state(pkg, pags)
+    pkg, vendas, pags, pcs = _load_pkg_and_pags(client, pacote_id)
+    state = _derive_state(pkg, pags, pcs)
     now = client.now_iso()
 
     if state == "aberto":
@@ -836,16 +928,28 @@ def regress_package(pacote_id: str, request: Request) -> Dict[str, Any]:
         # Volta pra fila de separação. Atualizamos payment_validated_at pra
         # refletir o momento do regress: o listing filtra "pendente" por esse
         # timestamp, então sem isso o pacote sumiria da view atual.
+        # Também zera pdf_sent_at nos pacote_clientes (separado é granular).
         client.update("pacotes",
                       {"pdf_sent_at": None, "pdf_status": None, "pdf_file_name": None,
                        "payment_validated_at": now},
                       filters=[("id", "eq", pacote_id)])
+        client.update(
+            "pacote_clientes",
+            {"pdf_sent_at": None, "shipped_at": None},
+            filters=[("pacote_id", "eq", pacote_id)],
+        )
         return {"status": "ok", "previous": "separado", "new_state": "pendente"}
 
     if state == "enviado":
+        # Zera pkg.shipped_at e todos os pacote_clientes.shipped_at.
         client.update("pacotes",
                       {"shipped_at": None, "shipped_by": None},
                       filters=[("id", "eq", pacote_id)])
+        client.update(
+            "pacote_clientes",
+            {"shipped_at": None},
+            filters=[("pacote_id", "eq", pacote_id)],
+        )
         return {"status": "ok", "previous": "enviado", "new_state": "separado"}
 
     raise HTTPException(400, f"Estado desconhecido: {state}")
@@ -955,9 +1059,18 @@ _CLIENT_FLOW = ["pago", "pendente", "separado", "enviado"]
 
 
 @router.post("/packages/{pacote_id}/clients/{cliente_id}/advance")
-def advance_client(pacote_id: str, cliente_id: str, to: Optional[str] = None) -> Dict[str, Any]:
+def advance_client(
+    pacote_id: str,
+    cliente_id: str,
+    request: Request,
+    to: Optional[str] = None,
+) -> Dict[str, Any]:
     """Avança UM cliente individualmente nas fases finais (pago→pendente→separado→enviado).
-    Aceita ?to=<estado> pra pular várias etapas. Não toca em outros clientes do pacote."""
+    Aceita ?to=<estado> pra pular várias etapas. Não toca em outros clientes do pacote.
+
+    Quando este cliente é o último do pacote a ser marcado como 'enviado',
+    também seta pkg.shipped_at — assim o pacote vira 'enviado' no estado agregado.
+    """
     client = SupabaseRestClient.from_settings()
     pkg = client.select("pacotes", filters=[("id", "eq", pacote_id)], single=True)
     if not pkg:
@@ -990,6 +1103,15 @@ def advance_client(pacote_id: str, cliente_id: str, to: Optional[str] = None) ->
     if target_idx >= len(_CLIENT_FLOW):
         raise HTTPException(400, "Cliente já está no estado final")
 
+    role = _role_from(request)
+    target_state = _CLIENT_FLOW[target_idx]
+    # Valida permissão pelo estado atual e destino na granularidade de cliente.
+    if not _auth.can_advance(role, state, target_state):
+        raise HTTPException(
+            403,
+            f"Role '{role}' não pode avançar cliente de '{state}' pra '{target_state}'",
+        )
+
     now = client.now_iso()
     update_payload: Dict[str, Any] = {}
     # Marca todos os timestamps até o target inclusive (idempotente nos já setados).
@@ -1002,10 +1124,29 @@ def advance_client(pacote_id: str, cliente_id: str, to: Optional[str] = None) ->
     if update_payload:
         client.update("pacote_clientes", update_payload, filters=[("id", "eq", pc["id"])])
 
+    # Se marcou shipped_at e este foi o último cliente sem shipped_at, propaga
+    # pra pkg.shipped_at — pacote vira 'enviado' no agregado.
+    if "shipped_at" in update_payload and not pkg.get("shipped_at"):
+        all_pcs = client.select(
+            "pacote_clientes",
+            filters=[("pacote_id", "eq", pacote_id)],
+        ) or []
+        # this pc já está atualizado no banco; checa todos os outros
+        all_shipped = all(
+            (other["id"] == pc["id"]) or other.get("shipped_at")
+            for other in all_pcs
+        )
+        if all_shipped and all_pcs:
+            client.update(
+                "pacotes",
+                {"shipped_at": now, "shipped_by": role},
+                filters=[("id", "eq", pacote_id)],
+            )
+
     return {
         "status": "ok",
         "previous": state,
-        "new_state": _CLIENT_FLOW[target_idx],
+        "new_state": target_state,
         "cliente_id": cliente_id,
     }
 
@@ -1045,7 +1186,7 @@ def mark_client_paid(pacote_id: str, cliente_id: str) -> Dict[str, Any]:
 @router.post("/packages/{pacote_id}/resend-pix")
 def resend_pix(pacote_id: str) -> Dict[str, Any]:
     client = SupabaseRestClient.from_settings()
-    pkg, vendas, pags = _load_pkg_and_pags(client, pacote_id)
+    _pkg, _vendas, pags, _pcs = _load_pkg_and_pags(client, pacote_id)
     pendentes = [p for p in pags if (p.get("status") or "") in ("created", "sent")]
     now = client.now_iso()
     for p in pendentes:
@@ -1190,8 +1331,8 @@ def add_client_to_package(pacote_id: str, body: Dict[str, Any]) -> Dict[str, Any
     if not pkg:
         raise HTTPException(404, "Pacote não encontrado")
 
-    pags = _load_pkg_and_pags(client, pacote_id)[2]
-    state = _derive_state(pkg, pags)
+    _pkg2, _vendas, pags, pcs = _load_pkg_and_pags(client, pacote_id)
+    state = _derive_state(pkg, pags, pcs)
     now = client.now_iso()
 
     cli = client.select("clientes", filters=[("id", "eq", cliente_id)], single=True)
@@ -1247,8 +1388,8 @@ def remove_client_from_package(pacote_id: str, cliente_id: str) -> Dict[str, Any
     if not pkg:
         raise HTTPException(404, "Pacote não encontrado")
 
-    pags = _load_pkg_and_pags(client, pacote_id)[2]
-    state = _derive_state(pkg, pags)
+    _pkg2, _vendas, pags, pcs = _load_pkg_and_pags(client, pacote_id)
+    state = _derive_state(pkg, pags, pcs)
     now = client.now_iso()
 
     if state == "aberto":
@@ -1735,7 +1876,8 @@ def get_enquete_detail(enquete_id: str) -> Dict[str, Any]:
     pacotes_out: List[Dict[str, Any]] = []
     for pk in pacotes:
         pkg_pags = pags_by_pacote.get(pk["id"], [])
-        state = _derive_state(pk, pkg_pags)
+        pk_pcs = pcs_by_pacote.get(pk["id"], [])
+        state = _derive_state(pk, pkg_pags, pk_pcs)
         clientes_detail = []
         for pc in pcs_by_pacote.get(pk["id"], []):
             c = cliente_map.get(pc["cliente_id"], {})

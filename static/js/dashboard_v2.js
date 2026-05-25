@@ -360,6 +360,43 @@
         el.querySelector("#list-pg-next").addEventListener("click", () => { listPage++; renderList(); });
     }
 
+    // Renderiza uma linha cliente-row (separado/enviado): foco no cliente,
+    // pacote-pai como subtítulo. Botão de avanço atua apenas neste cliente.
+    function renderClientRow(p) {
+        const state = p.state || activeState;
+        const meta = L.parsePollTitle(p.produto_name);
+        const thumb = p.image
+            ? `<img src="${L.escapeHtml(p.image)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${L.productEmoji(meta.item)}'}))">`
+            : `<span>${L.productEmoji(meta.item)}</span>`;
+        const pacoteTag = p.pacote_friendly_id
+            ? L.escapeHtml(p.pacote_friendly_id)
+            : (p.pacote_sequence_no != null ? `#${p.pacote_sequence_no}` : "—");
+        let actionBtn = "";
+        if (state === "separado" && canDoAdvance("separado", "enviado")) {
+            actionBtn = `<button class="row-action"
+                data-action="advance"
+                data-to="enviado"
+                data-pacote-id="${p.pacote_id}"
+                data-cliente-id="${p.cliente_id}"
+                data-id="${p.id}"
+                title="Marcar este cliente como enviado">Marcar enviado</button>`;
+        }
+        const etiquetaBtn = p.pdf_sent_at
+            ? `<a class="row-action" href="/api/dashboard/packages/${p.pacote_id}/etiqueta.pdf" target="_blank" rel="noopener" title="Baixar PDF da etiqueta">📄 Etiqueta</a>`
+            : "";
+        const valueLabel = p.total_amount ? L.moneyFull(p.total_amount) : "—";
+        return `
+        <div class="pkg-row client-row ${p.id === selectedId ? "selected" : ""}" data-id="${p.id}" data-client-row="1" data-pacote-id="${p.pacote_id}">
+            <div class="pkg-thumb">${thumb}</div>
+            <div class="pkg-row-main">
+                <div class="name">${L.escapeHtml(p.cliente_nome || "Cliente")}</div>
+                <div class="sub">${L.escapeHtml(meta.item || p.produto_name || "")} · ${pacoteTag} · ${p.qty} peça${p.qty === 1 ? "" : "s"}</div>
+            </div>
+            <div class="pkg-row-meta">${valueLabel}<div class="sub">há ${L.age(p.state_since)}</div></div>
+            <div class="pkg-row-actions">${etiquetaBtn}${actionBtn}</div>
+        </div>`;
+    }
+
     function renderList() {
         const q = search.trim().toLowerCase();
         const all = currentItems();
@@ -369,24 +406,38 @@
 
         titleEl.textContent = activeState === "cancelled" ? "Cancelados" : L.STATE_LABELS[activeState];
 
-        // Linha = pacote (todos os estados)
-        const filtered = q ? all.filter(p =>
-            (p.produto_name || "").toLowerCase().includes(q)
-            || (p.clientes || []).some(c => (c.name || "").toLowerCase().includes(q))
-            || (p.external_poll_id || "").toLowerCase().includes(q)
-        ) : all;
+        // Linha = pacote nos estados 1-5; cliente-row em separado/enviado.
+        const isClientView = activeState === "separado" || activeState === "enviado";
+        const filtered = q ? all.filter(p => {
+            if (p.type === "client_row") {
+                return (p.cliente_nome || "").toLowerCase().includes(q)
+                    || (p.pacote_friendly_id || "").toLowerCase().includes(q)
+                    || (p.produto_name || "").toLowerCase().includes(q);
+            }
+            return (p.produto_name || "").toLowerCase().includes(q)
+                || (p.clientes || []).some(c => (c.name || "").toLowerCase().includes(q))
+                || (p.external_poll_id || "").toLowerCase().includes(q);
+        }) : all;
         const totalCount = filtered.length;
         const paged = filtered.slice((listPage - 1) * LIST_PAGE_SIZE, listPage * LIST_PAGE_SIZE);
-        const totalPieces = filtered.reduce((a, p) => a + (Math.min(p.total_qty, p.capacidade_total) || 0), 0);
-        const totalValue = filtered.reduce((a, p) => a + (p.total_value || 0), 0);
+        const totalPieces = filtered.reduce((a, p) => p.type === "client_row"
+            ? a + (p.qty || 0)
+            : a + (Math.min(p.total_qty, p.capacidade_total) || 0), 0);
+        const totalValue = filtered.reduce((a, p) => p.type === "client_row"
+            ? a + (p.total_amount || 0)
+            : a + (p.total_value || 0), 0);
+        const noun = isClientView ? "cliente" : "pacote";
         summaryEl.textContent =
-            `${totalCount} pacote${totalCount === 1 ? "" : "s"} · ${totalPieces} peças · ${L.moneyFull(totalValue)}`;
+            `${totalCount} ${noun}${totalCount === 1 ? "" : "s"} · ${totalPieces} peças · ${L.moneyFull(totalValue)}`;
         if (!totalCount) {
-            wrap.innerHTML = `<div class="empty-state">Nenhum pacote.</div>`;
+            wrap.innerHTML = `<div class="empty-state">Nenhum ${noun}.</div>`;
             renderPagination(0);
             return;
         }
         wrap.innerHTML = paged.map(p => {
+            if (p.type === "client_row") {
+                return renderClientRow(p);
+            }
             const meta = L.parsePollTitle(p.produto_name);
             const thumb = p.image
                 ? `<img src="${L.escapeHtml(p.image)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${L.productEmoji(meta.item)}'}))">`
@@ -450,7 +501,10 @@
                 if (e.target.closest("[data-action]")) return;
                 const id = row.dataset.id;
                 if (id === selectedId) {
-                    window.RaylookModal?.open(id);
+                    // Clique repetido na linha selecionada abre drilldown.
+                    // Pra cliente-row, abre o modal do pacote-pai.
+                    const target = row.dataset.clientRow ? row.dataset.pacoteId : id;
+                    window.RaylookModal?.open(target);
                     return;
                 }
                 selectedId = id;
@@ -458,7 +512,8 @@
             });
             row.addEventListener("dblclick", (e) => {
                 if (e.target.closest("[data-action]")) return;
-                window.RaylookModal?.open(row.dataset.id);
+                const target = row.dataset.clientRow ? row.dataset.pacoteId : row.dataset.id;
+                window.RaylookModal?.open(target);
             });
         });
         wrap.querySelectorAll("[data-action]").forEach(btn =>
@@ -480,6 +535,7 @@
                     opts = { confirmText: "Restaurar esse pacote pra 'fechado'?", okLabel: "Restaurar" };
                 }
                 if (btn.dataset.to) opts.to = btn.dataset.to;
+                if (btn.dataset.clienteId) opts.clienteId = btn.dataset.clienteId;
                 // Mover pra pendente exige modal de motivos (estoque clicou "Marcar pendente").
                 if (opts.to === "pendente") {
                     const result = await promptPendingReasons();
@@ -487,10 +543,57 @@
                     opts.body = result;
                     delete opts.confirmText;  // já tem o modal de motivos
                 }
-                await L.doAction(btn.dataset.id, btn.dataset.action, opts);
+                // Cliente-row: o ID-alvo da URL é o pacote, não o pacote_cliente.
+                const targetId = btn.dataset.pacoteId || btn.dataset.id;
+                await L.doAction(targetId, btn.dataset.action, opts);
             })
         );
         renderPagination(totalCount);
+    }
+
+    // Detail painel pra cliente-row (separado/enviado): foco no cliente,
+    // pacote-pai como subtítulo, botão de avanço atua só neste cliente.
+    function renderClientDetail(p) {
+        const detail = document.getElementById("detail");
+        const state = p.state || activeState;
+        const meta = L.parsePollTitle(p.produto_name);
+        const headImg = p.image
+            ? `<img src="${L.escapeHtml(p.image)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${L.productEmoji(meta.item)}'}))">`
+            : `<span>${L.productEmoji(meta.item)}</span>`;
+        const pacoteTag = p.pacote_friendly_id || (p.pacote_sequence_no != null ? `#${p.pacote_sequence_no}` : "—");
+        const subParts = [meta.item || p.produto_name, `pacote ${pacoteTag}`].filter(Boolean);
+        const showMarkSent = state === "separado" && canDoAdvance("separado", "enviado");
+        const value = p.total_amount ? L.moneyFull(p.total_amount) : "—";
+
+        detail.innerHTML = `
+            <div class="head">
+                <div class="head-img">${headImg}</div>
+                <h2>${L.escapeHtml(p.cliente_nome || "Cliente")}</h2>
+                <div class="subtitle">${L.pill(state)} · ${L.escapeHtml(subParts.join(" · "))}</div>
+            </div>
+            <div class="summary-grid">
+                <div class="summary-cell"><div class="l">Peças</div><div class="v">${p.qty || 0}</div></div>
+                <div class="summary-cell"><div class="l">Valor</div><div class="v money">${value}</div></div>
+                <div class="summary-cell"><div class="l">Telefone</div><div class="v" style="font-size:0.85rem;">${L.escapeHtml(p.cliente_phone || "—")}</div></div>
+                <div class="summary-cell"><div class="l">No estado há</div><div class="v">${L.age(p.state_since)}</div></div>
+            </div>
+            <div class="detail-actions">
+                ${showMarkSent ? `<button class="btn-primary" data-client-advance>📦 Marcar enviado</button>` : ""}
+                ${p.pdf_sent_at ? `<a class="btn-ghost" href="/api/dashboard/packages/${p.pacote_id}/etiqueta.pdf" target="_blank" rel="noopener" style="text-decoration:none;">📄 Baixar etiqueta</a>` : ""}
+                <button class="btn-ghost" data-drill-pacote>Ver detalhes do pacote</button>
+            </div>`;
+
+        detail.querySelector("[data-client-advance]")?.addEventListener("click", async () => {
+            await L.doAction(p.pacote_id, "advance", {
+                to: "enviado",
+                clienteId: p.cliente_id,
+                confirmText: `Marcar "${p.cliente_nome || "Cliente"}" como enviado?`,
+                okLabel: "Marcar enviado",
+            });
+        });
+        detail.querySelector("[data-drill-pacote]")?.addEventListener("click", () => {
+            window.RaylookModal?.open(p.pacote_id);
+        });
     }
 
     function renderDetail() {
@@ -498,6 +601,10 @@
         const p = currentItems().find(x => x.id === selectedId);
         if (!p) {
             detail.innerHTML = `<div class="empty-state">Selecione um pacote</div>`;
+            return;
+        }
+        if (p.type === "client_row") {
+            renderClientDetail(p);
             return;
         }
         const state = p.state || activeState;

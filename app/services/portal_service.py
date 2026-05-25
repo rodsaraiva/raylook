@@ -323,11 +323,16 @@ def reset_password(cliente_id: str, new_password: str) -> str:
 # Dados de pedidos do cliente
 # ---------------------------------------------------------------------------
 
-def _delivery_status(pag_status: str, pacote: Dict[str, Any]) -> Dict[str, Any]:
+def _delivery_status(
+    pag_status: str,
+    pacote: Dict[str, Any],
+    pacote_cliente: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """Mapeia o estado logístico do pacote pro que aparece no portal do
     cliente. Pré-pagamento devolve 'pending' (mesma semântica antiga,
     significa 'aguardando pagamento'); pós-pagamento mapeia pelo estágio
-    real do pacote no fluxo do dashboard.
+    real DO CLIENTE — separado/enviado são granulares por pacote_cliente.
+    Fallback em pkg.* protege pacotes legados sem backfill aplicado.
 
     Retorna dict com `code` e, quando pendente, `reasons`/`observations`.
     """
@@ -337,9 +342,12 @@ def _delivery_status(pag_status: str, pacote: Dict[str, Any]) -> Dict[str, Any]:
         return {"code": "pending", "reasons": [], "observations": ""}
     if (pacote.get("status") or "").lower() == "cancelled":
         return {"code": "cancelled", "reasons": [], "observations": ""}
-    if pacote.get("shipped_at"):
+    pc = pacote_cliente or {}
+    shipped = pc.get("shipped_at") or pacote.get("shipped_at")
+    pdf = pc.get("pdf_sent_at") or pacote.get("pdf_sent_at")
+    if shipped:
         return {"code": "enviado", "reasons": [], "observations": ""}
-    if pacote.get("pdf_sent_at"):
+    if pdf:
         return {"code": "separado", "reasons": [], "observations": ""}
     reasons = pacote.get("pending_reasons") or []
     if isinstance(reasons, list) and reasons:
@@ -359,7 +367,7 @@ def get_client_orders(cliente_id: str) -> List[Dict[str, Any]]:
     vendas = client.select_all(
         "vendas",
         columns=(
-            "id,pacote_id,produto_id,qty,unit_price,subtotal,"
+            "id,pacote_id,pacote_cliente_id,produto_id,qty,unit_price,subtotal,"
             "commission_percent,commission_amount,total_amount,status,created_at,"
             "produto:produto_id(nome,descricao,tamanho,drive_file_id),"
             "pacote:pacote_id(id,status,shipped_at,pdf_sent_at,pending_reasons,pending_observations,"
@@ -383,6 +391,17 @@ def get_client_orders(cliente_id: str) -> List[Dict[str, Any]]:
         )
     pag_by_venda = {str(p["venda_id"]): p for p in pagamentos if p.get("venda_id")}
 
+    # 2b) Pacote_clientes deste cliente — granularidade de separado/enviado.
+    pc_ids = [str(v["pacote_cliente_id"]) for v in vendas if v.get("pacote_cliente_id")]
+    pcs_rows = []
+    if pc_ids:
+        pcs_rows = client.select_all(
+            "pacote_clientes",
+            columns="id,shipped_at,pdf_sent_at",
+            filters=[("id", "in", pc_ids)],
+        ) or []
+    pc_by_id = {str(pc["id"]): pc for pc in pcs_rows}
+
     # 3) Montar lista unificada
     orders: List[Dict[str, Any]] = []
     for venda in vendas:
@@ -404,7 +423,8 @@ def get_client_orders(cliente_id: str) -> List[Dict[str, Any]]:
         pag_status = str(pagamento.get("status") or venda.get("status") or "pending").lower()
         if pag_status in CANCELLED_STATUSES:
             continue
-        delivery = _delivery_status(pag_status, pacote)
+        pc_row = pc_by_id.get(str(venda.get("pacote_cliente_id") or ""))
+        delivery = _delivery_status(pag_status, pacote, pc_row)
 
         # F-061: imagem da enquete (post específico) tem prioridade sobre a do produto.
         # ?size=600 entrega thumb cacheada em vez do original (~200KB) — corta
