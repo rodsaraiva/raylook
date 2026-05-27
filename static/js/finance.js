@@ -187,8 +187,10 @@
             ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     }
 
-    // ---- Click handlers (delegated) ----
-    document.addEventListener("click", (ev) => {
+    // ---- Click handlers (delegated, escopados à seção finance pra não
+    // pegar botões que reusam as mesmas classes em outras abas) ----
+    const financeRoot = document.getElementById("section-finance");
+    financeRoot?.addEventListener("click", (ev) => {
         const expandBtn = ev.target.closest(".btn-expand[data-cliente]");
         if (expandBtn) {
             const id = expandBtn.dataset.cliente;
