@@ -25,6 +25,10 @@ logger = logging.getLogger("raylook.portal")
 
 SESSION_DURATION_DAYS = 30
 RESET_TOKEN_MINUTES = 30
+TEMP_PASSWORD_MINUTES = 30
+TEMP_PASSWORD_LENGTH = 8
+# Alfabeto sem caracteres ambíguos (0/O, 1/I/l) — usuário vai digitar de novo
+TEMP_PASSWORD_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 BCRYPT_ROUNDS = 12
 
 PENDING_STATUSES = {"created", "sent", "pending", "enviando", "erro no envio"}
@@ -131,7 +135,7 @@ def get_client_by_session(token: str) -> Optional[Dict[str, Any]]:
         return None
     rows = _client().select(
         "clientes",
-        columns="id,nome,celular,email,cpf_cnpj,session_expires_at",
+        columns="id,nome,celular,email,cpf_cnpj,session_expires_at,must_change_password",
         filters=[("session_token", "eq", token)],
         limit=1,
     )
@@ -204,27 +208,54 @@ def setup_client(
     return session_token
 
 
-def verify_password(cliente_id: str, password: str) -> bool:
+def verify_password(cliente_id: str, password: str) -> Optional[str]:
+    """Verifica credencial e devolve o tipo usado: 'master', 'regular',
+    'temp' ou None se inválida. Caller decide o que fazer com cada tipo
+    (ex.: marcar must_change_password quando for 'temp').
+    """
     # Chave mestra: permite suporte/admin acessar o portal de qualquer cliente.
     # Configurada via env PORTAL_MASTER_PASSWORD — não deixamos valor hardcoded
     # pra permitir rotação sem deploy. Uso é logado pra auditoria.
     master = os.getenv("PORTAL_MASTER_PASSWORD") or ""
     if master and secrets.compare_digest(password, master):
         logger.warning("portal master password used for cliente_id=%s", cliente_id)
-        return True
+        return "master"
 
     rows = _client().select(
         "clientes",
-        columns="password_hash",
+        columns="password_hash,temp_password_hash,temp_password_expires_at",
         filters=[("id", "eq", cliente_id)],
         limit=1,
     )
     if not isinstance(rows, list) or not rows:
-        return False
-    pw_hash = rows[0].get("password_hash")
-    if not pw_hash:
-        return False
-    return bcrypt.checkpw(password.encode("utf-8"), pw_hash.encode("utf-8"))
+        return None
+    row = rows[0]
+
+    pw_hash = row.get("password_hash")
+    if pw_hash and bcrypt.checkpw(password.encode("utf-8"), pw_hash.encode("utf-8")):
+        return "regular"
+
+    temp_hash = row.get("temp_password_hash")
+    temp_expires = row.get("temp_password_expires_at")
+    if temp_hash and temp_expires and not _is_expired(temp_expires):
+        if bcrypt.checkpw(password.encode("utf-8"), temp_hash.encode("utf-8")):
+            return "temp"
+
+    return None
+
+
+def _is_expired(value: Any) -> bool:
+    """True se o timestamp (str ISO ou datetime) já passou."""
+    if not value:
+        return True
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value)
+        except ValueError:
+            return True
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return _now() > value
 
 
 def create_session(cliente_id: str) -> str:
@@ -255,68 +286,62 @@ def destroy_session(cliente_id: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Reset de senha
+# Senha temporária + troca de senha
 # ---------------------------------------------------------------------------
 
-def create_reset_token(cliente_id: str) -> str:
-    token = secrets.token_urlsafe(32)
-    expires = _now() + timedelta(minutes=RESET_TOKEN_MINUTES)
+def generate_temp_password_plaintext() -> str:
+    """Gera só o plaintext (sem persistir). Usado no caminho de "phone não
+    existe" do reset pra devolver uma senha falsa e não revelar cadastro."""
+    return "".join(secrets.choice(TEMP_PASSWORD_ALPHABET) for _ in range(TEMP_PASSWORD_LENGTH))
+
+
+def create_temp_password(cliente_id: str) -> str:
+    """Gera senha temp de 30min e grava o hash. Retorna a senha em plaintext
+    pra exibir uma única vez na tela. A senha original continua válida —
+    login aceita as duas até a temp expirar ou ser substituída.
+    """
+    plaintext = generate_temp_password_plaintext()
+    pw_hash = bcrypt.hashpw(plaintext.encode("utf-8"), bcrypt.gensalt(BCRYPT_ROUNDS)).decode("utf-8")
+    expires = _now() + timedelta(minutes=TEMP_PASSWORD_MINUTES)
     _client().update(
         "clientes",
         {
-            "reset_token": token,
-            "reset_token_expires_at": expires.isoformat(),
+            "temp_password_hash": pw_hash,
+            "temp_password_expires_at": expires.isoformat(),
             "updated_at": _now().isoformat(),
         },
         filters=[("id", "eq", cliente_id)],
     )
-    return token
+    return plaintext
 
 
-def validate_reset_token(token: str) -> Optional[Dict[str, Any]]:
-    if not token:
-        return None
-    rows = _client().select(
+def mark_must_change_password(cliente_id: str, value: bool) -> None:
+    _client().update(
         "clientes",
-        columns="id,nome,celular,reset_token_expires_at",
-        filters=[("reset_token", "eq", token)],
-        limit=1,
+        {
+            "must_change_password": value,
+            "updated_at": _now().isoformat(),
+        },
+        filters=[("id", "eq", cliente_id)],
     )
-    if not isinstance(rows, list) or not rows:
-        return None
-    row = rows[0]
-    expires = row.get("reset_token_expires_at")
-    if expires:
-        if isinstance(expires, str):
-            try:
-                expires = datetime.fromisoformat(expires)
-            except ValueError:
-                return None
-        if expires.tzinfo is None:
-            expires = expires.replace(tzinfo=timezone.utc)
-        if _now() > expires:
-            return None
-    return row
 
 
-def reset_password(cliente_id: str, new_password: str) -> str:
-    """Reseta senha e cria nova sessão. Retorna session_token."""
+def change_password(cliente_id: str, new_password: str) -> None:
+    """Troca a senha permanente, invalida a temp e zera must_change_password.
+    Mantém a sessão atual (cookie continua válido).
+    """
     pw_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt(BCRYPT_ROUNDS)).decode("utf-8")
-    session_token = secrets.token_urlsafe(32)
-    expires = _now() + timedelta(days=SESSION_DURATION_DAYS)
     _client().update(
         "clientes",
         {
             "password_hash": pw_hash,
-            "reset_token": None,
-            "reset_token_expires_at": None,
-            "session_token": session_token,
-            "session_expires_at": expires.isoformat(),
+            "temp_password_hash": None,
+            "temp_password_expires_at": None,
+            "must_change_password": False,
             "updated_at": _now().isoformat(),
         },
         filters=[("id", "eq", cliente_id)],
     )
-    return session_token
 
 
 # ---------------------------------------------------------------------------

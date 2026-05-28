@@ -51,6 +51,9 @@ CREATE TABLE IF NOT EXISTS clientes (
     session_expires_at timestamptz,
     reset_token text,
     reset_token_expires_at timestamptz,
+    temp_password_hash text,
+    temp_password_expires_at timestamptz,
+    must_change_password boolean NOT NULL DEFAULT false,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
 );

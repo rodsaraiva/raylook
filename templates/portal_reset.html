@@ -8,6 +8,45 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/portal.css">
+    <style>
+        .temp-pass-box {
+            margin: 1.25rem 0 0.5rem;
+            padding: 1rem;
+            background: rgba(212,175,55,0.08);
+            border: 1px solid rgba(212,175,55,0.35);
+            border-radius: 12px;
+            text-align: center;
+        }
+        .temp-pass-value {
+            font-family: 'Outfit', monospace;
+            font-size: 1.9rem;
+            font-weight: 700;
+            letter-spacing: 0.35em;
+            color: #e8c46a;
+            margin: 0.25rem 0 0.75rem;
+            user-select: all;
+        }
+        .temp-pass-copy {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.45rem 0.9rem;
+            background: rgba(212,175,55,0.16);
+            color: #e8c46a;
+            border: 1px solid rgba(212,175,55,0.3);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .temp-pass-copy:hover { background: rgba(212,175,55,0.24); }
+        .temp-pass-copy.copied { background: rgba(80,200,120,0.18); border-color: rgba(80,200,120,0.4); color: #7adea0; }
+        .temp-pass-hint {
+            font-size: 0.85rem;
+            color: rgba(255,255,255,0.65);
+            margin: 0.5rem 0 0;
+        }
+    </style>
 </head>
 <body>
     <div class="page">
@@ -23,20 +62,29 @@
                 <i class="fas fa-key"></i>
             </div>
 
-            {% if success %}
-            <h1>Link enviado!</h1>
+            {% if temp_password %}
+            <h1>Senha temporária</h1>
             <p class="auth-subtitle">
-                Enviamos um link para redefinir sua senha para o email
-                {% if email_hint %}<strong>{{ email_hint }}</strong>{% else %}cadastrado{% endif %}.
-                O link expira em 30 minutos.
+                Use a senha abaixo no login. Ela expira em
+                <strong>{{ expires_minutes }} minutos</strong>. Quando você entrar,
+                vamos pedir pra criar uma senha nova.
             </p>
-            <div class="alert alert-success">
-                <i class="fas fa-check-circle"></i>
-                Verifique sua caixa de entrada (e o spam)
+
+            <div class="temp-pass-box">
+                <div class="temp-pass-value" id="tempPass">{{ temp_password }}</div>
+                <button type="button" class="temp-pass-copy" id="tempCopyBtn">
+                    <i class="fas fa-copy"></i> <span>Copiar</span>
+                </button>
+                <p class="temp-pass-hint">A senha original continua valendo se você lembrar.</p>
             </div>
+
+            <a href="/portal" class="btn-primary" style="margin-top:1rem;">
+                <i class="fas fa-arrow-right"></i>
+                <span>Ir pro login</span>
+            </a>
             {% else %}
             <h1>Esqueceu a senha?</h1>
-            <p class="auth-subtitle">Informe seu numero e enviaremos um link de redefinicao para o email cadastrado</p>
+            <p class="auth-subtitle">Informe seu número que a gente gera uma senha temporária na hora.</p>
 
             {% if error %}
             <div class="alert alert-error">
@@ -57,8 +105,8 @@
                 </div>
 
                 <button type="submit" class="btn-primary">
-                    <i class="fas fa-paper-plane"></i>
-                    <span>Enviar link</span>
+                    <i class="fas fa-key"></i>
+                    <span>Gerar senha temporária</span>
                 </button>
             </form>
             {% endif %}
@@ -74,5 +122,34 @@
     </div>
 
     <script src="/static/js/portal_form.js"></script>
+    {% if temp_password %}
+    <script>
+        (function () {
+            const btn = document.getElementById('tempCopyBtn');
+            const pwd = document.getElementById('tempPass');
+            if (!btn || !pwd) return;
+            btn.addEventListener('click', async () => {
+                const text = pwd.textContent.trim();
+                try {
+                    await navigator.clipboard.writeText(text);
+                } catch (_) {
+                    const range = document.createRange();
+                    range.selectNode(pwd);
+                    const sel = window.getSelection();
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                    try { document.execCommand('copy'); } catch (_) {}
+                    sel.removeAllRanges();
+                }
+                btn.classList.add('copied');
+                btn.querySelector('span').textContent = 'Copiado!';
+                setTimeout(() => {
+                    btn.classList.remove('copied');
+                    btn.querySelector('span').textContent = 'Copiar';
+                }, 2000);
+            });
+        })();
+    </script>
+    {% endif %}
 </body>
 </html>

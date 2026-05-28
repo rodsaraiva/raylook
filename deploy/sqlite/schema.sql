@@ -46,6 +46,9 @@ CREATE TABLE IF NOT EXISTS clientes (
     session_expires_at TEXT,
     reset_token TEXT,
     reset_token_expires_at TEXT,
+    temp_password_hash TEXT,
+    temp_password_expires_at TEXT,
+    must_change_password INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );

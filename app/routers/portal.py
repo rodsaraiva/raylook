@@ -167,11 +167,20 @@ async def portal_login(request: Request, phone: str = Form(...), password: str =
         })
 
     _MASTER_KEY = "chavemestra-raylook"
-    if password != _MASTER_KEY and not ps.verify_password(client["id"], password):
+    kind: Optional[str]
+    if password == _MASTER_KEY:
+        kind = "master"
+    else:
+        kind = ps.verify_password(client["id"], password)
+
+    if not kind:
         return _templates().TemplateResponse(request, "portal_login.html", {
             "error": "Senha incorreta.",
             "phone": phone,
         })
+
+    if kind == "temp":
+        ps.mark_must_change_password(client["id"], True)
 
     token = ps.create_session(client["id"])
     resp = RedirectResponse("/portal/pedidos", status_code=302)
@@ -234,7 +243,7 @@ async def portal_setup_submit(
 
 
 # ---------------------------------------------------------------------------
-# Reset de senha
+# Esqueci minha senha — gera senha temp de 30min e mostra na tela
 # ---------------------------------------------------------------------------
 
 @router.get("/reset", response_class=HTMLResponse)
@@ -244,123 +253,57 @@ async def portal_reset_page(request: Request):
 
 @router.post("/reset")
 async def portal_reset_submit(request: Request, phone: str = Form(...)):
-    """Gera token de reset e envia link via WhatsApp."""
+    """Gera senha temp de 30min e mostra na própria tela.
+
+    Rate-limit reaproveita o do login pra dificultar enumeração + brute force
+    de geração de temps. Se o número não existe, devolve a mesma tela de
+    sucesso com uma senha falsa pra não revelar cadastro.
+    """
+    if not ps.check_rate_limit(phone):
+        return _templates().TemplateResponse(request, "portal_reset.html", {
+            "error": "Muitas tentativas. Aguarde 15 minutos.",
+        })
+    ps.record_login_attempt(phone)
+
     client = ps.get_client_by_phone(phone)
     if not client:
-        # Não revelar se o número existe ou não
+        # Não revelar se o número existe — devolve sucesso com senha aleatória
+        # que não foi gravada em DB (não vai funcionar no login).
+        fake = ps.generate_temp_password_plaintext()
         return _templates().TemplateResponse(request, "portal_reset.html", {
-            "success": True,
+            "temp_password": fake,
+            "expires_minutes": ps.TEMP_PASSWORD_MINUTES,
         })
 
-    token = ps.create_reset_token(client["id"])
-    domain = _get_domain()
-    reset_link = f"https://{domain}/portal/reset/{token}"
-
-    # Verificar se o cliente tem email cadastrado
-    email = client.get("email")
-    if not email:
-        return _templates().TemplateResponse(request, "portal_reset.html", {
-            "error": "Nenhum email cadastrado para este numero. Entre em contato com a Raylook.",
-        })
-
-    # Enviar link de reset por email via Resend
-    try:
-        from app.config import settings
-        nome = (client.get("nome") or "").split()[0] if client.get("nome") else "Cliente"
-
-        if getattr(settings, "RESEND_EMAIL_STUB", True):
-            logger.info("[resend-stub] reset email to=%s nome=%s link=%s", email, nome, reset_link)
-            return _templates().TemplateResponse(request, "portal_reset.html", {
-                "success": True,
-                "email_hint": email,
-            })
-
-        import resend
-        resend.api_key = os.getenv("RESEND_API_KEY") or ""
-        if not resend.api_key:
-            raise RuntimeError("RESEND_API_KEY não configurado")
-
-        resend.Emails.send({
-            "from": "Raylook <noreply@raylook.v4smc.com>",
-            "to": [email],
-            "subject": "Redefinir sua senha — Raylook",
-            "html": f"""
-                <div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
-                    <div style="text-align: center; margin-bottom: 24px;">
-                        <h2 style="color: #4A3B3B; font-size: 18px; letter-spacing: 0.1em; margin: 0;">RAYLOOK</h2>
-                        <p style="color: #5C4A4A; font-size: 10px; letter-spacing: 0.3em; margin: 4px 0 0; text-transform: uppercase;">Assessoria</p>
-                    </div>
-                    <div style="background: #f9f3f3; border-radius: 16px; padding: 32px 24px; text-align: center;">
-                        <h1 style="color: #2D1F1F; font-size: 20px; margin: 0 0 8px;">Ola, {nome}!</h1>
-                        <p style="color: #5C4A4A; font-size: 14px; line-height: 1.5; margin: 0 0 24px;">
-                            Voce solicitou a redefinicao da sua senha no portal de pedidos.
-                        </p>
-                        <a href="{reset_link}" style="display: inline-block; background: #4A3B3B; color: #fff; text-decoration: none; padding: 14px 32px; border-radius: 12px; font-weight: 700; font-size: 14px;">
-                            Criar nova senha
-                        </a>
-                        <p style="color: #999; font-size: 12px; margin: 24px 0 0; line-height: 1.4;">
-                            Este link expira em 30 minutos.<br>
-                            Se voce nao solicitou, ignore este email.
-                        </p>
-                    </div>
-                </div>
-            """,
-        })
-        logger.info("Reset link enviado por email para %s", email)
-    except Exception as exc:
-        logger.error("Falha ao enviar email de reset via Resend: %s", exc)
-        return _templates().TemplateResponse(request, "portal_reset.html", {
-            "error": "Erro ao enviar email. Tente novamente.",
-        })
-
+    temp = ps.create_temp_password(client["id"])
+    logger.info("temp password generated for cliente_id=%s", client["id"])
     return _templates().TemplateResponse(request, "portal_reset.html", {
-        "success": True,
-        "email_hint": email,
+        "temp_password": temp,
+        "expires_minutes": ps.TEMP_PASSWORD_MINUTES,
     })
 
 
-@router.get("/reset/{token}", response_class=HTMLResponse)
-async def portal_reset_confirm_page(request: Request, token: str):
-    client = ps.validate_reset_token(token)
-    if not client:
-        return _templates().TemplateResponse(request, "portal_reset.html", {
-            "error": "Link inválido ou expirado. Solicite um novo.",
-        })
-    return _templates().TemplateResponse(request, "portal_reset_confirm.html", {
-        "token": token,
-        "nome": client.get("nome") or "",
-    })
+# ---------------------------------------------------------------------------
+# Troca de senha (modal blocking após login com temp)
+# ---------------------------------------------------------------------------
 
-
-@router.post("/reset/{token}")
-async def portal_reset_confirm_submit(
+@router.post("/change-password")
+async def portal_change_password(
     request: Request,
-    token: str,
     password: str = Form(...),
     password_confirm: str = Form(...),
 ):
-    client = ps.validate_reset_token(token)
+    client = await _get_current_client(request)
     if not client:
-        return _templates().TemplateResponse(request, "portal_reset.html", {
-            "error": "Link inválido ou expirado. Solicite um novo.",
-        })
+        return JSONResponse({"error": "Não autenticado."}, status_code=401)
 
-    errors = []
     if len(password) < 6:
-        errors.append("A senha deve ter pelo menos 6 caracteres.")
+        return JSONResponse({"error": "A senha deve ter pelo menos 6 caracteres."}, status_code=400)
     if password != password_confirm:
-        errors.append("As senhas não conferem.")
+        return JSONResponse({"error": "As senhas não conferem."}, status_code=400)
 
-    if errors:
-        return _templates().TemplateResponse(request, "portal_reset_confirm.html", {
-            "token": token,
-            "nome": client.get("nome") or "",
-            "errors": errors,
-        })
-
-    session_token = ps.reset_password(client["id"], password)
-    resp = RedirectResponse("/portal/pedidos", status_code=302)
-    return _set_session_cookie(resp, session_token)
+    ps.change_password(client["id"], password)
+    return JSONResponse({"ok": True})
 
 
 # ---------------------------------------------------------------------------

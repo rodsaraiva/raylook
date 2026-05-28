@@ -219,6 +219,105 @@
         </button>
     </div>
 
+    {% if cliente.must_change_password and not read_only %}
+    <div id="chgpwd-overlay" class="chgpwd-overlay"></div>
+    <div id="chgpwd-modal" class="chgpwd-modal" role="dialog" aria-labelledby="chgpwd-title" aria-modal="true">
+        <div class="chgpwd-header">
+            <h3 id="chgpwd-title"><i class="fas fa-lock"></i> Criar nova senha</h3>
+        </div>
+        <p class="chgpwd-help">
+            Você entrou com uma senha temporária. Pra continuar, escolha uma nova
+            senha (mínimo 6 caracteres).
+        </p>
+        <form id="chgpwd-form" autocomplete="off">
+            <div class="chgpwd-field">
+                <label for="chgpwd-new">Nova senha</label>
+                <input type="password" id="chgpwd-new" name="password" minlength="6" required>
+            </div>
+            <div class="chgpwd-field">
+                <label for="chgpwd-confirm">Confirmar senha</label>
+                <input type="password" id="chgpwd-confirm" name="password_confirm" minlength="6" required>
+            </div>
+            <div id="chgpwd-error" class="chgpwd-error" role="alert"></div>
+            <button type="submit" class="chgpwd-submit">
+                <i class="fas fa-check"></i> Salvar nova senha
+            </button>
+        </form>
+    </div>
+    <style>
+        .chgpwd-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(4px);
+            z-index: 9000;
+        }
+        .chgpwd-modal {
+            position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: min(420px, calc(100vw - 32px));
+            background: #1c1410;
+            border: 1px solid rgba(212,175,55,0.3);
+            border-radius: 16px;
+            padding: 1.5rem;
+            z-index: 9001;
+            color: #f5e9d3;
+        }
+        .chgpwd-header h3 { margin: 0 0 0.5rem; font-size: 1.15rem; color: #e8c46a; }
+        .chgpwd-header h3 i { margin-right: 0.4rem; }
+        .chgpwd-help { font-size: 0.9rem; line-height: 1.4; margin: 0 0 1.25rem; color: rgba(255,255,255,0.75); }
+        .chgpwd-field { margin-bottom: 0.85rem; }
+        .chgpwd-field label { display: block; font-size: 0.8rem; margin-bottom: 0.35rem; color: rgba(255,255,255,0.65); }
+        .chgpwd-field input {
+            width: 100%; padding: 0.7rem 0.85rem;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 8px;
+            color: #fff; font-size: 1rem;
+        }
+        .chgpwd-field input:focus { outline: none; border-color: rgba(212,175,55,0.6); }
+        .chgpwd-error { color: #ff7676; font-size: 0.85rem; min-height: 1.2em; margin-bottom: 0.5rem; }
+        .chgpwd-submit {
+            width: 100%; padding: 0.85rem;
+            background: linear-gradient(135deg, #d4af37, #b8941f);
+            color: #1c1410; border: none; border-radius: 10px;
+            font-weight: 700; font-size: 0.95rem; cursor: pointer;
+        }
+        .chgpwd-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+    </style>
+    <script>
+        (function () {
+            const form = document.getElementById('chgpwd-form');
+            const err = document.getElementById('chgpwd-error');
+            const submit = form.querySelector('.chgpwd-submit');
+            // Bloqueia interação com a página por baixo: scroll trava enquanto modal está aberto
+            document.body.style.overflow = 'hidden';
+
+            form.addEventListener('submit', async (ev) => {
+                ev.preventDefault();
+                err.textContent = '';
+                const password = form.password.value;
+                const password_confirm = form.password_confirm.value;
+                if (password.length < 6) { err.textContent = 'A senha deve ter pelo menos 6 caracteres.'; return; }
+                if (password !== password_confirm) { err.textContent = 'As senhas não conferem.'; return; }
+                submit.disabled = true;
+                try {
+                    const body = new FormData();
+                    body.append('password', password);
+                    body.append('password_confirm', password_confirm);
+                    const r = await fetch('/portal/change-password', { method: 'POST', body, credentials: 'same-origin' });
+                    const j = await r.json().catch(() => ({}));
+                    if (!r.ok) { err.textContent = j.error || 'Erro ao salvar.'; submit.disabled = false; return; }
+                    document.body.style.overflow = '';
+                    window.location.reload();
+                } catch (e) {
+                    err.textContent = 'Erro de rede. Tente novamente.';
+                    submit.disabled = false;
+                }
+            });
+        })();
+    </script>
+    {% endif %}
+
     {% if not read_only %}
     <script src="/static/js/portal-sheet.js"></script>
     {% endif %}

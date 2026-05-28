@@ -90,6 +90,7 @@ _FK_TO_TABLE = {
 # Colunas booleanas — SQLite guarda como 0/1, callers esperam bool.
 _BOOL_COLUMNS = {
     "votos": {"synthetic"},
+    "clientes": {"must_change_password"},
 }
 
 
