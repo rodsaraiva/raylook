@@ -318,6 +318,10 @@
     </script>
     {% endif %}
 
+    <!-- Filtros (Todos/Pendentes/Pagos): arquivo externo (CSP bloqueia inline),
+         carregado também no preview read-only, que não puxa portal-sheet.js. -->
+    <script src="/static/js/portal-filters.js"></script>
+
     {% if not read_only %}
     <script src="/static/js/portal-sheet.js"></script>
     {% endif %}
