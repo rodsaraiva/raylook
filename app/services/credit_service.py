@@ -103,8 +103,9 @@ def add_credit(
     if venda_id:
         existing = sb.select(
             "creditos",
-            columns="id",
-            filters=[("venda_id", "eq", venda_id), ("tipo", "eq", "credit")],
+            columns="id,cliente_id,tipo,status,valor,pacote_id,venda_id,descricao,created_at",
+            filters=[("venda_id", "eq", venda_id), ("tipo", "eq", "credit"),
+                     ("cliente_id", "eq", cliente_id)],
             limit=1,
         )
         if isinstance(existing, list) and existing:
@@ -115,10 +116,15 @@ def add_credit(
         "descricao": descricao, "created_by": created_by, "created_at": _now_iso(),
     }
     rows = sb.insert("creditos", {k: v for k, v in payload.items() if v is not None})
+    logger.info("credit_service: crédito +%.2f cliente=%s venda=%s", valor, cliente_id, venda_id)
     return rows[0] if rows else None
 
 
-def _existing_debit(sb, pagamento_id, asaas_payment_id):
+def _existing_debit(
+    sb: SupabaseRestClient,
+    pagamento_id: Optional[str],
+    asaas_payment_id: Optional[str],
+) -> Optional[Dict[str, Any]]:
     filters = [("tipo", "eq", "debit")]
     if pagamento_id:
         filters.append(("pagamento_id", "eq", pagamento_id))
@@ -156,12 +162,26 @@ def _add_debit(
     return rows[0] if rows else None
 
 
-def add_pending_debit(cliente_id, valor, *, pagamento_id=None, asaas_payment_id=None, descricao=None):
+def add_pending_debit(
+    cliente_id: str,
+    valor: float,
+    *,
+    pagamento_id: Optional[str] = None,
+    asaas_payment_id: Optional[str] = None,
+    descricao: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
     return _add_debit(cliente_id, valor, status="pending",
                       pagamento_id=pagamento_id, asaas_payment_id=asaas_payment_id, descricao=descricao)
 
 
-def add_confirmed_debit(cliente_id, valor, *, pagamento_id=None, asaas_payment_id=None, descricao=None):
+def add_confirmed_debit(
+    cliente_id: str,
+    valor: float,
+    *,
+    pagamento_id: Optional[str] = None,
+    asaas_payment_id: Optional[str] = None,
+    descricao: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
     return _add_debit(cliente_id, valor, status="confirmed",
                       pagamento_id=pagamento_id, asaas_payment_id=asaas_payment_id, descricao=descricao)
 
@@ -176,3 +196,4 @@ def confirm_debit(*, pagamento_id: Optional[str] = None, asaas_payment_id: Optio
     else:
         raise ValueError("pagamento_id ou asaas_payment_id obrigatório")
     sb.update("creditos", {"status": "confirmed"}, filters=filters)
+    logger.info("credit_service: débito confirmado pagamento=%s asaas=%s", pagamento_id, asaas_payment_id)
