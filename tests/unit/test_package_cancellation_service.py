@@ -22,7 +22,7 @@ def _make_fake_client(package_status="approved", sales=None):
         if table == "pacotes":
             if package_status is None:
                 return []
-            return [{"id": "PKG-1", "status": package_status, "enquete_id": "E-1"}]
+            return [{"id": "PKG-1", "status": package_status, "enquete_id": "E-1", "friendly_id": "A-7"}]
         return []
 
     def fake_select_all(table, columns=None, filters=None, order=None):
@@ -193,6 +193,7 @@ def test_cancel_paid_generates_credit(monkeypatch):
     assert credits[0]["cliente_id"] == "C1"
     assert credits[0]["valor"] == 120
     assert credits[0]["venda_id"] == "V1"
+    assert credits[0]["descricao"] == "Cancelamento pacote #A-7"
     patched = {(c["path"].split("?")[0], c["payload"].get("status")) for c in fake.patch_calls}
     assert ("/rest/v1/vendas", "cancelled") in patched
     assert ("/rest/v1/pagamentos", "cancelled") in patched
@@ -239,6 +240,7 @@ def test_preview_returns_paid_summary(monkeypatch):
     assert info["paid_count"] == 1
     assert info["pending_count"] == 1
     assert info["paid_clients"][0]["cliente_nome"] == "Ana"
+    assert info["credit_total"] == 60.0
 
 
 def test_embedded_payment_as_list_is_normalized(monkeypatch):
