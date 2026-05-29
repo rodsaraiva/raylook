@@ -202,3 +202,47 @@ def test_stats_returns_500_on_exception(client_raises):
     res = client_raises.get("/api/finance/stats")
     assert res.status_code == 500
     assert "error" in res.json()
+
+
+# ---------------------------------------------------------------------------
+# GET /api/finance/credits
+# ---------------------------------------------------------------------------
+
+SAMPLE_BALANCES = [
+    {"cliente_id": "C1", "nome": "Ana", "celular": "5511999", "saldo": 100.0}
+]
+
+SAMPLE_LEDGER = [
+    {
+        "id": "L1",
+        "tipo": "credit",
+        "status": "confirmed",
+        "valor": 100.0,
+        "descricao": "Cancelamento pacote #A-1",
+        "created_at": "2026-05-01T00:00:00Z",
+    }
+]
+
+
+def test_credits_with_cliente_id_returns_balances_and_ledger():
+    app = _make_app()
+    with patch.object(finance_router_module.credit_service, "list_balances", return_value=SAMPLE_BALANCES), \
+         patch.object(finance_router_module.credit_service, "get_ledger", return_value=SAMPLE_LEDGER):
+        client = TestClient(app)
+        res = client.get("/api/finance/credits?cliente_id=C1")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["balances"][0]["saldo"] == 100.0
+    assert body["ledger"][0]["tipo"] == "credit"
+
+
+def test_credits_without_cliente_id_returns_empty_ledger():
+    app = _make_app()
+    with patch.object(finance_router_module.credit_service, "list_balances", return_value=SAMPLE_BALANCES), \
+         patch.object(finance_router_module.credit_service, "get_ledger", return_value=SAMPLE_LEDGER):
+        client = TestClient(app)
+        res = client.get("/api/finance/credits")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["balances"][0]["saldo"] == 100.0
+    assert body["ledger"] == []

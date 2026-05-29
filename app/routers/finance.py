@@ -7,6 +7,7 @@ from collections import defaultdict
 import logging
 
 from finance.manager import FinanceManager
+from app.services import credit_service
 from app.services.finance_service import (
     build_receivables_by_client,
     build_aging_summary,
@@ -156,6 +157,18 @@ async def post_write_off(pagamento_id: str, body: WriteOffRequest) -> Dict[str, 
         return mark_payment_written_off(pagamento_id, reason=reason)
     except PaymentNotFound:
         raise HTTPException(status_code=404, detail="pagamento not found")
+
+
+@router.get("/credits")
+async def get_credits(cliente_id: Optional[str] = None) -> Dict[str, Any]:
+    """Saldos de crédito por cliente (lista) + extrato de um cliente (se cliente_id)."""
+    try:
+        balances = credit_service.list_balances()
+        ledger = credit_service.get_ledger(cliente_id) if cliente_id else []
+        return {"balances": balances, "ledger": ledger}
+    except Exception as e:
+        logger.exception("Erro ao carregar créditos")
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 
 @router.get("/pagamentos/{pagamento_id}/history")
