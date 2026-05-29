@@ -659,6 +659,26 @@ def _generate_qr_base64(data: str) -> str:
 COMBINED_PIX_STATE_PREFIX = "combined_pix_"
 
 
+def _apply_credit(cliente_id: str, total: float):
+    """Retorna (saldo_antes, credito_aplicado, cobranca) sem alterar o ledger."""
+    from app.services import credit_service
+    saldo = credit_service.get_balance(cliente_id)
+    aplicado = round(min(saldo, total), 2)
+    cobranca = round(total - aplicado, 2)
+    return saldo, aplicado, cobranca
+
+
+def _mark_paid_with_credit(pagamento_ids):
+    """Marca pagamentos como paid quando o crédito cobre 100% (sem PIX)."""
+    client = _client()
+    for pid in pagamento_ids:
+        client.update(
+            "pagamentos",
+            {"status": "paid", "paid_at": _now().isoformat(), "updated_at": _now().isoformat()},
+            filters=[("id", "eq", pid)],
+        )
+
+
 def create_combined_pix(cliente_id: str) -> Dict[str, Any]:
     """Cria UM pagamento Asaas com o total de todos os débitos pendentes."""
     orders = get_client_orders(cliente_id)
@@ -671,62 +691,71 @@ def create_combined_pix(cliente_id: str) -> Dict[str, Any]:
     pagamento_ids = [o["pagamento_id"] for o in pending]
     item_count = len(pending)
 
+    from app.services import credit_service
+
+    saldo_antes, credito_aplicado, cobranca = _apply_credit(cliente_id, total)
+
+    # Crédito cobre 100% → quita sem PIX
+    if cobranca <= 0:
+        _mark_paid_with_credit(pagamento_ids)
+        credit_service.add_confirmed_debit(
+            cliente_id, credito_aplicado,
+            descricao=f"Pago com crédito — {item_count} pedido{'s' if item_count > 1 else ''}",
+        )
+        return {
+            "pix_payload": "", "payment_link": "", "qr_code_base64": "",
+            "total": total, "item_count": item_count,
+            "saldo_antes": saldo_antes, "credito_aplicado": credito_aplicado,
+            "cobranca": 0.0, "pago_com_credito": True, "asaas_id": None,
+        }
+
     # Buscar dados do cliente
     client = _client()
     cliente_rows = client.select(
-        "clientes",
-        columns="nome,celular,cpf_cnpj",
-        filters=[("id", "eq", cliente_id)],
-        limit=1,
+        "clientes", columns="nome,celular,cpf_cnpj",
+        filters=[("id", "eq", cliente_id)], limit=1,
     )
     cliente_info = cliente_rows[0] if isinstance(cliente_rows, list) and cliente_rows else {}
     cpf = (cliente_info.get("cpf_cnpj") or "").strip()
     if not cpf:
         raise CpfMissingError("cliente sem CPF cadastrado")
 
-    # Criar pagamento único no Asaas
     from integrations.asaas.client import AsaasClient
     from datetime import date
     asaas = AsaasClient()
-
     customer = asaas.create_customer(
         name=cliente_info.get("nome") or "Cliente",
-        phone=cliente_info.get("celular") or "",
-        cpf_cnpj=cpf,
+        phone=cliente_info.get("celular") or "", cpf_cnpj=cpf,
     )
-
     due = date.today().isoformat()
     description = f"Pagamento de {item_count} pedido{'s' if item_count > 1 else ''} - Raylook Assessoria"
-
-    payment = asaas.create_payment_pix(customer["id"], total, due, description)
+    payment = asaas.create_payment_pix(customer["id"], cobranca, due, description)
     pix_data = asaas.get_payment_pix_with_retry(payment["id"])
-
     asaas_id = payment["id"]
 
-    # Salvar mapeamento no app_runtime_state para o webhook saber
-    # quais pagamentos individuais marcar como paid
+    # Débito pendente — confirmado só quando o polling confirmar o pagamento
+    if credito_aplicado > 0:
+        credit_service.add_pending_debit(
+            cliente_id, credito_aplicado, asaas_payment_id=asaas_id,
+            descricao=f"Crédito aplicado em {item_count} pedido{'s' if item_count > 1 else ''}",
+        )
+
     from app.services.runtime_state_service import save_runtime_state, runtime_state_enabled
     if runtime_state_enabled():
         save_runtime_state(
             f"{COMBINED_PIX_STATE_PREFIX}{asaas_id}",
-            {
-                "pagamento_ids": pagamento_ids,
-                "cliente_id": cliente_id,
-                "total": total,
-                "created_at": _now().isoformat(),
-            },
+            {"pagamento_ids": pagamento_ids, "cliente_id": cliente_id,
+             "total": cobranca, "created_at": _now().isoformat()},
         )
 
     pix_payload = pix_data.get("pix_payload") or ""
     payment_link = pix_data.get("paymentLink") or payment.get("invoiceUrl") or ""
-
     return {
-        "pix_payload": pix_payload,
-        "payment_link": payment_link,
+        "pix_payload": pix_payload, "payment_link": payment_link,
         "qr_code_base64": _generate_qr_base64(pix_payload) if pix_payload else "",
-        "total": total,
-        "item_count": item_count,
-        "asaas_id": asaas_id,
+        "total": total, "item_count": item_count,
+        "saldo_antes": saldo_antes, "credito_aplicado": credito_aplicado,
+        "cobranca": cobranca, "pago_com_credito": False, "asaas_id": asaas_id,
     }
 
 
