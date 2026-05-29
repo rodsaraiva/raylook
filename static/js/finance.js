@@ -543,7 +543,7 @@
             tr.className = "client-row";
             tr.innerHTML = `
                 <td>${escapeHtml(b.nome) || "—"}</td>
-                <td>${escapeHtml(b.celular) || "—"}</td>
+                <td>${b.celular ? "***" + escapeHtml(String(b.celular).slice(-4)) : "—"}</td>
                 <td>${fmtMoney(b.saldo)}</td>
                 <td style="text-align:right;">
                     <button class="btn-credits-ledger" data-cliente-id="${escapeHtml(b.cliente_id)}">Ver extrato</button>
