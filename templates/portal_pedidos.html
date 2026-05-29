@@ -194,7 +194,22 @@
             <button class="pix-sheet-close" id="pix-sheet-close" type="button">✕</button>
         </div>
         <div class="pix-sheet-amount" id="pix-sheet-amount">—</div>
-        <div class="pix-sheet-qr-row">
+        <div class="pix-credit-info" id="pix-credit-info" hidden>
+            <div class="pix-credit-line">
+                <span>Crédito aplicado</span>
+                <span class="pix-credit-applied" id="pix-credit-applied">—</span>
+            </div>
+            <div class="pix-credit-line pix-credit-total">
+                <span>Total a pagar</span>
+                <span id="pix-credit-charge">—</span>
+            </div>
+        </div>
+        <div class="pix-paid-state" id="pix-paid-state" hidden>
+            <i class="fas fa-circle-check"></i>
+            <div class="pix-paid-title">Pago integralmente com crédito</div>
+            <div class="pix-paid-sub">Seu saldo cobriu o valor total. Nada a pagar.</div>
+        </div>
+        <div class="pix-sheet-qr-row" id="pix-qr-row">
             <div class="pix-qr-box" id="pix-qr-img"></div>
             <div class="pix-qr-side">
                 <div class="pix-qr-label">Código PIX copia e cola</div>
@@ -202,8 +217,8 @@
                 <button class="pix-copy-btn" id="pix-copy-btn" type="button">📋 Copiar código</button>
             </div>
         </div>
-        <div class="pix-sheet-divider"></div>
-        <div class="pix-sheet-tip">Abra o app do banco, escaneie o QR Code ou cole o código</div>
+        <div class="pix-sheet-divider" id="pix-sheet-divider"></div>
+        <div class="pix-sheet-tip" id="pix-sheet-tip">Abra o app do banco, escaneie o QR Code ou cole o código</div>
     </div>
 
     <!-- Modal de contingência: pede CPF quando o pagamento bate em 412 cpf_required -->

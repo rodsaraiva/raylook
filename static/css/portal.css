@@ -122,6 +122,7 @@ header {
 }
 .kpi-card.pending .kpi-value { color: var(--warning); }
 .kpi-card.paid .kpi-value { color: var(--success); }
+.kpi-card.credit .kpi-value { color: var(--info, #3b82f6); }
 
 .kpi-sub {
     color: var(--text-muted); font-size: 0.7rem; margin-top: 0.1rem;
@@ -333,6 +334,31 @@ header {
     font-family: 'Outfit', sans-serif; font-size: 1.75rem; font-weight: 700;
     color: var(--accent); margin-bottom: 16px; line-height: 1;
 }
+
+.pix-credit-info {
+    background: rgba(255,255,255,0.03); border: 1px solid var(--card-border);
+    border-radius: 10px; padding: 9px 12px; margin-bottom: 16px;
+}
+.pix-credit-line {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 0.78rem; color: var(--text-secondary);
+}
+.pix-credit-line + .pix-credit-line { margin-top: 5px; }
+.pix-credit-applied { color: var(--success); font-weight: 600; }
+.pix-credit-total {
+    font-weight: 700; color: var(--text-primary);
+    border-top: 1px solid var(--card-border); padding-top: 6px; margin-top: 7px;
+}
+
+.pix-paid-state {
+    text-align: center; padding: 14px 0 8px;
+}
+.pix-paid-state i { font-size: 2.2rem; color: var(--success); }
+.pix-paid-title {
+    font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 1rem;
+    color: var(--success); margin-top: 10px;
+}
+.pix-paid-sub { font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; }
 
 .pix-sheet-qr-row {
     display: flex; gap: 14px; align-items: center; margin-bottom: 12px;

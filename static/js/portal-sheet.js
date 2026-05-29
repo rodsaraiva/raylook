@@ -12,8 +12,19 @@
     const codeText   = document.getElementById('pix-code-text');
     const copyBtn    = document.getElementById('pix-copy-btn');
     const closeBtn   = document.getElementById('pix-sheet-close');
+    const qrRow      = document.getElementById('pix-qr-row');
+    const divider    = document.getElementById('pix-sheet-divider');
+    const tip        = document.getElementById('pix-sheet-tip');
+    const creditInfo = document.getElementById('pix-credit-info');
+    const creditAppl = document.getElementById('pix-credit-applied');
+    const creditChg  = document.getElementById('pix-credit-charge');
+    const paidState  = document.getElementById('pix-paid-state');
 
     let _pixPayload = '';
+
+    function fmtBRL(v) {
+        return 'R$ ' + Number(v || 0).toFixed(2).replace('.', ',');
+    }
 
     // ── Abrir / fechar sheet ──────────────────────────────────────────────────
 
@@ -24,6 +35,13 @@
         codeText.textContent   = 'Gerando...';
         copyBtn.disabled       = true;
         _pixPayload            = '';
+
+        // Reseta estados de crédito (sheet é singleton, reaproveitado entre pedidos)
+        if (creditInfo) creditInfo.hidden = true;
+        if (paidState)  paidState.hidden  = true;
+        if (qrRow)      qrRow.hidden       = false;
+        if (divider)    divider.hidden     = false;
+        if (tip)        tip.hidden         = false;
 
         overlay.classList.add('open');
         sheet.classList.add('open');
@@ -39,6 +57,30 @@
     // ── Preencher sheet com dados da API ──────────────────────────────────────
 
     function fillSheet(data) {
+        var credito = Number(data.credito_aplicado || 0);
+
+        // Pago 100% com crédito: sem QR/copia, mostra sucesso e recarrega a lista
+        if (data.pago_com_credito) {
+            if (qrRow)   qrRow.hidden   = true;
+            if (divider) divider.hidden = true;
+            if (tip)     tip.hidden     = true;
+            if (creditInfo) creditInfo.hidden = true;
+            if (paidState)  paidState.hidden  = false;
+            sheetAmt.textContent = fmtBRL(0);
+            // Reflete o pagamento confirmado: recarrega como o polling faz
+            setTimeout(function () { window.location.reload(); }, 1800);
+            return;
+        }
+
+        // Crédito parcial: mostra "Crédito aplicado" e "Total a pagar"
+        if (credito > 0) {
+            if (creditAppl) creditAppl.textContent = '− ' + fmtBRL(credito);
+            if (creditChg)  creditChg.textContent  = fmtBRL(data.cobranca);
+            if (creditInfo) creditInfo.hidden = false;
+            // O valor de destaque passa a ser o que de fato será cobrado via PIX
+            sheetAmt.textContent = fmtBRL(data.cobranca);
+        }
+
         qrBox.innerHTML = '';
         if (data.qr_code_base64) {
             var img = document.createElement('img');
