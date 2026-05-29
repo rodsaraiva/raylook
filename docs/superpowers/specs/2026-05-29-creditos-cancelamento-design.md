@@ -238,3 +238,48 @@ SQLite + staging do próprio Postgres raylook antes do deploy via CI.
 - Estorno/refund (regra: só crédito na plataforma).
 - Ajuste/lançamento manual de crédito pela admin.
 - Expiração de crédito.
+
+---
+
+## Addendum (2026-05-29) — Fluxo de pagamento serializado (anti double-spend)
+
+Decisão do usuário após a revisão de integração: o débito-só-na-confirmação, sem
+reserva, permitia um double-spend se o cliente pagasse dois PIX sobrepostos
+(combinado + individual) — o saldo podia ficar negativo. Em vez de reserva no
+saldo (que prenderia crédito em PIX abandonado, contra a decisão do Q5), adota-se
+um **fluxo serializado**:
+
+**Geração do pagamento no portal (individual ou "Pagar todos"):**
+
+1. **Crédito ≥ valor (cobre tudo):** o portal exibe um **modal de confirmação**
+   ("vai usar R$X de crédito e quitar — confirmar?"). Ao confirmar, o servidor
+   **debita o crédito na hora** (débito `confirmed`), marca o(s) pagamento(s)
+   como `paid` e **não chama o Asaas**.
+2. **Crédito < valor:** gera cobrança Asaas só da **diferença**; o crédito vira
+   débito `pending`, confirmado quando o PIX é pago.
+3. **Serialização (garante saldo nunca-negativo):** no momento em que o cliente
+   inicia um pagamento **que envolve crédito** (caso 1 ou 2), todas as **outras
+   cobranças em aberto** do cliente são canceladas:
+   - cobranças Asaas individuais com `provider_payment_id` (status
+     `created`/`sent`, não pagas) → `AsaasClient.cancel_payment` + o `pagamento`
+     volta a um estado recarregável (limpa `provider_payment_id`/`payment_link`/
+     `pix_payload`/`due_date`, status `created`) + remove o débito `pending` dele;
+   - PIX combinados do cliente em `app_runtime_state` (prefixo `combined_pix_`)
+     → `cancel_payment` do `asaas_id` + remove débito `pending`
+     (`asaas_payment_id`) + `delete_runtime_state`.
+   A cobrança que está sendo criada agora é preservada (`keep`).
+
+Como as outras cobranças com crédito provisório são canceladas (e seus débitos
+`pending` removidos), no instante da geração só existe **uma** aplicação de
+crédito viva. O `get_balance` (confirmados) já reflete o disponível correto — não
+é preciso reserva nem clamp. Quando esse único PIX é pago, seu débito confirma;
+nenhum outro débito de crédito pode confirmar (foram cancelados). Logo o saldo
+**nunca fica negativo**. Para pagar outro pedido depois, o portal gera uma
+**cobrança nova**, que recalcula o crédito já atualizado.
+
+Cancelar a cobrança **inclui cancelar no Asaas** (DELETE /payments/{id}) — para
+o QR antigo não poder mais ser pago.
+
+Isto substitui a aplicação de crédito introduzida nas Tasks 4/5 (que passa a
+chamar o cancelamento das outras cobranças antes de aplicar o crédito) e adiciona
+o modal de confirmação na cobertura total.
