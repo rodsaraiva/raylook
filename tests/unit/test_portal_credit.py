@@ -66,6 +66,9 @@ def test_combined_partial_credit(env, monkeypatch):
     asaas, fake, real = env
     cs.add_credit("C1", 50.0, descricao="seed")
     monkeypatch.setattr(ps, "get_client_orders", lambda cid: _orders(120.0, 80.0))
+    calls = []
+    monkeypatch.setattr(ps, "_cancel_other_open_charges",
+                        lambda cid, keep_pagamento_ids: calls.append((cid, list(keep_pagamento_ids))))
 
     out = ps.create_combined_pix("C1")
 
@@ -79,12 +82,17 @@ def test_combined_partial_credit(env, monkeypatch):
     ledger = cs.get_ledger("C1")
     pend = [e for e in ledger if e["tipo"] == "debit" and e["status"] == "pending"]
     assert len(pend) == 1 and pend[0]["valor"] == 50.0
+    # serialização: cancelou outras cobranças mantendo os pedidos deste PIX
+    assert calls == [("C1", ["P0", "P1"])]
 
 
 def test_combined_full_coverage(env, monkeypatch):
     asaas, fake, real = env
     cs.add_credit("C1", 300.0, descricao="seed")
     monkeypatch.setattr(ps, "get_client_orders", lambda cid: _orders(120.0, 80.0))
+    calls = []
+    monkeypatch.setattr(ps, "_cancel_other_open_charges",
+                        lambda cid, keep_pagamento_ids: calls.append((cid, list(keep_pagamento_ids))))
 
     out = ps.create_combined_pix("C1")
 
@@ -95,11 +103,16 @@ def test_combined_full_coverage(env, monkeypatch):
     assert sorted(fake.paid) == ["P0", "P1"]   # pagamentos marcados paid
     # débito CONFIRMED de 200 -> saldo cai de 300 para 100
     assert cs.get_balance("C1") == 100.0
+    # serialização: cancela outras cobranças mesmo na cobertura total
+    assert calls == [("C1", ["P0", "P1"])]
 
 
 def test_combined_no_credit(env, monkeypatch):
     asaas, fake, real = env
     monkeypatch.setattr(ps, "get_client_orders", lambda cid: _orders(120.0))
+    calls = []
+    monkeypatch.setattr(ps, "_cancel_other_open_charges",
+                        lambda cid, keep_pagamento_ids: calls.append((cid, list(keep_pagamento_ids))))
 
     out = ps.create_combined_pix("C1")
 
@@ -109,6 +122,8 @@ def test_combined_no_credit(env, monkeypatch):
     assert asaas.created == [120.0]
     # nenhum débito criado quando não há crédito
     assert [e for e in cs.get_ledger("C1") if e["tipo"] == "debit"] == []
+    # sem crédito aplicado → não serializa
+    assert calls == []
 
 
 class _FakeSbIndiv:
@@ -309,6 +324,9 @@ def test_individual_partial_credit(tmp_path, monkeypatch):
     monkeypatch.setattr(ps, "_client", lambda: fake)
     asaas = FakeAsaas()
     monkeypatch.setattr("integrations.asaas.client.AsaasClient", lambda: asaas)
+    calls = []
+    monkeypatch.setattr(ps, "_cancel_other_open_charges",
+                        lambda cid, keep_pagamento_ids: calls.append((cid, list(keep_pagamento_ids))))
 
     out = ps.get_or_create_pix("P1", "C1")
 
@@ -318,6 +336,8 @@ def test_individual_partial_credit(tmp_path, monkeypatch):
     assert cs.get_balance("C1") == 50.0   # pending não conta
     pend = [e for e in cs.get_ledger("C1") if e["tipo"] == "debit" and e["status"] == "pending"]
     assert len(pend) == 1 and pend[0]["valor"] == 50.0
+    # serialização: cancela outras cobranças mantendo este pagamento
+    assert calls == [("C1", ["P1"])]
 
 
 def test_individual_full_coverage(tmp_path, monkeypatch):
@@ -331,6 +351,9 @@ def test_individual_full_coverage(tmp_path, monkeypatch):
     monkeypatch.setattr(ps, "_client", lambda: fake)
     asaas = FakeAsaas()
     monkeypatch.setattr("integrations.asaas.client.AsaasClient", lambda: asaas)
+    calls = []
+    monkeypatch.setattr(ps, "_cancel_other_open_charges",
+                        lambda cid, keep_pagamento_ids: calls.append((cid, list(keep_pagamento_ids))))
 
     out = ps.get_or_create_pix("P1", "C1")
 
@@ -339,6 +362,8 @@ def test_individual_full_coverage(tmp_path, monkeypatch):
     assert asaas.created == []
     assert cs.get_balance("C1") == 300.0   # debit confirmado de 200
     assert any(t == "pagamentos" and p.get("status") == "paid" for t, p in fake.updates)
+    # serialização: cancela outras cobranças mantendo este pagamento
+    assert calls == [("C1", ["P1"])]
 
 
 def test_individual_reentrancy_does_not_reapply(tmp_path, monkeypatch):
@@ -354,6 +379,9 @@ def test_individual_reentrancy_does_not_reapply(tmp_path, monkeypatch):
     monkeypatch.setattr(ps, "_client", lambda: fake)
     asaas = FakeAsaas()
     monkeypatch.setattr("integrations.asaas.client.AsaasClient", lambda: asaas)
+    calls = []
+    monkeypatch.setattr(ps, "_cancel_other_open_charges",
+                        lambda cid, keep_pagamento_ids: calls.append((cid, list(keep_pagamento_ids))))
 
     saldo_before = cs.get_balance("C1")
     out = ps.get_or_create_pix("P1", "C1")
@@ -367,3 +395,5 @@ def test_individual_reentrancy_does_not_reapply(tmp_path, monkeypatch):
     assert not any(p.get("status") == "paid" for _, p in fake.updates)
     debits = [e for e in cs.get_ledger("C1") if e["tipo"] == "debit"]
     assert len(debits) == 1                    # continua só o débito anterior
+    # reentrância (PIX já existente) não aplica crédito novo → não serializa
+    assert calls == []

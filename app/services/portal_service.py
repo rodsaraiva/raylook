@@ -592,6 +592,9 @@ def get_or_create_pix(pagamento_id: str, cliente_id: str) -> Dict[str, Any]:
     # Nenhuma cobrança Asaas ainda → único ponto onde o crédito é avaliado
     saldo_antes, credito_aplicado, cobranca = _apply_credit(cliente_id, total)
 
+    if credito_aplicado > 0:
+        _cancel_other_open_charges(cliente_id, keep_pagamento_ids=[pagamento["id"]])
+
     # Crédito cobre 100% → quita sem PIX (pagamento novo, sem cobrança Asaas)
     if cobranca <= 0:
         now = _now().isoformat()
@@ -824,6 +827,9 @@ def create_combined_pix(cliente_id: str) -> Dict[str, Any]:
     from app.services import credit_service
 
     saldo_antes, credito_aplicado, cobranca = _apply_credit(cliente_id, total)
+
+    if credito_aplicado > 0:
+        _cancel_other_open_charges(cliente_id, keep_pagamento_ids=pagamento_ids)
 
     # Crédito cobre 100% → quita sem PIX
     if cobranca <= 0:
