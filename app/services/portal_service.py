@@ -395,7 +395,7 @@ def get_client_orders(cliente_id: str) -> List[Dict[str, Any]]:
             "id,pacote_id,pacote_cliente_id,produto_id,qty,unit_price,subtotal,"
             "commission_percent,commission_amount,total_amount,status,created_at,"
             "produto:produto_id(nome,descricao,tamanho,drive_file_id),"
-            "pacote:pacote_id(id,status,shipped_at,pdf_sent_at,pending_reasons,pending_observations,"
+            "pacote:pacote_id(id,friendly_id,status,shipped_at,pdf_sent_at,pending_reasons,pending_observations,"
             "enquete:enquete_id(titulo,created_at_provider,drive_file_id))"
         ),
         filters=[("cliente_id", "eq", cliente_id)],
@@ -462,6 +462,7 @@ def get_client_orders(cliente_id: str) -> List[Dict[str, Any]]:
         orders.append({
             "id": str(venda["id"]),
             "pagamento_id": str(pagamento["id"]) if pagamento.get("id") else None,
+            "pacote_codigo": pacote.get("friendly_id") or "",
             "produto_nome": produto.get("nome") or enquete.get("titulo") or "Produto",
             "produto_tamanho": produto.get("tamanho") or "",
             "enquete_titulo": enquete.get("titulo") or "",
