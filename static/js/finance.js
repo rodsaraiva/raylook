@@ -26,6 +26,9 @@
         paidSearch: "",
         paid: [],
         paidPage: 1,
+        // Créditos
+        credits: [],
+        creditsLedgerCliente: null,
     };
 
     function el(id) { return document.getElementById(id); }
@@ -509,9 +512,90 @@
         }
     });
 
+    // ---- Aba Créditos ----
+    async function loadCredits() {
+        const res = await fetch("/api/finance/credits", { credentials: "same-origin" });
+        if (!res.ok) return;
+        const data = await res.json();
+        state.credits = data.balances || [];
+        state.creditsLedgerCliente = null;
+        el("credits-ledger").innerHTML = "";
+        renderCredits();
+    }
+
+    function renderCredits() {
+        const tbody = el("credits-table-body");
+        tbody.innerHTML = "";
+        const meta = el("credits-meta");
+        if (meta) {
+            meta.textContent = state.credits.length
+                ? `${state.credits.length} cliente${state.credits.length === 1 ? "" : "s"} com saldo`
+                : "—";
+        }
+        if (!state.credits.length) {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `<td colspan="4" class="muted" style="text-align:center;padding:20px;">Nenhum crédito ativo</td>`;
+            tbody.appendChild(tr);
+            return;
+        }
+        state.credits.forEach((b) => {
+            const tr = document.createElement("tr");
+            tr.className = "client-row";
+            tr.innerHTML = `
+                <td>${escapeHtml(b.nome) || "—"}</td>
+                <td>${escapeHtml(b.celular) || "—"}</td>
+                <td>${fmtMoney(b.saldo)}</td>
+                <td style="text-align:right;">
+                    <button class="btn-credits-ledger" data-cliente-id="${escapeHtml(b.cliente_id)}">Ver extrato</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function loadCreditsLedger(clienteId) {
+        const res = await fetch("/api/finance/credits?cliente_id=" + encodeURIComponent(clienteId), { credentials: "same-origin" });
+        if (!res.ok) { alert("Erro ao carregar extrato"); return; }
+        const data = await res.json();
+        state.creditsLedgerCliente = clienteId;
+        renderCreditsLedger(data.ledger || []);
+    }
+
+    function renderCreditsLedger(ledger) {
+        const box = el("credits-ledger");
+        if (!ledger.length) {
+            box.innerHTML = `<p class="muted" style="padding:12px;">Sem movimentações de crédito para este cliente.</p>`;
+            return;
+        }
+        const rows = ledger.map((e) => {
+            const isCredit = e.tipo === "credit";
+            const sign = isCredit ? "+" : "−";
+            const valor = sign + fmtMoney(e.valor);
+            return `
+                <tr>
+                    <td>${formatTs(e.created_at)}</td>
+                    <td>${isCredit ? "Crédito" : "Débito"}</td>
+                    <td>${valor}</td>
+                    <td>${escapeHtml(e.descricao) || "—"}</td>
+                </tr>`;
+        }).join("");
+        box.innerHTML = `
+            <table class="charges-mini" style="margin-top:8px;">
+                <thead><tr><th>Data</th><th>Tipo</th><th>Valor</th><th>Descrição</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+    }
+
+    // Click handler escopado: "Ver extrato" carrega o ledger do cliente.
+    document.getElementById("finance-view-credits")?.addEventListener("click", (ev) => {
+        const btn = ev.target.closest(".btn-credits-ledger[data-cliente-id]");
+        if (!btn) return;
+        loadCreditsLedger(btn.dataset.clienteId);
+    });
+
     // Troca de view (chamada pelo dropdown na sidebar — finance-toggle.js)
     window.financeSetView = function (view) {
-        if (view !== "receivable" && view !== "paid") return;
+        if (view !== "receivable" && view !== "paid" && view !== "credits") return;
         if (state.tab === view) return;
         state.tab = view;
         document.querySelectorAll(".finance-view")
@@ -523,6 +607,8 @@
     async function refreshAll() {
         if (state.tab === "paid") {
             await Promise.all([loadPaidSummary(), loadPaid()]);
+        } else if (state.tab === "credits") {
+            await loadCredits();
         } else {
             await Promise.all([loadAgingSummary(), loadReceivables()]);
         }

@@ -1008,6 +1008,14 @@
                     </div>
                     <div class="count" id="fin-count-paid">—</div>
                 </div>
+                <div class="rail-step" data-fin-view="credits">
+                    <div class="num">3</div>
+                    <div>
+                        <div class="label">Créditos</div>
+                        <div class="sub">saldos ativos</div>
+                    </div>
+                    <div class="count" id="fin-count-credits">—</div>
+                </div>
             </div>
         </div>
         <div class="rail-group" id="clientes-group" data-group="clientes">
@@ -1190,6 +1198,25 @@
                     </div>
                 </div>
             </div><!-- /view-paid -->
+
+            <!-- VIEW: Créditos -->
+            <div class="finance-view" id="finance-view-credits">
+                <div class="fin-table-wrap">
+                    <div class="finance-bar-head">
+                        <div class="finance-bar-head-left">
+                            <span style="font-weight:700;font-size:13px;color:var(--text-primary);">Créditos de clientes</span>
+                            <span id="credits-meta" style="font-size:11px;color:var(--text-muted);">—</span>
+                        </div>
+                    </div>
+                    <table class="fin-table" id="credits-table">
+                        <thead>
+                            <tr><th>Cliente</th><th>Celular</th><th>Saldo</th><th></th></tr>
+                        </thead>
+                        <tbody id="credits-table-body"></tbody>
+                    </table>
+                    <div id="credits-ledger"></div>
+                </div>
+            </div><!-- /view-credits -->
 
         </div><!-- /section-finance -->
 
