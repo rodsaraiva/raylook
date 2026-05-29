@@ -28,6 +28,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from app.services.supabase_service import SupabaseRestClient, supabase_domain_enabled
+from app.services import credit_service
 
 logger = logging.getLogger("raylook.package_cancellation")
 
@@ -173,8 +174,6 @@ def cancel_package(
     if paid and not force:
         raise PackageCancelBlocked(paid)
 
-    from app.services import credit_service
-
     now = _now_iso()
     cancelled_sales = 0
     cancelled_payments = 0
@@ -201,6 +200,11 @@ def cancel_package(
                 )
                 credited_total += valor
                 credited_clients += 1
+            else:
+                logger.warning(
+                    "cancel_package: venda paga %s sem crédito (cliente_id=%r valor=%s)",
+                    venda_id, cliente_id, valor,
+                )
             if venda_id:
                 sb._request(
                     "PATCH", f"/rest/v1/vendas?id=eq.{venda_id}",
@@ -253,8 +257,8 @@ def cancel_package(
     )
 
     logger.info(
-        "cancel_package id=%s force=%s paid_preserved=%d sales_cancelled=%d payments_cancelled=%d",
-        package_id, force, len(paid), cancelled_sales, cancelled_payments,
+        "cancel_package id=%s force=%s credited_clients=%d credited_total=%.2f sales_cancelled=%d payments_cancelled=%d",
+        package_id, force, credited_clients, round(credited_total, 2), cancelled_sales, cancelled_payments,
     )
 
     return {
