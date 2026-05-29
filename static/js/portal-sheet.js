@@ -230,21 +230,8 @@
         if (e.key === 'Escape') closeSheet();
     });
 
-    // ── Filtros ───────────────────────────────────────────────────────────────
-
-    document.querySelectorAll('.filter-chip').forEach(function (chip) {
-        chip.addEventListener('click', function () {
-            document.querySelectorAll('.filter-chip').forEach(function (c) {
-                c.classList.remove('active');
-            });
-            chip.classList.add('active');
-            var filter = chip.dataset.filter;
-            document.querySelectorAll('.order-card').forEach(function (card) {
-                card.style.display =
-                    (filter === 'all' || card.dataset.status === filter) ? '' : 'none';
-            });
-        });
-    });
+    // Filtros (Todos/Pendentes/Pagos) ficam em bloco inline no template pra
+    // funcionarem também no preview read-only, que não carrega este arquivo.
 
     // ── Polling de status (30s) ───────────────────────────────────────────────
 
