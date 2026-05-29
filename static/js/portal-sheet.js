@@ -21,6 +21,7 @@
     const paidState  = document.getElementById('pix-paid-state');
 
     let _pixPayload = '';
+    let reloadTimer = null;
 
     function fmtBRL(v) {
         return 'R$ ' + Number(v || 0).toFixed(2).replace('.', ',');
@@ -42,6 +43,8 @@
         if (qrRow)      qrRow.hidden       = false;
         if (divider)    divider.hidden     = false;
         if (tip)        tip.hidden         = false;
+        sheetAmt.hidden = false;
+        if (reloadTimer) { clearTimeout(reloadTimer); reloadTimer = null; }
 
         overlay.classList.add('open');
         sheet.classList.add('open');
@@ -49,6 +52,7 @@
     }
 
     function closeSheet() {
+        if (reloadTimer) { clearTimeout(reloadTimer); reloadTimer = null; }
         overlay.classList.remove('open');
         sheet.classList.remove('open');
         document.body.style.overflow = '';
@@ -66,9 +70,9 @@
             if (tip)     tip.hidden     = true;
             if (creditInfo) creditInfo.hidden = true;
             if (paidState)  paidState.hidden  = false;
-            sheetAmt.textContent = fmtBRL(0);
+            sheetAmt.hidden = true;
             // Reflete o pagamento confirmado: recarrega como o polling faz
-            setTimeout(function () { window.location.reload(); }, 1800);
+            reloadTimer = setTimeout(function () { window.location.reload(); }, 1800);
             return;
         }
 
