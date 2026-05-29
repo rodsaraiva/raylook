@@ -10,8 +10,9 @@ confusão pra equipe de separação).
 Fluxo:
   - Se nenhum pagamento do pacote está pago: cancela em cascata
     (pacote + vendas + pagamentos).
-  - Se algum pagamento está pago: exige `force=True` e preserva os pagos +
-    suas vendas. Os demais (pendente/enviado) são cancelados.
+  - Se algum pagamento está pago: exige `force=True`. As vendas/pagamentos pagos
+    são cancelados e o valor pago vira crédito na plataforma (1 lançamento
+    'credit' por venda paga). Os demais (pendente/enviado) também são cancelados.
 
 Status resultantes:
   pacote.status               -> 'cancelled' (+ cancelled_at/cancelled_by)
