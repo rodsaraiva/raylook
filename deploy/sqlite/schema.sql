@@ -288,6 +288,25 @@ CREATE UNIQUE INDEX IF NOT EXISTS pagamentos_provider_payment_id_key
 CREATE INDEX IF NOT EXISTS pagamentos_provider_id_idx ON pagamentos (provider_payment_id);
 CREATE INDEX IF NOT EXISTS pagamentos_status_venda_idx ON pagamentos (status, venda_id);
 
+CREATE TABLE IF NOT EXISTS creditos (
+    id TEXT PRIMARY KEY,
+    cliente_id TEXT NOT NULL REFERENCES clientes(id),
+    tipo TEXT NOT NULL CHECK (tipo IN ('credit', 'debit')),
+    status TEXT NOT NULL DEFAULT 'confirmed'
+        CHECK (status IN ('pending', 'confirmed')),
+    valor REAL NOT NULL CHECK (valor > 0),
+    pacote_id TEXT REFERENCES pacotes(id),
+    venda_id TEXT REFERENCES vendas(id),
+    pagamento_id TEXT REFERENCES pagamentos(id),
+    asaas_payment_id TEXT,
+    descricao TEXT,
+    created_by TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_creditos_cliente ON creditos(cliente_id);
+CREATE INDEX IF NOT EXISTS idx_creditos_pagamento ON creditos(pagamento_id);
+CREATE INDEX IF NOT EXISTS idx_creditos_asaas ON creditos(asaas_payment_id);
+
 -- ============================================================
 -- metrics_hourly_snapshots (F-045) — snapshots horários de KPIs.
 -- Em dev fica vazia; o worker de snapshot vai popular aos poucos.

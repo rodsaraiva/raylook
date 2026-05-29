@@ -282,6 +282,25 @@ CREATE UNIQUE INDEX IF NOT EXISTS pagamentos_provider_payment_id_key
 CREATE INDEX IF NOT EXISTS pagamentos_provider_id_idx ON pagamentos (provider_payment_id);
 CREATE INDEX IF NOT EXISTS pagamentos_status_venda_idx ON pagamentos (status, venda_id);
 
+CREATE TABLE IF NOT EXISTS creditos (
+    id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    cliente_id text NOT NULL REFERENCES clientes(id),
+    tipo text NOT NULL CHECK (tipo IN ('credit', 'debit')),
+    status text NOT NULL DEFAULT 'confirmed'
+        CHECK (status IN ('pending', 'confirmed')),
+    valor numeric NOT NULL CHECK (valor > 0),
+    pacote_id text REFERENCES pacotes(id),
+    venda_id text REFERENCES vendas(id),
+    pagamento_id text REFERENCES pagamentos(id),
+    asaas_payment_id text,
+    descricao text,
+    created_by text,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_creditos_cliente ON creditos(cliente_id);
+CREATE INDEX IF NOT EXISTS idx_creditos_pagamento ON creditos(pagamento_id);
+CREATE INDEX IF NOT EXISTS idx_creditos_asaas ON creditos(asaas_payment_id);
+
 -- ============================================================
 -- metrics_hourly_snapshots
 -- ============================================================

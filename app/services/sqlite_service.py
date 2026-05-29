@@ -45,6 +45,7 @@ _UUID_PK_TABLES = {
     "pacote_clientes",
     "vendas",
     "pagamentos",
+    "creditos",
 }
 
 # Colunas que precisam ser JSON-encoded/decoded.
@@ -70,6 +71,7 @@ _TIMESTAMP_COLUMNS: Dict[str, Tuple[str, ...]] = {
     "pacote_clientes": ("created_at", "updated_at"),
     "vendas": ("sold_at", "created_at", "updated_at"),
     "pagamentos": ("created_at", "updated_at"),
+    "creditos": ("created_at",),
     "app_runtime_state": ("updated_at",),
 }
 # Colunas consideradas "created" (preenchidas apenas no insert).
