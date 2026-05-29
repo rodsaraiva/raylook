@@ -318,11 +318,14 @@ async def portal_pedidos(request: Request):
 
     orders = ps.get_client_orders(client["id"])
     kpis = ps.get_client_kpis(orders)
+    from app.services import credit_service
+    credit_balance = credit_service.get_balance(client["id"])
 
     return _templates().TemplateResponse(request, "portal_pedidos.html", {
         "cliente": client,
         "orders": orders,
         "kpis": kpis,
+        "credit_balance": credit_balance,
     })
 
 
@@ -359,11 +362,14 @@ async def portal_preview(request: Request, cliente_id: str):
 
     orders = ps.get_client_orders(client["id"])
     kpis = ps.get_client_kpis(orders)
+    from app.services import credit_service
+    credit_balance = credit_service.get_balance(client["id"])
 
     return _templates().TemplateResponse(request, "portal_pedidos.html", {
         "cliente": client,
         "orders": orders,
         "kpis": kpis,
+        "credit_balance": credit_balance,
         "read_only": True,
     })
 

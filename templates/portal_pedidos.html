@@ -47,6 +47,13 @@
                 <div class="kpi-value">R$ {{ "%.2f" | format(kpis.total_paid) | replace('.', ',') }}</div>
                 <div class="kpi-sub">{{ kpis.paid_count }} pedido{{ 's' if kpis.paid_count != 1 }} confirmado{{ 's' if kpis.paid_count != 1 }}</div>
             </div>
+            {% if credit_balance and credit_balance > 0 %}
+            <div class="kpi-card credit">
+                <div class="kpi-title"><i class="fas fa-wallet"></i> Crédito disponível</div>
+                <div class="kpi-value">R$ {{ "%.2f" | format(credit_balance) | replace('.', ',') }}</div>
+                <div class="kpi-sub">abatido automaticamente na próxima compra</div>
+            </div>
+            {% endif %}
         </div>
 
         <!-- Pagar Todos -->

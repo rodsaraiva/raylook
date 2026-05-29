@@ -429,6 +429,22 @@ class TestPortalPedidos:
         res = client.get("/portal/pedidos", cookies={"portal_session": "sess-ok"})
         assert res.status_code == 200
 
+    def test_saldo_credito_aparece_no_kpi(self, monkeypatch):
+        """credit_service.get_balance > 0 → card de crédito com valor formatado."""
+        import app.services.portal_service as ps
+        import app.services.credit_service as credit_service
+        row = self._session_row()
+        client, _ = _test_client(monkeypatch, {"clientes": [row]})
+        monkeypatch.setattr(ps, "get_client_orders", lambda cid: [])
+        monkeypatch.setattr(ps, "get_client_kpis", lambda orders: {
+            "total_pending": 0.0, "total_paid": 0.0,
+            "pending_count": 0, "paid_count": 0,
+        })
+        monkeypatch.setattr(credit_service, "get_balance", lambda cid: 75.5)
+        res = client.get("/portal/pedidos", cookies={"portal_session": "sess-ok"})
+        assert res.status_code == 200
+        assert "75,50" in res.text
+
 
 # ---------------------------------------------------------------------------
 # GET /portal/api/status (polling JS)
