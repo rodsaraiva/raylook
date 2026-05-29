@@ -578,6 +578,15 @@ header {
 .cpf-modal-submit:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
 .cpf-modal-submit:disabled { opacity: 0.5; cursor: not-allowed; }
 
+.credit-modal-cancel {
+    width: 100%; margin-top: 0.6rem; padding: 0.65rem 1rem;
+    background: transparent; color: var(--text-muted);
+    border: 1px solid var(--card-border); border-radius: 11px;
+    font-family: 'Outfit', sans-serif; font-size: 0.88rem; font-weight: 600;
+    cursor: pointer; transition: var(--transition);
+}
+.credit-modal-cancel:hover { color: var(--text-primary); border-color: var(--text-muted); }
+
 /* ── Desktop ── */
 @media (min-width: 720px) {
     .page { max-width: 600px; padding-top: 2rem; }

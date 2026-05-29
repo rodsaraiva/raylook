@@ -241,6 +241,20 @@
         </button>
     </div>
 
+    <!-- Modal de confirmação: quitação integral com crédito (servidor liquida na hora) -->
+    <div id="credit-modal-overlay" class="cpf-modal-overlay"></div>
+    <div id="credit-modal" class="cpf-modal" role="dialog" aria-labelledby="credit-modal-title">
+        <div class="cpf-modal-header">
+            <h3 id="credit-modal-title">Pagar com crédito</h3>
+            <button class="cpf-modal-close" id="credit-modal-close" type="button" aria-label="Fechar">✕</button>
+        </div>
+        <p class="cpf-modal-help" id="credit-modal-body"></p>
+        <button type="button" class="cpf-modal-submit" id="credit-modal-confirm">
+            <i class="fas fa-check"></i> Confirmar
+        </button>
+        <button type="button" class="credit-modal-cancel" id="credit-modal-cancel">Cancelar</button>
+    </div>
+
     {% if cliente.must_change_password and not read_only %}
     <div id="chgpwd-overlay" class="chgpwd-overlay"></div>
     <div id="chgpwd-modal" class="chgpwd-modal" role="dialog" aria-labelledby="chgpwd-title" aria-modal="true">
@@ -345,6 +359,7 @@
     <script src="/static/js/portal-filters.js"></script>
 
     {% if not read_only %}
+    <script>window.__raylookCredit = {{ credit_balance|default(0)|tojson }};</script>
     <script src="/static/js/portal-sheet.js"></script>
     {% endif %}
 </body>
