@@ -336,11 +336,21 @@ def _is_admin_request(request: Request) -> bool:
     return role == "admin"
 
 
+def _is_dashboard_request(request: Request) -> bool:
+    """Qualquer usuário logado do dashboard (admin/estoque/logística). O preview
+    é somente leitura, então não precisa ser exclusivo do admin."""
+    if os.getenv("DASHBOARD_AUTH_DISABLED", "").strip().lower() in ("true", "1", "yes"):
+        return True
+    from app.services import auth_service as _auth
+    role = _auth.read_session_token(request.cookies.get("dash_session", ""))
+    return role is not None
+
+
 @router.get("/preview/{cliente_id}", response_class=HTMLResponse)
 async def portal_preview(request: Request, cliente_id: str):
     """Renderiza o portal_pedidos como o cliente vê, em modo somente leitura.
-    Acessado pelo admin a partir da aba Clientes do dashboard."""
-    if not _is_admin_request(request):
+    Acessado a partir da aba Clientes do dashboard por qualquer usuário logado."""
+    if not _is_dashboard_request(request):
         return RedirectResponse("/login", status_code=302)
 
     client = ps.get_client_by_id(cliente_id)
