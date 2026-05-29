@@ -295,6 +295,7 @@ CREATE TABLE IF NOT EXISTS creditos (
     status TEXT NOT NULL DEFAULT 'confirmed'
         CHECK (status IN ('pending', 'confirmed')),
     valor REAL NOT NULL CHECK (valor > 0),
+    -- FKs omitidas no SQLite (dev-only): testes usam ids sintéticos; Postgres mantém as REFERENCES
     pacote_id TEXT,
     venda_id TEXT,
     pagamento_id TEXT,
