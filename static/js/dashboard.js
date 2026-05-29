@@ -1393,7 +1393,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const valor = typeof c.total_amount === 'number' ? c.total_amount.toFixed(2) : c.total_amount;
                     return `  • ${nome} — R$ ${valor} (${c.qty} pç)`;
                 }).join('\n');
-                const msg = `⚠️ ATENÇÃO — ${body.paid_count} cliente(s) já pagaram este pacote:\n\n${lista}\n\nSe você cancelar assim mesmo:\n  • Os pedidos pagos NÃO serão estornados automaticamente.\n  • Ficarão visíveis como PAGO e você precisa tratar cada caso manualmente (estorno, reaproveitamento, etc).\n  • Os demais pedidos (pendentes) serão cancelados.\n\nQuer continuar?`;
+                const msg = `⚠️ ATENÇÃO — ${body.paid_count} cliente(s) já pagaram este pacote:\n\n${lista}\n\nSe você cancelar assim mesmo:\n  • O valor pago de cada cliente vira CRÉDITO na plataforma (abatido automaticamente nas próximas compras).\n  • Não há estorno em dinheiro.\n  • Os pedidos pagos e os pendentes deste pacote serão todos cancelados.\n\nQuer continuar?`;
                 if (!confirm(msg)) return;
 
                 const forced = await doCancel(true);
@@ -1401,7 +1401,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     alert('Erro ao cancelar pacote: ' + (forced.body.detail || forced.status));
                     return;
                 }
-                alert(`Pacote cancelado. ${forced.body.cancelled_sales} pedido(s) cancelado(s). ${forced.body.preserved_paid} pagamento(s) pago(s) preservados — trate esses clientes manualmente.`);
+                const cc = forced.body.credited_clients || 0;
+                const ct = typeof forced.body.credited_total === 'number' ? forced.body.credited_total.toFixed(2) : forced.body.credited_total;
+                const creditoMsg = cc > 0 ? ` ${cc} cliente(s) creditado(s) em R$ ${ct}.` : '';
+                alert(`Pacote cancelado. ${forced.body.cancelled_sales} pedido(s) cancelado(s).${creditoMsg}`);
             } else if (status !== 200) {
                 alert('Erro ao cancelar pacote: ' + (body.detail || status));
                 return;
