@@ -295,9 +295,9 @@ CREATE TABLE IF NOT EXISTS creditos (
     status TEXT NOT NULL DEFAULT 'confirmed'
         CHECK (status IN ('pending', 'confirmed')),
     valor REAL NOT NULL CHECK (valor > 0),
-    pacote_id TEXT REFERENCES pacotes(id),
-    venda_id TEXT REFERENCES vendas(id),
-    pagamento_id TEXT REFERENCES pagamentos(id),
+    pacote_id TEXT,
+    venda_id TEXT,
+    pagamento_id TEXT,
     asaas_payment_id TEXT,
     descricao TEXT,
     created_by TEXT,
