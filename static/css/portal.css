@@ -32,6 +32,8 @@
     font-family: 'Inter', system-ui, sans-serif;
 }
 
+[hidden] { display: none !important; }
+
 body {
     background: var(--bg-main);
     background-image:
