@@ -547,6 +547,32 @@ def get_or_create_pix(pagamento_id: str, cliente_id: str) -> Dict[str, Any]:
     if str(venda.get("cliente_id")) != str(cliente_id):
         raise PermissionError("Este pagamento não pertence a você")
 
+    from app.services import credit_service
+    total = float(venda.get("total_amount") or 0)
+    saldo_antes, credito_aplicado, cobranca = _apply_credit(cliente_id, total)
+
+    # Crédito cobre 100% → quita sem PIX (só se ainda não pago)
+    if cobranca <= 0 and pagamento.get("status") != "paid":
+        client.update(
+            "pagamentos",
+            {"status": "paid", "paid_at": _now().isoformat(), "updated_at": _now().isoformat()},
+            filters=[("id", "eq", pagamento["id"])],
+        )
+        credit_service.add_confirmed_debit(
+            cliente_id, credito_aplicado, pagamento_id=pagamento["id"],
+            descricao="Pago com crédito",
+        )
+        return {
+            "pix_payload": "", "payment_link": "", "qr_code_base64": "",
+            "status": "paid", "saldo_antes": saldo_antes,
+            "credito_aplicado": credito_aplicado, "cobranca": 0.0,
+            "pago_com_credito": True,
+        }
+    credit_extra = {
+        "saldo_antes": saldo_antes, "credito_aplicado": credito_aplicado,
+        "cobranca": cobranca, "pago_com_credito": False,
+    }
+
     # Se já tem pix_payload, atualizar data de envio e retornar
     if pagamento.get("pix_payload") and pagamento.get("payment_link"):
         if pagamento.get("status") != "paid":
@@ -555,7 +581,16 @@ def get_or_create_pix(pagamento_id: str, cliente_id: str) -> Dict[str, Any]:
                 {"status": "sent", "updated_at": _now().isoformat()},
                 filters=[("id", "eq", pagamento["id"])],
             )
-        return _build_pix_response(pagamento)
+        existing = credit_service._existing_debit(client, pagamento["id"], None)
+        credito_ja = 0.0
+        if existing:
+            row = client.select("creditos", columns="valor", filters=[("id", "eq", existing["id"])], limit=1)
+            if isinstance(row, list) and row:
+                credito_ja = float(row[0].get("valor") or 0)
+        return _build_pix_response(pagamento, extra={
+            "saldo_antes": saldo_antes, "credito_aplicado": credito_ja,
+            "cobranca": round(total - credito_ja, 2), "pago_com_credito": False,
+        })
 
     # Se tem provider_payment_id, busca dados atualizados no Asaas
     from integrations.asaas.client import AsaasClient
@@ -572,7 +607,7 @@ def get_or_create_pix(pagamento_id: str, cliente_id: str) -> Dict[str, Any]:
             )
         pagamento["pix_payload"] = pix_data.get("pix_payload") or ""
         pagamento["payment_link"] = pix_data.get("paymentLink") or ""
-        return _build_pix_response(pagamento)
+        return _build_pix_response(pagamento, extra=credit_extra)
 
     # Precisa criar pagamento no Asaas
     cliente_rows = client.select(
@@ -593,12 +628,18 @@ def get_or_create_pix(pagamento_id: str, cliente_id: str) -> Dict[str, Any]:
 
     from datetime import date
     due = date.today().isoformat()
-    amount = float(venda.get("total_amount") or 0)
+    amount = cobranca
     produto = venda.get("produto") or {}
     description = f"{produto.get('nome', 'Produto')} - {venda.get('qty', 1)} peça(s)"
 
     payment = asaas.create_payment_pix(customer["id"], amount, due, description)
     pix_data = asaas.get_payment_pix_with_retry(payment["id"])
+
+    if credito_aplicado > 0:
+        credit_service.add_pending_debit(
+            cliente_id, credito_aplicado, pagamento_id=pagamento["id"],
+            descricao="Crédito aplicado",
+        )
 
     # Salvar no banco
     client.update(
@@ -616,7 +657,7 @@ def get_or_create_pix(pagamento_id: str, cliente_id: str) -> Dict[str, Any]:
 
     pagamento["pix_payload"] = pix_data.get("pix_payload") or ""
     pagamento["payment_link"] = pix_data.get("paymentLink") or payment.get("invoiceUrl") or ""
-    return _build_pix_response(pagamento)
+    return _build_pix_response(pagamento, extra=credit_extra)
 
 
 def _update_pix_data(client: SupabaseRestClient, pagamento_id: str, pix_data: Dict) -> None:
@@ -628,17 +669,18 @@ def _update_pix_data(client: SupabaseRestClient, pagamento_id: str, pix_data: Di
     client.update("pagamentos", updates, filters=[("id", "eq", pagamento_id)])
 
 
-def _build_pix_response(pagamento: Dict) -> Dict[str, Any]:
+def _build_pix_response(pagamento: Dict, extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     payload = pagamento.get("pix_payload") or ""
-    qr_b64 = ""
-    if payload:
-        qr_b64 = _generate_qr_base64(payload)
-    return {
+    qr_b64 = _generate_qr_base64(payload) if payload else ""
+    out = {
         "pix_payload": payload,
         "payment_link": pagamento.get("payment_link") or "",
         "qr_code_base64": qr_b64,
         "status": pagamento.get("status") or "pending",
     }
+    if extra:
+        out.update(extra)
+    return out
 
 
 def _generate_qr_base64(data: str) -> str:
