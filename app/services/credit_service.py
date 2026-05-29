@@ -196,6 +196,22 @@ def add_confirmed_debit(
                       pagamento_id=pagamento_id, asaas_payment_id=asaas_payment_id, descricao=descricao)
 
 
+def remove_pending_debit(*, pagamento_id: Optional[str] = None, asaas_payment_id: Optional[str] = None) -> int:
+    """Remove débito(s) PENDING pela chave (nunca toca em confirmed). Retorna nº removido."""
+    sb = _client()
+    filters: List[Any] = [("tipo", "eq", "debit"), ("status", "eq", "pending")]
+    if pagamento_id:
+        filters.append(("pagamento_id", "eq", pagamento_id))
+    elif asaas_payment_id:
+        filters.append(("asaas_payment_id", "eq", asaas_payment_id))
+    else:
+        raise ValueError("pagamento_id ou asaas_payment_id obrigatório")
+    removed = sb.delete("creditos", filters=filters)
+    logger.info("credit_service: removidos %s débito(s) pending pagamento=%s asaas=%s",
+                removed, pagamento_id, asaas_payment_id)
+    return removed if isinstance(removed, int) else 0
+
+
 def confirm_debit(*, pagamento_id: Optional[str] = None, asaas_payment_id: Optional[str] = None) -> None:
     sb = _client()
     filters = [("tipo", "eq", "debit"), ("status", "eq", "pending")]

@@ -716,6 +716,88 @@ def _apply_credit(cliente_id: str, total: float):
     return saldo, aplicado, cobranca
 
 
+def _cancel_other_open_charges(cliente_id: str, keep_pagamento_ids) -> None:
+    """Cancela as OUTRAS cobranças em aberto do cliente (serialização do crédito).
+
+    Para cada pagamento individual com cobrança Asaas ativa (provider_payment_id,
+    status created/sent, não pago) que NÃO esteja em keep_pagamento_ids: cancela
+    no Asaas, reseta o pagamento p/ recarregável e remove o débito pending dele.
+    Para cada PIX combinado do cliente no runtime_state (exceto os que cobrem só
+    os keep): cancela no Asaas, remove o débito pending (asaas_payment_id) e apaga
+    o runtime_state.
+    """
+    import json
+
+    from app.services import credit_service
+    from app.services.runtime_state_service import delete_runtime_state
+    from integrations.asaas.client import AsaasClient
+
+    keep = set(str(p) for p in (keep_pagamento_ids or []))
+    client = _client()
+    asaas = AsaasClient()
+
+    # 1) pagamentos individuais com cobrança Asaas ativa
+    rows = client.select_all(
+        "pagamentos",
+        columns="id,provider_payment_id,status,venda:venda_id(cliente_id)",
+        filters=[("status", "in", ["created", "sent"])],
+    ) or []
+    for p in rows:
+        pid = str(p.get("id") or "")
+        if not pid or pid in keep:
+            continue
+        venda = p.get("venda")
+        if isinstance(venda, list):
+            venda = venda[0] if venda else {}
+        if str((venda or {}).get("cliente_id") or "") != str(cliente_id):
+            continue
+        prov = p.get("provider_payment_id")
+        if prov:
+            try:
+                asaas.cancel_payment(prov)
+            except Exception:
+                logger.warning("cancel_other_charges: falha ao cancelar Asaas %s", prov, exc_info=True)
+        client.update(
+            "pagamentos",
+            {"provider_payment_id": None, "payment_link": None, "pix_payload": None,
+             "due_date": None, "status": "created", "updated_at": _now().isoformat()},
+            filters=[("id", "eq", pid)],
+        )
+        credit_service.remove_pending_debit(pagamento_id=pid)
+
+    # 2) PIX combinados do cliente
+    states = client.select_all(
+        "app_runtime_state",
+        columns="key,payload_json",
+        filters=[("key", "like", f"{COMBINED_PIX_STATE_PREFIX}%")],
+    ) or []
+    for st in states:
+        key = st.get("key") or ""
+        payload = st.get("payload_json") or {}
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except Exception:
+                payload = {}
+        if str(payload.get("cliente_id") or "") != str(cliente_id):
+            continue
+        pag_ids = set(str(x) for x in (payload.get("pagamento_ids") or []))
+        # se o combinado cobre só os keep atuais, não cancela
+        if pag_ids and pag_ids.issubset(keep):
+            continue
+        asaas_id = key[len(COMBINED_PIX_STATE_PREFIX):]
+        if asaas_id:
+            try:
+                asaas.cancel_payment(asaas_id)
+            except Exception:
+                logger.warning("cancel_other_charges: falha ao cancelar combinado Asaas %s", asaas_id, exc_info=True)
+            credit_service.remove_pending_debit(asaas_payment_id=asaas_id)
+        try:
+            delete_runtime_state(key)
+        except Exception:
+            logger.warning("cancel_other_charges: falha ao apagar runtime_state %s", key, exc_info=True)
+
+
 def _mark_paid_with_credit(pagamento_ids):
     """Marca pagamentos pendentes como paid quando o crédito cobre 100% (sem PIX)."""
     client = _client()

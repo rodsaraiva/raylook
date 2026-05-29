@@ -135,6 +135,169 @@ class _FakeSbIndiv:
         return []
 
 
+# ---------------------------------------------------------------------------
+# _cancel_other_open_charges (serialização do crédito)
+# ---------------------------------------------------------------------------
+#
+# Setup: credit_service roda contra SQLite REAL (a remoção do débito pending é
+# exercitada de verdade no ledger). portal_service._client() usa um fake DB
+# leve (_FakeCancelSb) que devolve as linhas seedadas de pagamentos /
+# app_runtime_state e grava update/delete — evita montar a cadeia de FKs
+# pesada de vendas/pagamentos (pacote→enquete→produto) só pra esse teste.
+
+
+class FakeCancelAsaas:
+    def __init__(self):
+        self.cancelled = []
+    def cancel_payment(self, payment_id):
+        self.cancelled.append(payment_id)
+        return {"id": payment_id, "deleted": True}
+
+
+class _FakeCancelSb:
+    def __init__(self, pagamentos=None, states=None):
+        self._pagamentos = pagamentos or []
+        self._states = states or []
+        self.updates = []
+        self.deleted_states = []
+    def select_all(self, table, columns=None, filters=None, order=None):
+        if table == "pagamentos":
+            wanted = None
+            for f in filters or []:
+                if f[0] == "status" and f[1] == "in":
+                    wanted = set(f[2])
+            return [r for r in self._pagamentos
+                    if wanted is None or r.get("status") in wanted]
+        if table == "app_runtime_state":
+            return list(self._states)
+        return []
+    def update(self, table, payload, filters=None):
+        self.updates.append((table, payload, dict((f[0], f[2]) for f in (filters or []))))
+        if table == "pagamentos":
+            pid = dict((f[0], f[2]) for f in (filters or [])).get("id")
+            for r in self._pagamentos:
+                if str(r.get("id")) == str(pid):
+                    r.update(payload)
+        return []
+
+
+def _make_cancel_env(tmp_path, monkeypatch, pagamentos=None, states=None):
+    real = SQLiteRestClient(db_path=str(tmp_path / "cancel.db"))
+    real.insert("clientes", {"id": "C1", "nome": "Ana", "celular": "5511999"})
+    monkeypatch.setattr(cs, "_client", lambda: real)
+
+    fake = _FakeCancelSb(pagamentos=pagamentos, states=states)
+    monkeypatch.setattr(ps, "_client", lambda: fake)
+
+    asaas = FakeCancelAsaas()
+    monkeypatch.setattr("integrations.asaas.client.AsaasClient", lambda: asaas)
+
+    deleted = []
+    monkeypatch.setattr(
+        "app.services.runtime_state_service.delete_runtime_state",
+        lambda key: deleted.append(key),
+    )
+    fake.deleted_states = deleted
+    return real, fake, asaas, deleted
+
+
+def test_cancel_individual_charge(tmp_path, monkeypatch):
+    real, fake, asaas, _ = _make_cancel_env(
+        tmp_path, monkeypatch,
+        pagamentos=[{"id": "PA", "provider_payment_id": "pay_old", "status": "sent",
+                     "venda": {"cliente_id": "C1"}}],
+    )
+    cs.add_credit("C1", 100.0, descricao="seed")
+    cs.add_pending_debit("C1", 30.0, pagamento_id="PA")
+
+    ps._cancel_other_open_charges("C1", keep_pagamento_ids=[])
+
+    assert "pay_old" in asaas.cancelled
+    # pagamento resetado
+    row = [r for r in fake._pagamentos if r["id"] == "PA"][0]
+    assert row["provider_payment_id"] is None
+    assert row["status"] == "created"
+    # débito pending removido de verdade no ledger SQLite
+    assert [e for e in cs.get_ledger("C1") if e["tipo"] == "debit"] == []
+
+
+def test_cancel_skips_kept_pagamento(tmp_path, monkeypatch):
+    real, fake, asaas, _ = _make_cancel_env(
+        tmp_path, monkeypatch,
+        pagamentos=[{"id": "PA", "provider_payment_id": "pay_old", "status": "sent",
+                     "venda": {"cliente_id": "C1"}}],
+    )
+    cs.add_credit("C1", 100.0, descricao="seed")
+    cs.add_pending_debit("C1", 30.0, pagamento_id="PA")
+
+    ps._cancel_other_open_charges("C1", keep_pagamento_ids=["PA"])
+
+    assert asaas.cancelled == []
+    row = [r for r in fake._pagamentos if r["id"] == "PA"][0]
+    assert row["provider_payment_id"] == "pay_old"  # não resetado
+    pend = [e for e in cs.get_ledger("C1") if e["tipo"] == "debit" and e["status"] == "pending"]
+    assert len(pend) == 1  # débito preservado
+
+
+def test_cancel_other_client_untouched(tmp_path, monkeypatch):
+    real, fake, asaas, _ = _make_cancel_env(
+        tmp_path, monkeypatch,
+        pagamentos=[{"id": "PA", "provider_payment_id": "pay_old", "status": "sent",
+                     "venda": {"cliente_id": "C2"}}],
+    )
+    ps._cancel_other_open_charges("C1", keep_pagamento_ids=[])
+    assert asaas.cancelled == []
+
+
+def test_cancel_combined_charge(tmp_path, monkeypatch):
+    real, fake, asaas, deleted = _make_cancel_env(
+        tmp_path, monkeypatch,
+        states=[{"key": "combined_pix_payX",
+                 "payload_json": {"pagamento_ids": ["PB"], "cliente_id": "C1"}}],
+    )
+    cs.add_credit("C1", 100.0, descricao="seed")
+    cs.add_pending_debit("C1", 60.0, asaas_payment_id="payX")
+
+    ps._cancel_other_open_charges("C1", keep_pagamento_ids=[])
+
+    assert "payX" in asaas.cancelled
+    assert "combined_pix_payX" in deleted
+    assert [e for e in cs.get_ledger("C1") if e["tipo"] == "debit"] == []
+
+
+def test_cancel_combined_skips_when_covers_only_keep(tmp_path, monkeypatch):
+    real, fake, asaas, deleted = _make_cancel_env(
+        tmp_path, monkeypatch,
+        states=[{"key": "combined_pix_payX",
+                 "payload_json": {"pagamento_ids": ["PB"], "cliente_id": "C1"}}],
+    )
+    cs.add_credit("C1", 100.0, descricao="seed")
+    cs.add_pending_debit("C1", 60.0, asaas_payment_id="payX")
+
+    ps._cancel_other_open_charges("C1", keep_pagamento_ids=["PB"])
+
+    assert asaas.cancelled == []
+    assert deleted == []
+    pend = [e for e in cs.get_ledger("C1") if e["tipo"] == "debit" and e["status"] == "pending"]
+    assert len(pend) == 1
+
+
+def test_cancel_combined_payload_as_json_string(tmp_path, monkeypatch):
+    import json
+    real, fake, asaas, deleted = _make_cancel_env(
+        tmp_path, monkeypatch,
+        states=[{"key": "combined_pix_payY",
+                 "payload_json": json.dumps({"pagamento_ids": ["PB"], "cliente_id": "C1"})}],
+    )
+    cs.add_credit("C1", 100.0, descricao="seed")
+    cs.add_pending_debit("C1", 60.0, asaas_payment_id="payY")
+
+    ps._cancel_other_open_charges("C1", keep_pagamento_ids=[])
+
+    assert "payY" in asaas.cancelled
+    assert "combined_pix_payY" in deleted
+
+
 def test_individual_partial_credit(tmp_path, monkeypatch):
     from app.services.sqlite_service import SQLiteRestClient
     real = SQLiteRestClient(db_path=str(tmp_path / "i1.db"))

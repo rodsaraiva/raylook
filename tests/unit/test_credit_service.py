@@ -88,6 +88,44 @@ def test_ledger_lists_entries(db):
     assert {e["tipo"] for e in ledger} == {"credit", "debit"}
 
 
+def test_remove_pending_debit_by_pagamento(db):
+    _, cid = db
+    cs.add_credit(cid, 100.0)
+    cs.add_pending_debit(cid, 30.0, pagamento_id="P1")
+    assert cs.remove_pending_debit(pagamento_id="P1") == 1
+    assert [e for e in cs.get_ledger(cid) if e["tipo"] == "debit"] == []
+    assert cs.get_balance(cid) == 100.0
+
+
+def test_remove_pending_debit_by_asaas(db):
+    _, cid = db
+    cs.add_credit(cid, 100.0)
+    cs.add_pending_debit(cid, 40.0, asaas_payment_id="pay_x")
+    assert cs.remove_pending_debit(asaas_payment_id="pay_x") == 1
+    assert [e for e in cs.get_ledger(cid) if e["tipo"] == "debit"] == []
+
+
+def test_remove_pending_debit_leaves_confirmed(db):
+    _, cid = db
+    cs.add_credit(cid, 300.0)
+    cs.add_confirmed_debit(cid, 200.0, pagamento_id="P9")
+    assert cs.remove_pending_debit(pagamento_id="P9") == 0
+    assert cs.get_balance(cid) == 100.0  # confirmed intacto
+
+
+def test_remove_pending_debit_idempotent(db):
+    _, cid = db
+    cs.add_credit(cid, 100.0)
+    cs.add_pending_debit(cid, 30.0, pagamento_id="P1")
+    assert cs.remove_pending_debit(pagamento_id="P1") == 1
+    assert cs.remove_pending_debit(pagamento_id="P1") == 0
+
+
+def test_remove_pending_debit_requires_key(db):
+    with pytest.raises(ValueError):
+        cs.remove_pending_debit()
+
+
 def test_list_balances_positive_only(db):
     client, cid = db
     other = client.insert("clientes", {"nome": "Bia", "celular": "5511888"})[0]["id"]
