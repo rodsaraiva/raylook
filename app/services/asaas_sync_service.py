@@ -108,6 +108,8 @@ async def sync_asaas_payments() -> int:
                         filters=[("id", "eq", pag_id)],
                     )
                     updated_count += 1
+                    from app.services import credit_service
+                    credit_service.confirm_debit(pagamento_id=pag_id)
                     logger.info(
                         "asaas_sync: pagamento individual %s marcado como paid (asaas=%s)",
                         pag_id, asaas_id,
@@ -211,6 +213,9 @@ async def _sync_combined_pix(sb, asaas) -> int:
                     "asaas_sync: falha ao marcar %s como paid (combinado %s): %s",
                     pag_id, asaas_id, exc,
                 )
+
+        from app.services import credit_service
+        credit_service.confirm_debit(asaas_payment_id=asaas_id)
 
     return updated
 

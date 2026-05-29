@@ -547,6 +547,110 @@ async def test_sync_conta_combinados_no_total(monkeypatch):
     assert fake_sb.tables["pagamentos"][0]["status"] == "paid"
 
 
+# ── confirma débito de crédito ao confirmar pagamento ────────────────────────
+
+@pytest.mark.asyncio
+async def test_individual_paid_confirma_debito(monkeypatch):
+    """Pagamento individual confirmado paid → confirm_debit(pagamento_id=...)."""
+    fake_sb = FakeSupabaseClientExt(_tables(
+        pagamentos=[
+            {"id": "P1", "provider_payment_id": "pay_1", "status": "sent"},
+        ]
+    ))
+
+    asaas = _fake_asaas(
+        statuses={"pay_1": "RECEIVED"},
+        payments={"pay_1": {"status": "RECEIVED", "paymentDate": "2026-05-10"}},
+    )
+
+    monkeypatch.setattr("app.services.asaas_sync_service.supabase_domain_enabled", lambda: True)
+    monkeypatch.setattr(
+        "app.services.asaas_sync_service.SupabaseRestClient.from_settings",
+        staticmethod(lambda: fake_sb),
+    )
+
+    class FakeSettings:
+        RAYLOOK_SANDBOX = False
+
+    import app.config as cfg_module
+    monkeypatch.setattr(cfg_module, "settings", FakeSettings())
+
+    import integrations.asaas.client as asaas_mod
+    monkeypatch.setattr(asaas_mod, "AsaasClient", lambda: asaas)
+
+    import app.services.finance_service as fin
+    import app.services.customer_service as cust
+    monkeypatch.setattr(fin, "refresh_charge_snapshot", lambda: None)
+    monkeypatch.setattr(fin, "refresh_dashboard_stats", lambda: None)
+    monkeypatch.setattr(cust, "refresh_customer_rows_snapshot", lambda: None)
+
+    confirmed = []
+    import app.services.credit_service as credit_service
+    monkeypatch.setattr(credit_service, "confirm_debit", lambda **kw: confirmed.append(kw))
+
+    result = await svc.sync_asaas_payments()
+
+    assert result == 1
+    assert {"pagamento_id": "P1"} in confirmed
+
+
+@pytest.mark.asyncio
+async def test_combined_paid_confirma_debito_uma_vez(monkeypatch):
+    """PIX combinado pago → confirm_debit(asaas_payment_id=...) UMA vez, não por pag_id."""
+    fake_sb = FakeSupabaseClientExt({
+        "pagamentos": [
+            {"id": "c1", "status": "created"},
+            {"id": "c2", "status": "sent"},
+        ],
+        "app_runtime_state": [
+            {
+                "key": "combined_pix_combo-9",
+                "payload_json": {"pagamento_ids": ["c1", "c2"]},
+            }
+        ],
+    })
+
+    asaas = _fake_asaas(
+        statuses={},
+        payments={"combo-9": {"status": "RECEIVED", "confirmedDate": "2026-05-11"}},
+    )
+
+    confirmed = []
+    import app.services.credit_service as credit_service
+    monkeypatch.setattr(credit_service, "confirm_debit", lambda **kw: confirmed.append(kw))
+
+    result = await svc._sync_combined_pix(fake_sb, asaas)
+
+    assert result == 2
+    # Uma única chamada por combinado, com a chave do Asaas
+    assert confirmed == [{"asaas_payment_id": "combo-9"}]
+
+
+@pytest.mark.asyncio
+async def test_combined_pending_nao_confirma_debito(monkeypatch):
+    """Combinado não-pago não dispara confirm_debit."""
+    fake_sb = FakeSupabaseClientExt({
+        "pagamentos": [{"id": "c1", "status": "created"}],
+        "app_runtime_state": [
+            {
+                "key": "combined_pix_combo-pend",
+                "payload_json": {"pagamento_ids": ["c1"]},
+            }
+        ],
+    })
+
+    asaas = _fake_asaas(statuses={}, payments={"combo-pend": {"status": "PENDING"}})
+
+    confirmed = []
+    import app.services.credit_service as credit_service
+    monkeypatch.setattr(credit_service, "confirm_debit", lambda **kw: confirmed.append(kw))
+
+    result = await svc._sync_combined_pix(fake_sb, asaas)
+
+    assert result == 0
+    assert confirmed == []
+
+
 @pytest.mark.asyncio
 async def test_sync_nao_chama_refresh_quando_zero_atualizacoes(monkeypatch):
     """refresh_* não são chamadas quando nenhum pagamento foi atualizado."""
