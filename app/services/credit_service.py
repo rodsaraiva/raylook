@@ -136,6 +136,16 @@ def _existing_debit(
     return rows[0] if isinstance(rows, list) and rows else None
 
 
+def get_applied_credit(pagamento_id: str) -> float:
+    """Valor do débito (pending ou confirmed) vinculado a pagamento_id, ou 0.0."""
+    sb = _client()
+    found = _existing_debit(sb, pagamento_id, None)
+    if not found:
+        return 0.0
+    rows = sb.select("creditos", columns="valor", filters=[("id", "eq", found["id"])], limit=1)
+    return float(rows[0].get("valor") or 0) if isinstance(rows, list) and rows else 0.0
+
+
 def _add_debit(
     cliente_id: str,
     valor: float,

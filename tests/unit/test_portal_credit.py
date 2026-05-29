@@ -176,3 +176,31 @@ def test_individual_full_coverage(tmp_path, monkeypatch):
     assert asaas.created == []
     assert cs.get_balance("C1") == 300.0   # debit confirmado de 200
     assert any(t == "pagamentos" and p.get("status") == "paid" for t, p in fake.updates)
+
+
+def test_individual_reentrancy_does_not_reapply(tmp_path, monkeypatch):
+    from app.services.sqlite_service import SQLiteRestClient
+    real = SQLiteRestClient(db_path=str(tmp_path / "i3.db"))
+    real.insert("clientes", {"id": "C1", "nome": "Ana", "celular": "5511999"})
+    monkeypatch.setattr(cs, "_client", lambda: real)
+    cs.add_credit("C1", 1000.0, descricao="seed")
+    # débito pendente já registrado de uma geração anterior (R$50 sobre os R$200)
+    cs.add_pending_debit("C1", 50.0, pagamento_id="P1", descricao="anterior")
+
+    fake = _FakeSbIndiv(pix_already=True)
+    monkeypatch.setattr(ps, "_client", lambda: fake)
+    asaas = FakeAsaas()
+    monkeypatch.setattr("integrations.asaas.client.AsaasClient", lambda: asaas)
+
+    saldo_before = cs.get_balance("C1")
+    out = ps.get_or_create_pix("P1", "C1")
+
+    assert asaas.created == []                 # não criou novo PIX
+    assert out.get("pago_com_credito") is not True
+    assert out["credito_aplicado"] == 50.0     # reporta o débito já registrado
+    assert out["cobranca"] == 150.0            # 200 - 50
+    # nenhum débito novo, nada marcado paid
+    assert cs.get_balance("C1") == saldo_before
+    assert not any(p.get("status") == "paid" for _, p in fake.updates)
+    debits = [e for e in cs.get_ledger("C1") if e["tipo"] == "debit"]
+    assert len(debits) == 1                    # continua só o débito anterior

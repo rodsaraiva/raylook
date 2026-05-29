@@ -549,31 +549,8 @@ def get_or_create_pix(pagamento_id: str, cliente_id: str) -> Dict[str, Any]:
 
     from app.services import credit_service
     total = float(venda.get("total_amount") or 0)
-    saldo_antes, credito_aplicado, cobranca = _apply_credit(cliente_id, total)
 
-    # Crédito cobre 100% → quita sem PIX (só se ainda não pago)
-    if cobranca <= 0 and pagamento.get("status") != "paid":
-        client.update(
-            "pagamentos",
-            {"status": "paid", "paid_at": _now().isoformat(), "updated_at": _now().isoformat()},
-            filters=[("id", "eq", pagamento["id"])],
-        )
-        credit_service.add_confirmed_debit(
-            cliente_id, credito_aplicado, pagamento_id=pagamento["id"],
-            descricao="Pago com crédito",
-        )
-        return {
-            "pix_payload": "", "payment_link": "", "qr_code_base64": "",
-            "status": "paid", "saldo_antes": saldo_antes,
-            "credito_aplicado": credito_aplicado, "cobranca": 0.0,
-            "pago_com_credito": True,
-        }
-    credit_extra = {
-        "saldo_antes": saldo_antes, "credito_aplicado": credito_aplicado,
-        "cobranca": cobranca, "pago_com_credito": False,
-    }
-
-    # Se já tem pix_payload, atualizar data de envio e retornar
+    # Já tem PIX gerado → retorna o existente reportando o crédito já registrado
     if pagamento.get("pix_payload") and pagamento.get("payment_link"):
         if pagamento.get("status") != "paid":
             client.update(
@@ -581,15 +558,12 @@ def get_or_create_pix(pagamento_id: str, cliente_id: str) -> Dict[str, Any]:
                 {"status": "sent", "updated_at": _now().isoformat()},
                 filters=[("id", "eq", pagamento["id"])],
             )
-        existing = credit_service._existing_debit(client, pagamento["id"], None)
-        credito_ja = 0.0
-        if existing:
-            row = client.select("creditos", columns="valor", filters=[("id", "eq", existing["id"])], limit=1)
-            if isinstance(row, list) and row:
-                credito_ja = float(row[0].get("valor") or 0)
+        credito_ja = credit_service.get_applied_credit(pagamento["id"])
         return _build_pix_response(pagamento, extra={
-            "saldo_antes": saldo_antes, "credito_aplicado": credito_ja,
-            "cobranca": round(total - credito_ja, 2), "pago_com_credito": False,
+            "saldo_antes": credit_service.get_balance(cliente_id),
+            "credito_aplicado": credito_ja,
+            "cobranca": round(total - credito_ja, 2),
+            "pago_com_credito": False,
         })
 
     # Se tem provider_payment_id, busca dados atualizados no Asaas
@@ -607,7 +581,39 @@ def get_or_create_pix(pagamento_id: str, cliente_id: str) -> Dict[str, Any]:
             )
         pagamento["pix_payload"] = pix_data.get("pix_payload") or ""
         pagamento["payment_link"] = pix_data.get("paymentLink") or ""
-        return _build_pix_response(pagamento, extra=credit_extra)
+        credito_ja = credit_service.get_applied_credit(pagamento["id"])
+        return _build_pix_response(pagamento, extra={
+            "saldo_antes": credit_service.get_balance(cliente_id),
+            "credito_aplicado": credito_ja,
+            "cobranca": round(total - credito_ja, 2),
+            "pago_com_credito": False,
+        })
+
+    # Nenhuma cobrança Asaas ainda → único ponto onde o crédito é avaliado
+    saldo_antes, credito_aplicado, cobranca = _apply_credit(cliente_id, total)
+
+    # Crédito cobre 100% → quita sem PIX (pagamento novo, sem cobrança Asaas)
+    if cobranca <= 0:
+        now = _now().isoformat()
+        client.update(
+            "pagamentos",
+            {"status": "paid", "paid_at": now, "updated_at": now},
+            filters=[("id", "eq", pagamento["id"])],
+        )
+        credit_service.add_confirmed_debit(
+            cliente_id, credito_aplicado, pagamento_id=pagamento["id"],
+            descricao="Pago com crédito",
+        )
+        return {
+            "pix_payload": "", "payment_link": "", "qr_code_base64": "",
+            "status": "paid", "saldo_antes": saldo_antes,
+            "credito_aplicado": credito_aplicado, "cobranca": 0.0,
+            "pago_com_credito": True,
+        }
+    credit_extra = {
+        "saldo_antes": saldo_antes, "credito_aplicado": credito_aplicado,
+        "cobranca": cobranca, "pago_com_credito": False,
+    }
 
     # Precisa criar pagamento no Asaas
     cliente_rows = client.select(
