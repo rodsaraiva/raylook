@@ -669,13 +669,13 @@ def _apply_credit(cliente_id: str, total: float):
 
 
 def _mark_paid_with_credit(pagamento_ids):
-    """Marca pagamentos como paid quando o crédito cobre 100% (sem PIX)."""
+    """Marca pagamentos pendentes como paid quando o crédito cobre 100% (sem PIX)."""
     client = _client()
     for pid in pagamento_ids:
         client.update(
             "pagamentos",
             {"status": "paid", "paid_at": _now().isoformat(), "updated_at": _now().isoformat()},
-            filters=[("id", "eq", pid)],
+            filters=[("id", "eq", pid), ("status", "eq", "pending")],
         )
 
 
@@ -700,6 +700,7 @@ def create_combined_pix(cliente_id: str) -> Dict[str, Any]:
         _mark_paid_with_credit(pagamento_ids)
         credit_service.add_confirmed_debit(
             cliente_id, credito_aplicado,
+            pagamento_id=pagamento_ids[0],
             descricao=f"Pago com crédito — {item_count} pedido{'s' if item_count > 1 else ''}",
         )
         return {

@@ -1,7 +1,13 @@
-"""Testes do abate de crédito na geração de PIX (portal)."""
+"""Testes do abate de crédito na geração de PIX combinado (portal).
+
+credit_service roda contra SQLite REAL (pega erros de chave/ledger);
+Asaas e get_client_orders ficam mockados.
+"""
 import pytest
 
 from app.services import portal_service as ps
+from app.services import credit_service as cs
+from app.services.sqlite_service import SQLiteRestClient
 
 
 class FakeAsaas:
@@ -17,20 +23,36 @@ class FakeAsaas:
 
 
 class _FakeSb:
+    """Cobre só os acessos que create_combined_pix faz fora do credit_service:
+    select de clientes (cpf) e o update de pagamentos (via _mark_paid_with_credit)."""
+    def __init__(self):
+        self.paid = []
     def select(self, table, columns=None, filters=None, limit=None):
         if table == "clientes":
             return [{"nome": "Ana", "celular": "5511999", "cpf_cnpj": "12345678900"}]
         return []
-    def update(self, *a, **k):
+    def update(self, table, payload, filters=None):
+        if table == "pagamentos" and payload.get("status") == "paid":
+            pid = dict((f[0], f[2]) for f in (filters or [])).get("id")
+            self.paid.append(pid)
         return []
 
 
 @pytest.fixture
-def env(monkeypatch):
+def env(tmp_path, monkeypatch):
+    # credit_service usa SQLite real; portal usa _FakeSb pros demais acessos
+    real = SQLiteRestClient(db_path=str(tmp_path / "test.db"))
+    real.insert("clientes", {"id": "C1", "nome": "Ana", "celular": "5511999"})
+    monkeypatch.setattr(cs, "_client", lambda: real)
+
+    fake = _FakeSb()
+    monkeypatch.setattr(ps, "_client", lambda: fake)
+
     asaas = FakeAsaas()
     monkeypatch.setattr("integrations.asaas.client.AsaasClient", lambda: asaas)
-    monkeypatch.setattr(ps, "_client", lambda: _FakeSb())
-    return asaas
+
+    monkeypatch.setattr("app.services.runtime_state_service.runtime_state_enabled", lambda: False)
+    return asaas, fake, real
 
 
 def _orders(*amounts):
@@ -41,41 +63,49 @@ def _orders(*amounts):
 
 
 def test_combined_partial_credit(env, monkeypatch):
+    asaas, fake, real = env
+    cs.add_credit("C1", 50.0, descricao="seed")
     monkeypatch.setattr(ps, "get_client_orders", lambda cid: _orders(120.0, 80.0))
-    monkeypatch.setattr("app.services.credit_service.get_balance", lambda cid: 50.0)
-    pending_debits = []
-    monkeypatch.setattr(
-        "app.services.credit_service.add_pending_debit",
-        lambda cid, valor, **kw: pending_debits.append((valor, kw)),
-    )
 
     out = ps.create_combined_pix("C1")
 
     assert out["saldo_antes"] == 50.0
     assert out["credito_aplicado"] == 50.0
     assert out["cobranca"] == 150.0
-    assert env.created == [150.0]            # Asaas cobrado só pela diferença
-    assert pending_debits and pending_debits[0][0] == 50.0
-    assert pending_debits[0][1].get("asaas_payment_id") == "pay_1"
+    assert asaas.created == [150.0]            # Asaas cobrado só pela diferença
     assert out.get("pago_com_credito") is not True
+    # débito PENDING criado de verdade -> não conta no saldo ainda
+    assert cs.get_balance("C1") == 50.0
+    ledger = cs.get_ledger("C1")
+    pend = [e for e in ledger if e["tipo"] == "debit" and e["status"] == "pending"]
+    assert len(pend) == 1 and pend[0]["valor"] == 50.0
 
 
 def test_combined_full_coverage(env, monkeypatch):
+    asaas, fake, real = env
+    cs.add_credit("C1", 300.0, descricao="seed")
     monkeypatch.setattr(ps, "get_client_orders", lambda cid: _orders(120.0, 80.0))
-    monkeypatch.setattr("app.services.credit_service.get_balance", lambda cid: 300.0)
-    confirmed = []
-    paid_marked = []
-    monkeypatch.setattr(
-        "app.services.credit_service.add_confirmed_debit",
-        lambda cid, valor, **kw: confirmed.append(valor),
-    )
-    monkeypatch.setattr(ps, "_mark_paid_with_credit", lambda ids: paid_marked.extend(ids), raising=False)
 
     out = ps.create_combined_pix("C1")
 
     assert out["cobranca"] == 0.0
     assert out["pago_com_credito"] is True
     assert out["credito_aplicado"] == 200.0
-    assert env.created == []                 # NÃO chamou Asaas
-    assert confirmed == [200.0]
-    assert sorted(paid_marked) == ["P0", "P1"]
+    assert asaas.created == []                 # NÃO chamou Asaas
+    assert sorted(fake.paid) == ["P0", "P1"]   # pagamentos marcados paid
+    # débito CONFIRMED de 200 -> saldo cai de 300 para 100
+    assert cs.get_balance("C1") == 100.0
+
+
+def test_combined_no_credit(env, monkeypatch):
+    asaas, fake, real = env
+    monkeypatch.setattr(ps, "get_client_orders", lambda cid: _orders(120.0))
+
+    out = ps.create_combined_pix("C1")
+
+    assert out["saldo_antes"] == 0.0
+    assert out["credito_aplicado"] == 0.0
+    assert out["cobranca"] == 120.0
+    assert asaas.created == [120.0]
+    # nenhum débito criado quando não há crédito
+    assert [e for e in cs.get_ledger("C1") if e["tipo"] == "debit"] == []
