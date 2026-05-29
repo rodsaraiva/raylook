@@ -119,7 +119,7 @@ def test_cancel_blocked_when_paid_and_not_forced(monkeypatch):
     assert fake.patch_calls == []
 
 
-def test_cancel_forced_preserves_paid(monkeypatch):
+def test_cancel_forced_cancels_paid_and_credits(monkeypatch):
     sales = [
         {
             "id": "V1", "status": "approved", "qty": 3,
@@ -137,19 +137,66 @@ def test_cancel_forced_preserves_paid(monkeypatch):
     fake = _make_fake_client(sales=sales)
     pcs = _install(monkeypatch, fake)
 
+    credits = []
+    from app.services import credit_service
+    monkeypatch.setattr(
+        credit_service, "add_credit",
+        lambda cliente_id, valor, **kw: credits.append({"cliente_id": cliente_id, "valor": valor, **kw}),
+    )
+
     result = pcs.cancel_package("PKG-1", force=True)
 
-    assert result["cancelled_sales"] == 1
-    assert result["cancelled_payments"] == 1
-    assert result["preserved_paid"] == 1
+    # paga (V1) + não-paga (V2) ambas canceladas
+    assert result["cancelled_sales"] == 2
+    assert result["cancelled_payments"] == 2
+    assert result["preserved_paid"] == 0
+    assert result["credited_total"] == 60
+    assert result["credited_clients"] == 1
 
-    # A venda V1/pagamento P1 não deve aparecer nos PATCHes (preservados)
+    # crédito só para a venda paga
+    assert len(credits) == 1
+    assert credits[0]["cliente_id"] == "C1"
+    assert credits[0]["valor"] == 60
+    assert credits[0]["venda_id"] == "V1"
+
+    # ambas as vendas e ambos os pagamentos aparecem nos PATCHes
     venda_paths = [c["path"] for c in fake.patch_calls if "/vendas?" in c["path"]]
     pagamento_paths = [c["path"] for c in fake.patch_calls if "/pagamentos?" in c["path"]]
+    assert any("eq.V1" in p for p in venda_paths)
     assert any("eq.V2" in p for p in venda_paths)
-    assert not any("eq.V1" in p for p in venda_paths)
+    assert any("eq.P1" in p for p in pagamento_paths)
     assert any("eq.P2" in p for p in pagamento_paths)
-    assert not any("eq.P1" in p for p in pagamento_paths)
+
+
+def test_cancel_paid_generates_credit(monkeypatch):
+    sales = [
+        {
+            "id": "V1", "status": "approved", "qty": 6,
+            "total_amount": 120, "cliente_id": "C1",
+            "cliente": {"nome": "Ana", "celular": "5511999"},
+            "pagamento": {"id": "P1", "status": "paid", "paid_at": "2026-05-01T00:00:00Z"},
+        },
+    ]
+    fake = _make_fake_client(sales=sales)
+    pcs = _install(monkeypatch, fake)
+
+    credits = []
+    from app.services import credit_service
+    monkeypatch.setattr(
+        credit_service, "add_credit",
+        lambda cliente_id, valor, **kw: credits.append({"cliente_id": cliente_id, "valor": valor, **kw}),
+    )
+
+    result = pcs.cancel_package("PKG-1", force=True, cancelled_by="admin")
+
+    assert len(credits) == 1
+    assert credits[0]["cliente_id"] == "C1"
+    assert credits[0]["valor"] == 120
+    assert credits[0]["venda_id"] == "V1"
+    patched = {(c["path"].split("?")[0], c["payload"].get("status")) for c in fake.patch_calls}
+    assert ("/rest/v1/vendas", "cancelled") in patched
+    assert ("/rest/v1/pagamentos", "cancelled") in patched
+    assert result["credited_total"] == 120
 
 
 def test_cancel_idempotent_when_already_cancelled(monkeypatch):
