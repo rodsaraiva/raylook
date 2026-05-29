@@ -128,6 +128,9 @@
                         {% endif %}
                     </div>
                     {% endif %}
+                    {% if order.pacote_codigo %}
+                    <div class="order-pkg-code"><i class="fas fa-box"></i> Pacote {{ order.pacote_codigo }}</div>
+                    {% endif %}
                     <div class="order-meta">
                         {% if order.tecido %}{{ order.tecido }} · {% endif %}
                         {% if order.tamanho %}{{ order.tamanho }} · {% endif %}
