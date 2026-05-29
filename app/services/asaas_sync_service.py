@@ -214,8 +214,14 @@ async def _sync_combined_pix(sb, asaas) -> int:
                     pag_id, asaas_id, exc,
                 )
 
-        from app.services import credit_service
-        credit_service.confirm_debit(asaas_payment_id=asaas_id)
+        try:
+            from app.services import credit_service
+            credit_service.confirm_debit(asaas_payment_id=asaas_id)
+        except Exception as exc:
+            logger.warning(
+                "asaas_sync: falha ao confirmar débito de crédito (combinado %s): %s",
+                asaas_id, exc,
+            )
 
     return updated
 
