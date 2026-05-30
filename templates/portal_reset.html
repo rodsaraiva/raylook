@@ -65,9 +65,9 @@
             {% if temp_password %}
             <h1>Senha temporária</h1>
             <p class="auth-subtitle">
-                Use a senha abaixo no login. Ela expira em
-                <strong>{{ expires_minutes }} minutos</strong>. Quando você entrar,
-                vamos pedir pra criar uma senha nova.
+                Use a senha abaixo no login. Ela vale por
+                <strong>{{ expires_hours }} horas</strong> (ou até você definir uma
+                senha nova). Quando você entrar, vamos pedir pra criar uma senha nova.
             </p>
 
             <div class="temp-pass-box">
