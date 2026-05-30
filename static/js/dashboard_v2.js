@@ -498,6 +498,11 @@
 
     function renderList() {
         const q = search.trim().toLowerCase();
+        // Busca por telefone: compara só dígitos (ignora máscara/DDI). Guard de
+        // 4+ dígitos pra fragmentos curtos não casarem com qualquer número.
+        const qDigits = q.replace(/\D/g, "");
+        const phoneMatch = (phone) =>
+            qDigits.length >= 4 && String(phone || "").replace(/\D/g, "").includes(qDigits);
         const all = currentItems();
         const wrap = document.getElementById("list");
         const titleEl = document.getElementById("list-title");
@@ -511,11 +516,14 @@
             if (p.type === "client_row") {
                 return (p.cliente_nome || "").toLowerCase().includes(q)
                     || (p.pacote_friendly_id || "").toLowerCase().includes(q)
-                    || (p.produto_name || "").toLowerCase().includes(q);
+                    || (p.produto_name || "").toLowerCase().includes(q)
+                    || phoneMatch(p.cliente_phone);
             }
             return (p.produto_name || "").toLowerCase().includes(q)
-                || (p.clientes || []).some(c => (c.name || "").toLowerCase().includes(q))
-                || (p.external_poll_id || "").toLowerCase().includes(q);
+                || (p.friendly_id || "").toLowerCase().includes(q)
+                || (p.external_poll_id || "").toLowerCase().includes(q)
+                || (p.clientes || []).some(c =>
+                    (c.name || "").toLowerCase().includes(q) || phoneMatch(c.phone));
         }) : all;
         const totalCount = filtered.length;
         const paged = filtered.slice((listPage - 1) * LIST_PAGE_SIZE, listPage * LIST_PAGE_SIZE);
