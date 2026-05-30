@@ -243,7 +243,7 @@ async def portal_setup_submit(
 
 
 # ---------------------------------------------------------------------------
-# Esqueci minha senha — gera senha temp de 30min e mostra na tela
+# Esqueci minha senha — gera senha temp de 24h e mostra na tela
 # ---------------------------------------------------------------------------
 
 @router.get("/reset", response_class=HTMLResponse)
@@ -253,7 +253,7 @@ async def portal_reset_page(request: Request):
 
 @router.post("/reset")
 async def portal_reset_submit(request: Request, phone: str = Form(...)):
-    """Gera senha temp de 30min e mostra na própria tela.
+    """Gera senha temp de 24h e mostra na própria tela.
 
     Rate-limit reaproveita o do login pra dificultar enumeração + brute force
     de geração de temps. Se o número não existe, devolve a mesma tela de
@@ -272,14 +272,14 @@ async def portal_reset_submit(request: Request, phone: str = Form(...)):
         fake = ps.generate_temp_password_plaintext()
         return _templates().TemplateResponse(request, "portal_reset.html", {
             "temp_password": fake,
-            "expires_minutes": ps.TEMP_PASSWORD_MINUTES,
+            "expires_hours": ps.TEMP_PASSWORD_HOURS,
         })
 
     temp = ps.create_temp_password(client["id"])
     logger.info("temp password generated for cliente_id=%s", client["id"])
     return _templates().TemplateResponse(request, "portal_reset.html", {
         "temp_password": temp,
-        "expires_minutes": ps.TEMP_PASSWORD_MINUTES,
+        "expires_hours": ps.TEMP_PASSWORD_HOURS,
     })
 
 

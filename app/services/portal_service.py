@@ -25,7 +25,7 @@ logger = logging.getLogger("raylook.portal")
 
 SESSION_DURATION_DAYS = 30
 RESET_TOKEN_MINUTES = 30
-TEMP_PASSWORD_MINUTES = 30
+TEMP_PASSWORD_HOURS = 24
 TEMP_PASSWORD_LENGTH = 8
 # Alfabeto sem caracteres ambíguos (0/O, 1/I/l) — usuário vai digitar de novo
 TEMP_PASSWORD_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -296,13 +296,14 @@ def generate_temp_password_plaintext() -> str:
 
 
 def create_temp_password(cliente_id: str) -> str:
-    """Gera senha temp de 30min e grava o hash. Retorna a senha em plaintext
+    """Gera senha temp de 24h e grava o hash. Retorna a senha em plaintext
     pra exibir uma única vez na tela. A senha original continua válida —
-    login aceita as duas até a temp expirar ou ser substituída.
+    login aceita as duas até a temp expirar (24h) ou o cliente trocar a senha
+    (change_password zera o hash da temp).
     """
     plaintext = generate_temp_password_plaintext()
     pw_hash = bcrypt.hashpw(plaintext.encode("utf-8"), bcrypt.gensalt(BCRYPT_ROUNDS)).decode("utf-8")
-    expires = _now() + timedelta(minutes=TEMP_PASSWORD_MINUTES)
+    expires = _now() + timedelta(hours=TEMP_PASSWORD_HOURS)
     _client().update(
         "clientes",
         {
