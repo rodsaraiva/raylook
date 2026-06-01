@@ -431,6 +431,27 @@ class TestPackageServiceRebuild:
         assert result["closed_count"] == 0
         assert result["open_qty"] == 0
 
+    def test_votos_out_sao_ignorados_pelo_select(self):
+        """Votos com status='out' não devem entrar no rebuild — filtro no SQL."""
+        enquete = _make_enquete()
+        enquete_with_join = {**enquete, "produtos": _make_produto()}
+        votos = [
+            _make_voto(id="v1", qty=6, status="out"),   # cancelado — deve ser ignorado
+            _make_voto(id="v2", qty=6),                  # ativo — deve contar
+        ]
+
+        sb = FakeSB(_base_tables(
+            enquetes=[enquete_with_join],
+            produtos=[_make_produto()],
+            votos=votos,
+        ))
+        svc = PackageService(sb)
+
+        result = svc.rebuild_for_poll(_POLL_ID)
+
+        # Só o voto ativo (qty=6) deve ser considerado
+        assert result["open_qty"] == 6
+
     def test_votos_insuficientes_criam_pacote_aberto(self):
         """Votos que não chegam a 24 devem gerar pacote aberto com open_qty correto."""
         enquete = _make_enquete()

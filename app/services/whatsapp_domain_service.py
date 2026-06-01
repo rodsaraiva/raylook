@@ -459,13 +459,13 @@ class PackageService:
         # Fetch current votes (source of truth = last user action)
         votes = self.client.select(
             "votos", columns="id,cliente_id,alternativa_id,qty,voted_at,status",
-            filters=[("enquete_id", "eq", enquete_id)],
+            filters=[("enquete_id", "eq", enquete_id), ("status", "neq", "out")],
         )
         if not isinstance(votes, list):
             return {"closed_count": 0, "open_qty": 0}
 
-        # Active votes: qty > 0 and status != out
-        active_votes = [v for v in votes if int(v.get("qty") or 0) > 0 and str(v.get("status") or "").strip().lower() != "out"]
+        # Active votes: qty > 0 AND status != "out" (defense in depth)
+        active_votes = [v for v in votes if str(v.get("status") or "").strip().lower() != "out" and int(v.get("qty") or 0) > 0]
         active_votes.sort(key=lambda v: (-int(v.get("qty") or 0), _safe_datetime(v.get("voted_at"))))
 
         poll = self.client.select(
@@ -499,13 +499,12 @@ class PackageService:
         approved_pkg_ids = {str(p["id"]) for p in (finalized_pkgs if isinstance(finalized_pkgs, list) else []) if p.get("status") == "approved"}
         approved_assignments = []
         if approved_pkg_ids:
-            for pkg_id in approved_pkg_ids:
-                rows = self.client.select(
-                    "pacote_clientes", columns="voto_id,cliente_id,qty",
-                    filters=[("pacote_id", "eq", pkg_id)],
-                )
-                if isinstance(rows, list):
-                    approved_assignments.extend(rows)
+            rows = self.client.select(
+                "pacote_clientes", columns="voto_id,cliente_id,qty",
+                filters=[("pacote_id", "in", list(approved_pkg_ids))],
+            )
+            if isinstance(rows, list):
+                approved_assignments.extend(rows)
 
         # Build map of qty already consumed per cliente_id in approved packages
         from collections import defaultdict

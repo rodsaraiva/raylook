@@ -11,6 +11,7 @@
     window.dashboardFilter = filter;
     let listPage = 1;
     const LIST_PAGE_SIZE = 20;
+    let _searchTimer = null;
 
     // Role do usuário logado (filtra rail e botões). Default admin se /api/me falhar.
     let currentRole = "admin";
@@ -864,7 +865,9 @@
     document.getElementById("search").addEventListener("input", e => {
         search = e.target.value;
         listPage = 1;
-        renderList();
+        selectedId = null;
+        clearTimeout(_searchTimer);
+        _searchTimer = setTimeout(() => renderList(), 300);
     });
 
     function render() { renderRail(); renderList(); renderDetail(); }
