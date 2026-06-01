@@ -457,13 +457,13 @@ class PackageService:
         # Fetch current votes (source of truth = last user action)
         votes = self.client.select(
             "votos", columns="id,cliente_id,alternativa_id,qty,voted_at,status",
-            filters=[("enquete_id", "eq", enquete_id)],
+            filters=[("enquete_id", "eq", enquete_id), ("status", "neq", "out")],
         )
         if not isinstance(votes, list):
             return {"closed_count": 0, "open_qty": 0}
 
-        # Active votes: qty > 0 and status != out
-        active_votes = [v for v in votes if int(v.get("qty") or 0) > 0 and str(v.get("status") or "").strip().lower() != "out"]
+        # Active votes: qty > 0
+        active_votes = [v for v in votes if int(v.get("qty") or 0) > 0]
         active_votes.sort(key=lambda v: (-int(v.get("qty") or 0), _safe_datetime(v.get("voted_at"))))
 
         poll = self.client.select(
