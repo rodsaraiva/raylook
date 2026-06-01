@@ -857,6 +857,7 @@
     document.getElementById("search").addEventListener("input", e => {
         search = e.target.value;
         listPage = 1;
+        selectedId = null;
         clearTimeout(_searchTimer);
         _searchTimer = setTimeout(() => renderList(), 300);
     });

@@ -462,8 +462,8 @@ class PackageService:
         if not isinstance(votes, list):
             return {"closed_count": 0, "open_qty": 0}
 
-        # Active votes: qty > 0
-        active_votes = [v for v in votes if int(v.get("qty") or 0) > 0]
+        # Active votes: qty > 0 AND status != "out" (defense in depth)
+        active_votes = [v for v in votes if str(v.get("status") or "").strip().lower() != "out" and int(v.get("qty") or 0) > 0]
         active_votes.sort(key=lambda v: (-int(v.get("qty") or 0), _safe_datetime(v.get("voted_at"))))
 
         poll = self.client.select(

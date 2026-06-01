@@ -772,24 +772,24 @@ async def whatsapp_webhook(request: Request):
 async def reconcile_supabase_baserow():
     if not supabase_domain_enabled():
         raise HTTPException(status_code=503, detail="Supabase domain disabled.")
+
+    def _pg_count(client: SupabaseRestClient, table: str) -> int:
+        rows = client.select(table, columns="count()")
+        return int((rows or [{}])[0].get("count", 0))
+
     try:
         sb = SupabaseRestClient.from_settings()
-        enquetes_sb = sb.select("enquetes", columns="id")
-        votos_sb = sb.select("votos", columns="id")
-        pacotes_sb = sb.select("pacotes", columns="id")
-        vendas_sb = sb.select("vendas", columns="id")
-        pagamentos_sb = sb.select("pagamentos", columns="id")
+        supabase_counts = {
+            "enquetes":   _pg_count(sb, "enquetes"),
+            "votos":      _pg_count(sb, "votos"),
+            "pacotes":    _pg_count(sb, "pacotes"),
+            "vendas":     _pg_count(sb, "vendas"),
+            "pagamentos": _pg_count(sb, "pagamentos"),
+        }
     except Exception as exc:
         logger.exception("reconcile failed")
         raise HTTPException(status_code=502, detail=f"Reconcile failed: {exc}")
 
-    supabase_counts = {
-        "enquetes": len(enquetes_sb) if isinstance(enquetes_sb, list) else 0,
-        "votos": len(votos_sb) if isinstance(votos_sb, list) else 0,
-        "pacotes": len(pacotes_sb) if isinstance(pacotes_sb, list) else 0,
-        "vendas": len(vendas_sb) if isinstance(vendas_sb, list) else 0,
-        "pagamentos": len(pagamentos_sb) if isinstance(pagamentos_sb, list) else 0,
-    }
     return {"status": "ok", "supabase": supabase_counts, "baserow_comparison": "disabled_in_staging"}
 
 @app.get("/", response_class=HTMLResponse)

@@ -486,11 +486,11 @@ def test_reconcile_retorna_contagens(monkeypatch):
 
     fake_sb = MagicMock()
     fake_sb.select.side_effect = [
-        [{"id": "e1"}, {"id": "e2"}],  # enquetes
-        [{"id": "v1"}],                # votos
-        [{"id": "p1"}, {"id": "p2"}, {"id": "p3"}],  # pacotes
-        [],                            # vendas
-        [{"id": "pg1"}],               # pagamentos
+        [{"count": 2}],  # enquetes
+        [{"count": 1}],  # votos
+        [{"count": 3}],  # pacotes
+        [{"count": 0}],  # vendas
+        [{"count": 1}],  # pagamentos
     ]
     monkeypatch.setattr(main_module.SupabaseRestClient, "from_settings", lambda: fake_sb)
 
