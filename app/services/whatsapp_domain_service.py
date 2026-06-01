@@ -65,11 +65,13 @@ def _digits(value: Any) -> str:
 
 # Phone BR válido: 55 + DDD (2 dígitos) + 8 ou 9 dígitos = 12 ou 13 chars total.
 _BR_PHONE_RE = re.compile(r"^55\d{10,11}$")
+# Phone EUA válido: 1 + área (3) + número (7) = 11 dígitos total.
+_US_PHONE_RE = re.compile(r"^1\d{10}$")
 
 
 def _is_lid_or_invalid_phone(raw: Any) -> bool:
     """True se a string é um LID do WhatsApp (sufixo @lid) OU não casa com
-    formato BR depois de extrair os dígitos.
+    formato BR/EUA depois de extrair os dígitos.
 
     LIDs (Linked Identifiers) são IDs anônimos que o WhatsApp usa em grupos
     com privacidade alta. Quando aparecem nos webhooks/voters, NÃO são phones
@@ -83,7 +85,7 @@ def _is_lid_or_invalid_phone(raw: Any) -> bool:
     canonical = _digits(s)
     if not canonical:
         return True
-    return not _BR_PHONE_RE.match(canonical)
+    return not (_BR_PHONE_RE.match(canonical) or _US_PHONE_RE.match(canonical))
 
 
 def _qty(value: Any) -> int:
