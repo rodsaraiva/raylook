@@ -47,6 +47,13 @@
                 <div class="kpi-value">R$ {{ "%.2f" | format(kpis.total_paid) | replace('.', ',') }}</div>
                 <div class="kpi-sub">{{ kpis.paid_count }} pedido{{ 's' if kpis.paid_count != 1 }} confirmado{{ 's' if kpis.paid_count != 1 }}</div>
             </div>
+            {% if credit_balance and credit_balance > 0 %}
+            <div class="kpi-card credit">
+                <div class="kpi-title"><i class="fas fa-wallet"></i> Crédito disponível</div>
+                <div class="kpi-value">R$ {{ "%.2f" | format(credit_balance) | replace('.', ',') }}</div>
+                <div class="kpi-sub">abatido automaticamente na próxima compra</div>
+            </div>
+            {% endif %}
         </div>
 
         <!-- Pagar Todos -->
@@ -190,7 +197,22 @@
             <button class="pix-sheet-close" id="pix-sheet-close" type="button">✕</button>
         </div>
         <div class="pix-sheet-amount" id="pix-sheet-amount">—</div>
-        <div class="pix-sheet-qr-row">
+        <div class="pix-credit-info" id="pix-credit-info" hidden>
+            <div class="pix-credit-line">
+                <span>Crédito aplicado</span>
+                <span class="pix-credit-applied" id="pix-credit-applied">—</span>
+            </div>
+            <div class="pix-credit-line pix-credit-total">
+                <span>Total a pagar</span>
+                <span id="pix-credit-charge">—</span>
+            </div>
+        </div>
+        <div class="pix-paid-state" id="pix-paid-state" hidden>
+            <i class="fas fa-circle-check"></i>
+            <div class="pix-paid-title">Pago integralmente com crédito</div>
+            <div class="pix-paid-sub">Seu saldo cobriu o valor total. Nada a pagar.</div>
+        </div>
+        <div class="pix-sheet-qr-row" id="pix-qr-row">
             <div class="pix-qr-box" id="pix-qr-img"></div>
             <div class="pix-qr-side">
                 <div class="pix-qr-label">Código PIX copia e cola</div>
@@ -198,8 +220,8 @@
                 <button class="pix-copy-btn" id="pix-copy-btn" type="button">📋 Copiar código</button>
             </div>
         </div>
-        <div class="pix-sheet-divider"></div>
-        <div class="pix-sheet-tip">Abra o app do banco, escaneie o QR Code ou cole o código</div>
+        <div class="pix-sheet-divider" id="pix-sheet-divider"></div>
+        <div class="pix-sheet-tip" id="pix-sheet-tip">Abra o app do banco, escaneie o QR Code ou cole o código</div>
     </div>
 
     <!-- Modal de contingência: pede CPF quando o pagamento bate em 412 cpf_required -->
@@ -220,6 +242,20 @@
         <button type="button" class="cpf-modal-submit" id="cpf-modal-submit">
             <i class="fas fa-check"></i> Salvar e continuar
         </button>
+    </div>
+
+    <!-- Modal de confirmação: quitação integral com crédito (servidor liquida na hora) -->
+    <div id="credit-modal-overlay" class="cpf-modal-overlay"></div>
+    <div id="credit-modal" class="cpf-modal" role="dialog" aria-labelledby="credit-modal-title">
+        <div class="cpf-modal-header">
+            <h3 id="credit-modal-title">Pagar com crédito</h3>
+            <button class="cpf-modal-close" id="credit-modal-close" type="button" aria-label="Fechar">✕</button>
+        </div>
+        <p class="cpf-modal-help" id="credit-modal-body"></p>
+        <button type="button" class="cpf-modal-submit" id="credit-modal-confirm">
+            <i class="fas fa-check"></i> Confirmar
+        </button>
+        <button type="button" class="credit-modal-cancel" id="credit-modal-cancel">Cancelar</button>
     </div>
 
     {% if cliente.must_change_password and not read_only %}
@@ -295,6 +331,7 @@
     <script src="/static/js/portal-filters.js"></script>
 
     {% if not read_only %}
+    <script>window.__raylookCredit = {{ credit_balance|default(0)|tojson }};</script>
     <script src="/static/js/portal-sheet.js"></script>
     {% endif %}
 </body>

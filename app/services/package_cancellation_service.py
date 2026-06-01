@@ -10,14 +10,17 @@ confusão pra equipe de separação).
 Fluxo:
   - Se nenhum pagamento do pacote está pago: cancela em cascata
     (pacote + vendas + pagamentos).
-  - Se algum pagamento está pago: exige `force=True` e preserva os pagos +
-    suas vendas. Os demais (pendente/enviado) são cancelados.
+  - Se algum pagamento está pago: exige `force=True`. As vendas/pagamentos pagos
+    são cancelados e o valor pago vira crédito na plataforma (1 lançamento
+    'credit' por venda paga). Os demais (pendente/enviado) também são cancelados.
 
 Status resultantes:
-  pacote.status            -> 'cancelled' (+ cancelled_at/cancelled_by)
-  vendas[nao_paga].status  -> 'cancelled'
-  pagamentos[nao_paga].status -> 'cancelled' (+ paid_at=NULL mantido)
-  vendas[paga] / pagamentos[paga] -> inalterados
+  pacote.status               -> 'cancelled' (+ cancelled_at/cancelled_by)
+  vendas[nao_paga].status     -> 'cancelled'
+  pagamentos[nao_paga].status -> 'cancelled'
+  vendas[paga].status         -> 'cancelled'  (produto não sai)
+  pagamentos[paga].status     -> 'cancelled'
+  creditos                    -> 1 'credit' por venda paga (valor = total_amount)
 """
 from __future__ import annotations
 
@@ -26,6 +29,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from app.services.supabase_service import SupabaseRestClient, supabase_domain_enabled
+from app.services import credit_service
 
 logger = logging.getLogger("raylook.package_cancellation")
 
@@ -51,7 +55,7 @@ def _now_iso() -> str:
 def _fetch_package(sb: SupabaseRestClient, package_id: str) -> Optional[Dict[str, Any]]:
     rows = sb.select(
         "pacotes",
-        columns="id,status,enquete_id",
+        columns="id,status,enquete_id,friendly_id",
         filters=[("id", "eq", package_id)],
         limit=1,
     )
@@ -126,12 +130,14 @@ def preview_cancel(package_id: str) -> Dict[str, Any]:
         if str((v.get("pagamento") or {}).get("status") or "").lower() != PAID_STATUS
         and str(v.get("status") or "").lower() != "cancelled"
     )
+    credit_total = round(sum(float(p.get("total_amount") or 0) for p in paid), 2)
     return {
         "package_id": package_id,
         "package_status": pkg.get("status"),
         "paid_count": len(paid),
         "paid_clients": paid,
         "pending_count": pending_count,
+        "credit_total": credit_total,
     }
 
 
@@ -172,6 +178,9 @@ def cancel_package(
     now = _now_iso()
     cancelled_sales = 0
     cancelled_payments = 0
+    credited_total = 0.0
+    credited_clients = 0
+    friendly = pkg.get("friendly_id") or package_id
 
     for v in sales:
         pag = v.get("pagamento") or {}
@@ -180,7 +189,37 @@ def cancel_package(
         pagamento_id = str(pag.get("id") or "")
 
         if pag_status == PAID_STATUS:
-            # preservado: venda e pagamento continuam como estão
+            # paga: gera crédito 100% e cancela venda+pagamento (produto não sai)
+            cliente_id = str(v.get("cliente_id") or "")
+            valor = float(v.get("total_amount") or 0)
+            if cliente_id and valor > 0:
+                credit_service.add_credit(
+                    cliente_id, valor,
+                    pacote_id=package_id, venda_id=venda_id,
+                    descricao=f"Cancelamento pacote #{friendly}",
+                    created_by=cancelled_by or "admin",
+                )
+                credited_total += valor
+                credited_clients += 1
+            else:
+                logger.warning(
+                    "cancel_package: venda paga %s sem crédito (cliente_id=%r valor=%s)",
+                    venda_id, cliente_id, valor,
+                )
+            if venda_id:
+                sb._request(
+                    "PATCH", f"/rest/v1/vendas?id=eq.{venda_id}",
+                    payload={"status": "cancelled", "updated_at": now},
+                    prefer="return=minimal",
+                )
+                cancelled_sales += 1
+            if pagamento_id:
+                sb._request(
+                    "PATCH", f"/rest/v1/pagamentos?id=eq.{pagamento_id}",
+                    payload={"status": "cancelled", "updated_at": now},
+                    prefer="return=minimal",
+                )
+                cancelled_payments += 1
             continue
 
         if str(v.get("status") or "").lower() != "cancelled" and venda_id:
@@ -219,14 +258,16 @@ def cancel_package(
     )
 
     logger.info(
-        "cancel_package id=%s force=%s paid_preserved=%d sales_cancelled=%d payments_cancelled=%d",
-        package_id, force, len(paid), cancelled_sales, cancelled_payments,
+        "cancel_package id=%s force=%s credited_clients=%d credited_total=%.2f sales_cancelled=%d payments_cancelled=%d",
+        package_id, force, credited_clients, round(credited_total, 2), cancelled_sales, cancelled_payments,
     )
 
     return {
         "package_id": package_id,
         "cancelled_sales": cancelled_sales,
         "cancelled_payments": cancelled_payments,
-        "preserved_paid": len(paid),
+        "preserved_paid": 0,
+        "credited_total": round(credited_total, 2),
+        "credited_clients": credited_clients,
         "paid_clients": paid,
     }

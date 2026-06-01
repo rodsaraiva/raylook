@@ -12,8 +12,20 @@
     const codeText   = document.getElementById('pix-code-text');
     const copyBtn    = document.getElementById('pix-copy-btn');
     const closeBtn   = document.getElementById('pix-sheet-close');
+    const qrRow      = document.getElementById('pix-qr-row');
+    const divider    = document.getElementById('pix-sheet-divider');
+    const tip        = document.getElementById('pix-sheet-tip');
+    const creditInfo = document.getElementById('pix-credit-info');
+    const creditAppl = document.getElementById('pix-credit-applied');
+    const creditChg  = document.getElementById('pix-credit-charge');
+    const paidState  = document.getElementById('pix-paid-state');
 
     let _pixPayload = '';
+    let reloadTimer = null;
+
+    function fmtBRL(v) {
+        return 'R$ ' + Number(v || 0).toFixed(2).replace('.', ',');
+    }
 
     // ── Abrir / fechar sheet ──────────────────────────────────────────────────
 
@@ -25,12 +37,22 @@
         copyBtn.disabled       = true;
         _pixPayload            = '';
 
+        // Reseta estados de crédito (sheet é singleton, reaproveitado entre pedidos)
+        if (creditInfo) creditInfo.hidden = true;
+        if (paidState)  paidState.hidden  = true;
+        if (qrRow)      qrRow.hidden       = false;
+        if (divider)    divider.hidden     = false;
+        if (tip)        tip.hidden         = false;
+        sheetAmt.hidden = false;
+        if (reloadTimer) { clearTimeout(reloadTimer); reloadTimer = null; }
+
         overlay.classList.add('open');
         sheet.classList.add('open');
         document.body.style.overflow = 'hidden';
     }
 
     function closeSheet() {
+        if (reloadTimer) { clearTimeout(reloadTimer); reloadTimer = null; }
         overlay.classList.remove('open');
         sheet.classList.remove('open');
         document.body.style.overflow = '';
@@ -39,6 +61,30 @@
     // ── Preencher sheet com dados da API ──────────────────────────────────────
 
     function fillSheet(data) {
+        var credito = Number(data.credito_aplicado || 0);
+
+        // Pago 100% com crédito: sem QR/copia, mostra sucesso e recarrega a lista
+        if (data.pago_com_credito) {
+            if (qrRow)   qrRow.hidden   = true;
+            if (divider) divider.hidden = true;
+            if (tip)     tip.hidden     = true;
+            if (creditInfo) creditInfo.hidden = true;
+            if (paidState)  paidState.hidden  = false;
+            sheetAmt.hidden = true;
+            // Reflete o pagamento confirmado: recarrega como o polling faz
+            reloadTimer = setTimeout(function () { window.location.reload(); }, 1800);
+            return;
+        }
+
+        // Crédito parcial: mostra "Crédito aplicado" e "Total a pagar"
+        if (credito > 0) {
+            if (creditAppl) creditAppl.textContent = '− ' + fmtBRL(credito);
+            if (creditChg)  creditChg.textContent  = fmtBRL(data.cobranca);
+            if (creditInfo) creditInfo.hidden = false;
+            // O valor de destaque passa a ser o que de fato será cobrado via PIX
+            sheetAmt.textContent = fmtBRL(data.cobranca);
+        }
+
         qrBox.innerHTML = '';
         if (data.qr_code_base64) {
             var img = document.createElement('img');
@@ -168,6 +214,66 @@
         }
     });
 
+    // ── Pré-check de crédito: confirmação antes de quitar 100% ────────────────
+    // Quando o crédito disponível cobre 100% o valor, o servidor liquida na hora
+    // (debita + marca pago, sem PIX). Por isso confirmamos ANTES de disparar.
+
+    function parseBRL(s) {
+        // "R$ 1.234,56" → 1234.56
+        var d = String(s || '').replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
+        var n = Number(d);
+        return isFinite(n) ? n : NaN;
+    }
+
+    function openCreditModal(saldo, valor, onConfirm) {
+        var ov   = document.getElementById('credit-modal-overlay');
+        var md   = document.getElementById('credit-modal');
+        var body = document.getElementById('credit-modal-body');
+        if (!ov || !md || !body) { onConfirm(); return; }
+        body.textContent = 'Você tem ' + fmtBRL(saldo) + ' de crédito. Este pagamento de '
+            + fmtBRL(valor) + ' será quitado integralmente com seu crédito, sem PIX. Confirmar?';
+        _creditConfirm = onConfirm;
+        ov.classList.add('open');
+        md.classList.add('open');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeCreditModal() {
+        var ov = document.getElementById('credit-modal-overlay');
+        var md = document.getElementById('credit-modal');
+        if (ov) ov.classList.remove('open');
+        if (md) md.classList.remove('open');
+        document.body.style.overflow = '';
+        _creditConfirm = null;
+    }
+
+    var _creditConfirm = null;
+
+    // Gate único: se o crédito cobre o valor inteiro, pede confirmação; senão segue.
+    function triggerPay(url, nome, valor) {
+        var amount = parseBRL(valor);
+        var credit = Number(window.__raylookCredit || 0);
+        if (credit > 0 && isFinite(amount) && credit >= amount) {
+            openCreditModal(credit, amount, function () {
+                closeCreditModal();
+                fetchAndOpen(url, nome, valor);
+            });
+            return;
+        }
+        fetchAndOpen(url, nome, valor);
+    }
+
+    document.addEventListener('click', function (e) {
+        if (!e.target) return;
+        if (e.target.closest && e.target.closest('#credit-modal-confirm')) {
+            var fn = _creditConfirm;
+            if (typeof fn === 'function') fn();
+        }
+        if (e.target.closest && e.target.closest('#credit-modal-cancel')) closeCreditModal();
+        if (e.target.id === 'credit-modal-close') closeCreditModal();
+        if (e.target.id === 'credit-modal-overlay') closeCreditModal();
+    });
+
     // ── Botões Pagar (por card) ───────────────────────────────────────────────
 
     document.querySelectorAll('.btn-pay').forEach(function (btn) {
@@ -175,7 +281,7 @@
             var id    = btn.dataset.pagamento;
             var nome  = btn.dataset.nome  || 'Pedido';
             var valor = btn.dataset.valor || '—';
-            if (id) fetchAndOpen('/portal/api/pay/' + id, nome, valor);
+            if (id) triggerPay('/portal/api/pay/' + id, nome, valor);
         });
     });
 
@@ -185,7 +291,7 @@
     if (btnPayAll) {
         btnPayAll.addEventListener('click', function () {
             var valor = btnPayAll.dataset.valor || '—';
-            fetchAndOpen('/portal/api/pay-all', 'Todos os pedidos pendentes', valor);
+            triggerPay('/portal/api/pay-all', 'Todos os pedidos pendentes', valor);
         });
     }
 

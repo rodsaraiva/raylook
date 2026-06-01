@@ -17,6 +17,7 @@
     --danger-soft: rgba(248, 113, 113, 0.15);
     --warning: #fbbf24;
     --warning-soft: rgba(251, 191, 36, 0.12);
+    --info: #3b82f6;
     --radius-card: 20px;
     --radius-btn: 13px;
     --radius-field: 12px;
@@ -30,6 +31,8 @@
 * {
     font-family: 'Inter', system-ui, sans-serif;
 }
+
+[hidden] { display: none !important; }
 
 body {
     background: var(--bg-main);
@@ -122,6 +125,7 @@ header {
 }
 .kpi-card.pending .kpi-value { color: var(--warning); }
 .kpi-card.paid .kpi-value { color: var(--success); }
+.kpi-card.credit .kpi-value { color: var(--info, #3b82f6); }
 
 .kpi-sub {
     color: var(--text-muted); font-size: 0.7rem; margin-top: 0.1rem;
@@ -344,6 +348,31 @@ header {
     color: var(--accent); margin-bottom: 16px; line-height: 1;
 }
 
+.pix-credit-info {
+    background: rgba(255,255,255,0.03); border: 1px solid var(--card-border);
+    border-radius: 10px; padding: 9px 12px; margin-bottom: 16px;
+}
+.pix-credit-line {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 0.78rem; color: var(--text-secondary);
+}
+.pix-credit-line + .pix-credit-line { margin-top: 5px; }
+.pix-credit-applied { color: var(--success); font-weight: 600; }
+.pix-credit-total {
+    font-weight: 700; color: var(--text-primary);
+    border-top: 1px solid var(--card-border); padding-top: 6px; margin-top: 7px;
+}
+
+.pix-paid-state {
+    text-align: center; padding: 14px 0 8px;
+}
+.pix-paid-state i { font-size: 2.2rem; color: var(--success); }
+.pix-paid-title {
+    font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 1rem;
+    color: var(--success); margin-top: 10px;
+}
+.pix-paid-sub { font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; }
+
 .pix-sheet-qr-row {
     display: flex; gap: 14px; align-items: center; margin-bottom: 12px;
 }
@@ -558,6 +587,15 @@ header {
 }
 .cpf-modal-submit:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
 .cpf-modal-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.credit-modal-cancel {
+    width: 100%; margin-top: 0.6rem; padding: 0.65rem 1rem;
+    background: transparent; color: var(--text-muted);
+    border: 1px solid var(--card-border); border-radius: 11px;
+    font-family: 'Outfit', sans-serif; font-size: 0.88rem; font-weight: 600;
+    cursor: pointer; transition: var(--transition);
+}
+.credit-modal-cancel:hover { color: var(--text-primary); border-color: var(--text-muted); }
 
 /* ── Desktop ── */
 @media (min-width: 720px) {

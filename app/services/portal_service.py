@@ -549,7 +549,10 @@ def get_or_create_pix(pagamento_id: str, cliente_id: str) -> Dict[str, Any]:
     if str(venda.get("cliente_id")) != str(cliente_id):
         raise PermissionError("Este pagamento não pertence a você")
 
-    # Se já tem pix_payload, atualizar data de envio e retornar
+    from app.services import credit_service
+    total = float(venda.get("total_amount") or 0)
+
+    # Já tem PIX gerado → retorna o existente reportando o crédito já registrado
     if pagamento.get("pix_payload") and pagamento.get("payment_link"):
         if pagamento.get("status") != "paid":
             client.update(
@@ -557,7 +560,13 @@ def get_or_create_pix(pagamento_id: str, cliente_id: str) -> Dict[str, Any]:
                 {"status": "sent", "updated_at": _now().isoformat()},
                 filters=[("id", "eq", pagamento["id"])],
             )
-        return _build_pix_response(pagamento)
+        credito_ja = credit_service.get_applied_credit(pagamento["id"])
+        return _build_pix_response(pagamento, extra={
+            "saldo_antes": credit_service.get_balance(cliente_id),
+            "credito_aplicado": credito_ja,
+            "cobranca": round(total - credito_ja, 2),
+            "pago_com_credito": False,
+        })
 
     # Se tem provider_payment_id, busca dados atualizados no Asaas
     from integrations.asaas.client import AsaasClient
@@ -574,7 +583,42 @@ def get_or_create_pix(pagamento_id: str, cliente_id: str) -> Dict[str, Any]:
             )
         pagamento["pix_payload"] = pix_data.get("pix_payload") or ""
         pagamento["payment_link"] = pix_data.get("paymentLink") or ""
-        return _build_pix_response(pagamento)
+        credito_ja = credit_service.get_applied_credit(pagamento["id"])
+        return _build_pix_response(pagamento, extra={
+            "saldo_antes": credit_service.get_balance(cliente_id),
+            "credito_aplicado": credito_ja,
+            "cobranca": round(total - credito_ja, 2),
+            "pago_com_credito": False,
+        })
+
+    # Nenhuma cobrança Asaas ainda → único ponto onde o crédito é avaliado
+    saldo_antes, credito_aplicado, cobranca = _apply_credit(cliente_id, total)
+
+    if credito_aplicado > 0:
+        _cancel_other_open_charges(cliente_id, keep_pagamento_ids=[pagamento["id"]])
+
+    # Crédito cobre 100% → quita sem PIX (pagamento novo, sem cobrança Asaas)
+    if cobranca <= 0:
+        now = _now().isoformat()
+        client.update(
+            "pagamentos",
+            {"status": "paid", "paid_at": now, "updated_at": now},
+            filters=[("id", "eq", pagamento["id"])],
+        )
+        credit_service.add_confirmed_debit(
+            cliente_id, credito_aplicado, pagamento_id=pagamento["id"],
+            descricao="Pago com crédito",
+        )
+        return {
+            "pix_payload": "", "payment_link": "", "qr_code_base64": "",
+            "status": "paid", "saldo_antes": saldo_antes,
+            "credito_aplicado": credito_aplicado, "cobranca": 0.0,
+            "pago_com_credito": True,
+        }
+    credit_extra = {
+        "saldo_antes": saldo_antes, "credito_aplicado": credito_aplicado,
+        "cobranca": cobranca, "pago_com_credito": False,
+    }
 
     # Precisa criar pagamento no Asaas
     cliente_rows = client.select(
@@ -595,12 +639,18 @@ def get_or_create_pix(pagamento_id: str, cliente_id: str) -> Dict[str, Any]:
 
     from datetime import date
     due = date.today().isoformat()
-    amount = float(venda.get("total_amount") or 0)
+    amount = cobranca
     produto = venda.get("produto") or {}
     description = f"{produto.get('nome', 'Produto')} - {venda.get('qty', 1)} peça(s)"
 
     payment = asaas.create_payment_pix(customer["id"], amount, due, description)
     pix_data = asaas.get_payment_pix_with_retry(payment["id"])
+
+    if credito_aplicado > 0:
+        credit_service.add_pending_debit(
+            cliente_id, credito_aplicado, pagamento_id=pagamento["id"],
+            descricao="Crédito aplicado",
+        )
 
     # Salvar no banco
     client.update(
@@ -618,7 +668,7 @@ def get_or_create_pix(pagamento_id: str, cliente_id: str) -> Dict[str, Any]:
 
     pagamento["pix_payload"] = pix_data.get("pix_payload") or ""
     pagamento["payment_link"] = pix_data.get("paymentLink") or payment.get("invoiceUrl") or ""
-    return _build_pix_response(pagamento)
+    return _build_pix_response(pagamento, extra=credit_extra)
 
 
 def _update_pix_data(client: SupabaseRestClient, pagamento_id: str, pix_data: Dict) -> None:
@@ -630,17 +680,18 @@ def _update_pix_data(client: SupabaseRestClient, pagamento_id: str, pix_data: Di
     client.update("pagamentos", updates, filters=[("id", "eq", pagamento_id)])
 
 
-def _build_pix_response(pagamento: Dict) -> Dict[str, Any]:
+def _build_pix_response(pagamento: Dict, extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     payload = pagamento.get("pix_payload") or ""
-    qr_b64 = ""
-    if payload:
-        qr_b64 = _generate_qr_base64(payload)
-    return {
+    qr_b64 = _generate_qr_base64(payload) if payload else ""
+    out = {
         "pix_payload": payload,
         "payment_link": pagamento.get("payment_link") or "",
         "qr_code_base64": qr_b64,
         "status": pagamento.get("status") or "pending",
     }
+    if extra:
+        out.update(extra)
+    return out
 
 
 def _generate_qr_base64(data: str) -> str:
@@ -661,6 +712,108 @@ def _generate_qr_base64(data: str) -> str:
 COMBINED_PIX_STATE_PREFIX = "combined_pix_"
 
 
+def _apply_credit(cliente_id: str, total: float):
+    """Retorna (saldo_antes, credito_aplicado, cobranca) sem alterar o ledger."""
+    from app.services import credit_service
+    saldo = credit_service.get_balance(cliente_id)
+    aplicado = round(min(saldo, total), 2)
+    cobranca = round(total - aplicado, 2)
+    return saldo, aplicado, cobranca
+
+
+def _cancel_other_open_charges(cliente_id: str, keep_pagamento_ids) -> None:
+    """Cancela as OUTRAS cobranças em aberto do cliente (serialização do crédito).
+
+    Para cada pagamento individual com cobrança Asaas ativa (provider_payment_id,
+    status created/sent, não pago) que NÃO esteja em keep_pagamento_ids: cancela
+    no Asaas, reseta o pagamento p/ recarregável e remove o débito pending dele.
+    Para cada PIX combinado do cliente no runtime_state (exceto os que cobrem só
+    os keep): cancela no Asaas, remove o débito pending (asaas_payment_id) e apaga
+    o runtime_state.
+    """
+    import json
+
+    from app.services import credit_service
+    from app.services.runtime_state_service import delete_runtime_state
+    from integrations.asaas.client import AsaasClient
+
+    keep = set(str(p) for p in (keep_pagamento_ids or []))
+    client = _client()
+    asaas = AsaasClient()
+
+    # 1) pagamentos individuais com cobrança Asaas ativa
+    rows = client.select_all(
+        "pagamentos",
+        columns="id,provider_payment_id,status,venda:venda_id(cliente_id)",
+        filters=[("status", "in", ["created", "sent"])],
+    ) or []
+    for p in rows:
+        pid = str(p.get("id") or "")
+        if not pid or pid in keep:
+            continue
+        venda = p.get("venda")
+        if isinstance(venda, list):
+            venda = venda[0] if venda else {}
+        if str((venda or {}).get("cliente_id") or "") != str(cliente_id):
+            continue
+        prov = p.get("provider_payment_id")
+        if prov:
+            try:
+                asaas.cancel_payment(prov)
+            except Exception:
+                logger.warning("cancel_other_charges: falha ao cancelar Asaas %s", prov, exc_info=True)
+        client.update(
+            "pagamentos",
+            {"provider_payment_id": None, "payment_link": None, "pix_payload": None,
+             "due_date": None, "status": "created", "updated_at": _now().isoformat()},
+            filters=[("id", "eq", pid)],
+        )
+        credit_service.remove_pending_debit(pagamento_id=pid)
+
+    # 2) PIX combinados do cliente
+    states = client.select_all(
+        "app_runtime_state",
+        columns="key,payload_json",
+        filters=[("key", "like", f"{COMBINED_PIX_STATE_PREFIX}%")],
+    ) or []
+    for st in states:
+        key = st.get("key") or ""
+        payload = st.get("payload_json") or {}
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except Exception:
+                payload = {}
+        if str(payload.get("cliente_id") or "") != str(cliente_id):
+            continue
+        pag_ids = set(str(x) for x in (payload.get("pagamento_ids") or []))
+        # se o combinado cobre só os keep atuais, não cancela
+        if pag_ids and pag_ids.issubset(keep):
+            continue
+        asaas_id = key[len(COMBINED_PIX_STATE_PREFIX):]
+        if asaas_id:
+            try:
+                asaas.cancel_payment(asaas_id)
+            except Exception:
+                logger.warning("cancel_other_charges: falha ao cancelar combinado Asaas %s", asaas_id, exc_info=True)
+            credit_service.remove_pending_debit(asaas_payment_id=asaas_id)
+        try:
+            delete_runtime_state(key)
+        except Exception:
+            logger.warning("cancel_other_charges: falha ao apagar runtime_state %s", key, exc_info=True)
+
+
+def _mark_paid_with_credit(pagamento_ids):
+    """Marca pagamentos pendentes como paid quando o crédito cobre 100% (sem PIX)."""
+    client = _client()
+    for pid in pagamento_ids:
+        client.update(
+            "pagamentos",
+            {"status": "paid", "paid_at": _now().isoformat(), "updated_at": _now().isoformat()},
+            filters=[("id", "eq", pid), ("status", "eq", "pending")],
+        )
+
+
 def create_combined_pix(cliente_id: str) -> Dict[str, Any]:
     """Cria UM pagamento Asaas com o total de todos os débitos pendentes."""
     orders = get_client_orders(cliente_id)
@@ -673,62 +826,75 @@ def create_combined_pix(cliente_id: str) -> Dict[str, Any]:
     pagamento_ids = [o["pagamento_id"] for o in pending]
     item_count = len(pending)
 
+    from app.services import credit_service
+
+    saldo_antes, credito_aplicado, cobranca = _apply_credit(cliente_id, total)
+
+    if credito_aplicado > 0:
+        _cancel_other_open_charges(cliente_id, keep_pagamento_ids=pagamento_ids)
+
+    # Crédito cobre 100% → quita sem PIX
+    if cobranca <= 0:
+        _mark_paid_with_credit(pagamento_ids)
+        credit_service.add_confirmed_debit(
+            cliente_id, credito_aplicado,
+            pagamento_id=pagamento_ids[0],
+            descricao=f"Pago com crédito — {item_count} pedido{'s' if item_count > 1 else ''}",
+        )
+        return {
+            "pix_payload": "", "payment_link": "", "qr_code_base64": "",
+            "total": total, "item_count": item_count,
+            "saldo_antes": saldo_antes, "credito_aplicado": credito_aplicado,
+            "cobranca": 0.0, "pago_com_credito": True, "asaas_id": None,
+        }
+
     # Buscar dados do cliente
     client = _client()
     cliente_rows = client.select(
-        "clientes",
-        columns="nome,celular,cpf_cnpj",
-        filters=[("id", "eq", cliente_id)],
-        limit=1,
+        "clientes", columns="nome,celular,cpf_cnpj",
+        filters=[("id", "eq", cliente_id)], limit=1,
     )
     cliente_info = cliente_rows[0] if isinstance(cliente_rows, list) and cliente_rows else {}
     cpf = (cliente_info.get("cpf_cnpj") or "").strip()
     if not cpf:
         raise CpfMissingError("cliente sem CPF cadastrado")
 
-    # Criar pagamento único no Asaas
     from integrations.asaas.client import AsaasClient
     from datetime import date
     asaas = AsaasClient()
-
     customer = asaas.create_customer(
         name=cliente_info.get("nome") or "Cliente",
-        phone=cliente_info.get("celular") or "",
-        cpf_cnpj=cpf,
+        phone=cliente_info.get("celular") or "", cpf_cnpj=cpf,
     )
-
     due = date.today().isoformat()
     description = f"Pagamento de {item_count} pedido{'s' if item_count > 1 else ''} - Raylook Assessoria"
-
-    payment = asaas.create_payment_pix(customer["id"], total, due, description)
+    payment = asaas.create_payment_pix(customer["id"], cobranca, due, description)
     pix_data = asaas.get_payment_pix_with_retry(payment["id"])
-
     asaas_id = payment["id"]
 
-    # Salvar mapeamento no app_runtime_state para o webhook saber
-    # quais pagamentos individuais marcar como paid
+    # Débito pendente — confirmado só quando o polling confirmar o pagamento
+    if credito_aplicado > 0:
+        credit_service.add_pending_debit(
+            cliente_id, credito_aplicado, asaas_payment_id=asaas_id,
+            descricao=f"Crédito aplicado em {item_count} pedido{'s' if item_count > 1 else ''}",
+        )
+
     from app.services.runtime_state_service import save_runtime_state, runtime_state_enabled
     if runtime_state_enabled():
         save_runtime_state(
             f"{COMBINED_PIX_STATE_PREFIX}{asaas_id}",
-            {
-                "pagamento_ids": pagamento_ids,
-                "cliente_id": cliente_id,
-                "total": total,
-                "created_at": _now().isoformat(),
-            },
+            {"pagamento_ids": pagamento_ids, "cliente_id": cliente_id,
+             "total": cobranca, "created_at": _now().isoformat()},
         )
 
     pix_payload = pix_data.get("pix_payload") or ""
     payment_link = pix_data.get("paymentLink") or payment.get("invoiceUrl") or ""
-
     return {
-        "pix_payload": pix_payload,
-        "payment_link": payment_link,
+        "pix_payload": pix_payload, "payment_link": payment_link,
         "qr_code_base64": _generate_qr_base64(pix_payload) if pix_payload else "",
-        "total": total,
-        "item_count": item_count,
-        "asaas_id": asaas_id,
+        "total": total, "item_count": item_count,
+        "saldo_antes": saldo_antes, "credito_aplicado": credito_aplicado,
+        "cobranca": cobranca, "pago_com_credito": False, "asaas_id": asaas_id,
     }
 
 
