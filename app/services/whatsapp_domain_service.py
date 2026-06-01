@@ -497,13 +497,12 @@ class PackageService:
         approved_pkg_ids = {str(p["id"]) for p in (finalized_pkgs if isinstance(finalized_pkgs, list) else []) if p.get("status") == "approved"}
         approved_assignments = []
         if approved_pkg_ids:
-            for pkg_id in approved_pkg_ids:
-                rows = self.client.select(
-                    "pacote_clientes", columns="voto_id,cliente_id,qty",
-                    filters=[("pacote_id", "eq", pkg_id)],
-                )
-                if isinstance(rows, list):
-                    approved_assignments.extend(rows)
+            rows = self.client.select(
+                "pacote_clientes", columns="voto_id,cliente_id,qty",
+                filters=[("pacote_id", "in", list(approved_pkg_ids))],
+            )
+            if isinstance(rows, list):
+                approved_assignments.extend(rows)
 
         # Build map of qty already consumed per cliente_id in approved packages
         from collections import defaultdict
