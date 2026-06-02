@@ -1051,6 +1051,35 @@ def cancel_package(pacote_id: str, request: Request) -> Dict[str, Any]:
     return {"status": "ok", "new_state": "cancelled"}
 
 
+@router.patch("/packages/{pacote_id}/fornecedor")
+async def upsert_package_fornecedor(pacote_id: str, request: Request) -> Dict[str, Any]:
+    """Atualiza o fornecedor de um pacote. Admin only."""
+    role = _role_from(request)
+    if role != "admin":
+        raise HTTPException(403, "Apenas o administrador pode editar o fornecedor.")
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    fornecedor = (str(body.get("fornecedor") or "")).strip()
+    if not fornecedor:
+        raise HTTPException(400, "Fornecedor não pode ser vazio.")
+    client = SupabaseRestClient.from_settings()
+    pkg = client.select("pacotes", filters=[("id", "eq", pacote_id)], single=True)
+    if not pkg:
+        raise HTTPException(404, "Pacote não encontrado")
+    client.update("pacotes", {"fornecedor": fornecedor}, filters=[("id", "eq", pacote_id)])
+    # Propaga pra enquete se ainda não tiver
+    enquete_id = pkg.get("enquete_id")
+    if enquete_id:
+        enq = client.select("enquetes", columns="id,fornecedor",
+                             filters=[("id", "eq", enquete_id)], single=True) or {}
+        if not (enq.get("fornecedor") or "").strip():
+            client.update("enquetes", {"fornecedor": fornecedor},
+                          filters=[("id", "eq", enquete_id)])
+    return {"status": "ok", "fornecedor": fornecedor}
+
+
 @router.post("/packages/{pacote_id}/restore")
 def restore_package(pacote_id: str, request: Request) -> Dict[str, Any]:
     """Restaura um pacote cancelado para 'fechado' (status=closed). Admin only."""

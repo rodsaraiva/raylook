@@ -583,6 +583,9 @@
             const restoreBtn = (isAdmin && state === "cancelled")
                 ? `<button class="row-action" data-action="restore" data-id="${p.id}" title="Voltar pra fechado">Restaurar</button>`
                 : "";
+            const fornecedorBtn = (isAdmin && state !== "aberto" && state !== "cancelled")
+                ? `<button class="row-action" data-action="set-fornecedor" data-id="${p.id}" title="${p.fornecedor ? `Fornecedor: ${L.escapeHtml(p.fornecedor)} (clique para editar)` : "Definir fornecedor"}">🏭</button>`
+                : "";
             const REASON_LABELS = {
                 faltando_pecas: "Faltando peças", tamanhos_trocados: "Tamanhos trocados",
                 cores_trocadas: "Cores trocadas", modelo_errado: "Modelo errado",
@@ -601,7 +604,7 @@
                     ${pendingReasonsRow}
                 </div>
                 <div class="pkg-row-meta">${valueLabel}<div class="sub">há ${L.age(p.state_since)}</div></div>
-                <div class="pkg-row-actions">${backBtn}${etiquetaBtn}${actionBtn}${cancelBtn}${restoreBtn}</div>
+                <div class="pkg-row-actions">${backBtn}${etiquetaBtn}${fornecedorBtn}${actionBtn}${cancelBtn}${restoreBtn}</div>
             </div>`;
         }).join("");
         wrap.querySelectorAll(".pkg-row").forEach(row => {
@@ -629,6 +632,23 @@
                 e.stopPropagation();
                 if (btn.dataset.action === "drill") {
                     window.RaylookModal?.open(btn.dataset.id);
+                    return;
+                }
+                if (btn.dataset.action === "set-fornecedor") {
+                    e.stopPropagation();
+                    const forn = await promptFornecedor();
+                    if (!forn) return;
+                    const resp = await fetch(`/api/dashboard/packages/${btn.dataset.id}/fornecedor`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        credentials: "include",
+                        body: JSON.stringify(forn),
+                    });
+                    if (resp.ok) {
+                        L.invalidateFornecedoresCache();
+                        await L.fetchData();
+                        render();
+                    }
                     return;
                 }
                 btn.disabled = true;
