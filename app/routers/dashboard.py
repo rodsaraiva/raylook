@@ -723,10 +723,8 @@ async def _persist_fornecedor_or_raise(
 ) -> None:
     """Lê body.fornecedor e grava em pacotes.fornecedor + enquetes.fornecedor
     (se ainda NULL). Levanta 400 fornecedor_required se o gate está ligado
-    e o body veio sem fornecedor. Idempotente: se pacote já tem fornecedor
-    setado e body vazio, deixa quieto."""
-    if not _fornecedor_required_for(pkg):
-        return
+    e o body veio sem fornecedor. Salva sempre que o body trouxer valor,
+    mesmo com gate desligado."""
     if pkg.get("fornecedor"):
         return  # já preenchido (provavelmente herdado da enquete)
     try:
@@ -736,11 +734,14 @@ async def _persist_fornecedor_or_raise(
     fornecedor_raw = body.get("fornecedor") if isinstance(body, dict) else None
     fornecedor = (str(fornecedor_raw) if fornecedor_raw else "").strip()
     if not fornecedor:
-        raise HTTPException(
-            status_code=400,
-            detail={"code": "fornecedor_required",
-                    "message": "Selecione o fornecedor para confirmar este pacote."},
-        )
+        # Gate: só obrigatório se PACOTE_REQUER_FORNECEDOR_DESDE estiver setado
+        if _fornecedor_required_for(pkg):
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "fornecedor_required",
+                        "message": "Selecione o fornecedor para confirmar este pacote."},
+            )
+        return  # gate desligado e nada veio no body — ok
     pacote_id = pkg["id"]
     client.update(
         "pacotes",
