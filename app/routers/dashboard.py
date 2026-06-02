@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 from app.config import settings
 from app.services import auth_service as _auth
 from app.services.supabase_service import SupabaseRestClient
+from app.services.whatsapp_domain_service import ALLOWED_QTY
 
 
 def _role_from(request: Request) -> str:
@@ -2014,4 +2015,88 @@ def get_enquete_detail(enquete_id: str) -> Dict[str, Any]:
             "cancelled": status_counts.get("cancelled", 0),
         },
         "pacotes": pacotes_out,
+    }
+
+
+@router.post("/enquetes/{enquete_id}/votos")
+def add_voto_manual(enquete_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
+    """Adiciona voto manualmente a uma enquete. synthetic=1 para auditoria."""
+    VALID_QTY = ALLOWED_QTY - {0}
+    qty = body.get("qty")
+    busca = (body.get("busca") or "").strip()
+    nome = (body.get("nome") or "").strip()
+    celular = (body.get("celular") or "").strip()
+
+    if qty not in VALID_QTY:
+        raise HTTPException(400, f"qty deve ser um de: {sorted(VALID_QTY)}")
+    if not busca:
+        raise HTTPException(400, "busca é obrigatório")
+
+    client = SupabaseRestClient.from_settings()
+
+    enq = client.select("enquetes", filters=[("id", "eq", enquete_id)], single=True)
+    if not enq:
+        raise HTTPException(404, "Enquete não encontrada")
+
+    from app.services.portal_service import _normalize_phone, _phone_variants
+    from app.services.whatsapp_domain_service import _sanitize_name
+
+    all_clientes = client.select("clientes") or []
+    busca_lower = busca.lower()
+    normalized_busca = _normalize_phone(busca)
+    phone_variants = set(_phone_variants(normalized_busca)) if normalized_busca else set()
+
+    cliente = None
+    for c in all_clientes:
+        c_phone = _normalize_phone(c.get("celular") or "")
+        c_nome = (c.get("nome") or "").lower()
+        if (phone_variants and c_phone in phone_variants) or busca_lower in c_nome:
+            cliente = c
+            break
+
+    if not cliente:
+        if not nome or not celular:
+            return {"found": False}
+        new_cli = client.insert("clientes", {
+            "nome": _sanitize_name(nome),
+            "celular": _normalize_phone(celular),
+        })
+        cliente = new_cli[0] if isinstance(new_cli, list) else new_cli
+
+    now = client.now_iso()
+    existing_voto = client.select(
+        "votos",
+        filters=[("enquete_id", "eq", enquete_id), ("cliente_id", "eq", cliente["id"])],
+        single=True,
+    )
+    if existing_voto:
+        client.update("votos", {
+            "qty": qty, "status": "in", "synthetic": 1, "voted_at": now,
+        }, filters=[("id", "eq", existing_voto["id"])])
+        voto_id = existing_voto["id"]
+    else:
+        voto_row = client.insert("votos", {
+            "enquete_id": enquete_id,
+            "cliente_id": cliente["id"],
+            "alternativa_id": None,
+            "qty": qty,
+            "status": "in",
+            "synthetic": 1,
+            "voted_at": now,
+        })
+        voto = voto_row[0] if isinstance(voto_row, list) else voto_row
+        voto_id = voto["id"]
+
+    package_result = None
+    try:
+        from app.services.whatsapp_domain_service import PackageService
+        package_result = PackageService(client).rebuild_for_poll(enquete_id)
+    except Exception:
+        logger.exception("rebuild_for_poll falhou após voto manual enquete=%s", enquete_id)
+
+    return {
+        "status": "ok",
+        "voto_id": voto_id,
+        "cliente": {"id": cliente["id"], "nome": cliente.get("nome"), "celular": cliente.get("celular")},
+        "package_result": package_result,
     }
