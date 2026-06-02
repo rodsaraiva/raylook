@@ -842,8 +842,7 @@
             });
             if (resp.ok) {
                 L.invalidateFornecedoresCache();
-                await L.fetchData();
-                render();
+                await window.RaylookReload();
             }
         });
     }
