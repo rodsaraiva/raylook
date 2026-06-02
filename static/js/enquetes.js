@@ -64,6 +64,50 @@
 
     // ---- toggle / view ----
     function openEnquetes() {
+        // injeta estilos do modal de voto manual (idempotente)
+        if (!document.getElementById("enq-voto-styles")) {
+            const s = document.createElement("style");
+            s.id = "enq-voto-styles";
+            s.textContent = `
+                .btn-add-voto{width:100%;padding:9px 16px;background:var(--surface,#313244);
+                  border:1px dashed var(--border,#585b70);border-radius:8px;
+                  color:var(--accent,#89b4fa);font-size:13px;font-weight:600;cursor:pointer;
+                  display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:12px;}
+                .btn-add-voto:hover{border-color:var(--accent,#89b4fa);opacity:.85;}
+                #enq-voto-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);
+                  display:flex;align-items:center;justify-content:center;z-index:9999;}
+                .enq-voto-modal{background:var(--bg-card,#1e1e2e);border:1px solid var(--border,#313244);
+                  border-radius:12px;padding:20px;width:340px;max-width:90vw;}
+                .enq-voto-modal h4{margin:0 0 14px;font-size:15px;color:var(--text,#cdd6f4);}
+                .enq-voto-lbl{font-size:11px;color:var(--text-muted,#6c7086);
+                  text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;}
+                .enq-voto-input{width:100%;padding:8px 10px;background:var(--surface,#313244);
+                  border:1px solid var(--border,#45475a);border-radius:6px;
+                  color:var(--text,#cdd6f4);font-size:13px;box-sizing:border-box;outline:none;margin-bottom:10px;}
+                .enq-voto-input:focus{border-color:var(--accent,#89b4fa);}
+                .enq-voto-found{background:var(--surface,#313244);border-radius:6px;
+                  padding:8px 10px;font-size:12px;color:#a6e3a1;margin-bottom:10px;display:flex;gap:6px;}
+                .enq-voto-new{background:rgba(249,226,175,.05);border:1px dashed #f9e2af;
+                  border-radius:6px;padding:10px;margin-bottom:10px;}
+                .enq-voto-new .warn{font-size:11px;color:#f9e2af;margin-bottom:8px;}
+                .enq-voto-qty-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+                .enq-voto-qty-chip{padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;
+                  background:var(--surface,#313244);border:1px solid var(--border,#45475a);
+                  color:var(--text,#cdd6f4);}
+                .enq-voto-qty-chip.selected{background:var(--accent,#89b4fa);
+                  border-color:var(--accent,#89b4fa);color:#1e1e2e;font-weight:700;}
+                .enq-voto-footer{display:flex;gap:8px;justify-content:flex-end;}
+                .enq-voto-cancel{padding:7px 14px;background:transparent;
+                  border:1px solid var(--border,#45475a);border-radius:6px;
+                  color:var(--text-muted,#6c7086);font-size:12px;cursor:pointer;}
+                .enq-voto-confirm{padding:7px 14px;background:var(--accent,#89b4fa);
+                  border:none;border-radius:6px;color:#1e1e2e;font-size:12px;
+                  font-weight:700;cursor:pointer;}
+                .enq-voto-confirm:disabled{opacity:.4;cursor:default;}
+                .enq-voto-error{font-size:12px;color:#f87171;margin-bottom:10px;}
+            `;
+            document.head.appendChild(s);
+        }
         state.open = true;
         window._enquetesOpen = true;
         document.getElementById("packages-area")?.classList.add("retracted");
@@ -268,8 +312,163 @@
                 <div class="enq-stat"><div class="lbl">Abertos</div><div class="val">${byStatus.open || 0}</div></div>
                 <div class="enq-stat ${cancelClass}"><div class="lbl">Cancelados</div><div class="val">${byStatus.cancelled || 0}</div></div>
             </div>
+            <button type="button" class="btn-add-voto" id="enq-add-voto-btn">＋ Adicionar Voto</button>
             <div class="enq-pacotes-list">${pacotesHtml}</div>
         `;
+        detail.querySelector("#enq-add-voto-btn")?.addEventListener("click", () => openVotoModal());
+    }
+
+    // ---- modal voto manual ----
+
+    function openVotoModal() {
+        if (document.getElementById("enq-voto-modal-overlay")) return;
+
+        // Fix 1: Local HTML escape helper
+        function escHtml(s) {
+            return String(s == null ? "" : s)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+
+        // Fix 3: Snapshot enqueteId at modal open time
+        const enqueteId = state.selectedId;
+
+        let selectedCliente = null;
+        let selectedQty = null;
+        let searchTimer = null;
+
+        const overlay = document.createElement("div");
+        overlay.id = "enq-voto-modal-overlay";
+        overlay.innerHTML = `
+            <div class="enq-voto-modal">
+                <h4>Adicionar Voto</h4>
+                <div class="enq-voto-lbl">Buscar cliente (nome ou telefone)</div>
+                <input class="enq-voto-input" id="enq-voto-busca" placeholder="Nome ou celular..." autocomplete="off">
+                <div id="enq-voto-busca-result"></div>
+                <div class="enq-voto-lbl">Quantidade de peças</div>
+                <div class="enq-voto-qty-chips" id="enq-voto-qty-chips">
+                    ${[3,4,6,8,9,12,16,20,24].map(q =>
+                        `<button type="button" class="enq-voto-qty-chip" data-qty="${q}">${q}</button>`
+                    ).join("")}
+                </div>
+                <div id="enq-voto-error" class="enq-voto-error" style="display:none"></div>
+                <div class="enq-voto-footer">
+                    <button type="button" class="enq-voto-cancel" id="enq-voto-cancel">Cancelar</button>
+                    <button type="button" class="enq-voto-confirm" id="enq-voto-confirm" disabled>Confirmar</button>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+
+        const buscaInput = overlay.querySelector("#enq-voto-busca");
+        const resultDiv = overlay.querySelector("#enq-voto-busca-result");
+        const confirmBtn = overlay.querySelector("#enq-voto-confirm");
+        const errorDiv = overlay.querySelector("#enq-voto-error");
+
+        function updateConfirm() {
+            const newNomeEl = overlay.querySelector("#enq-voto-new-nome");
+            const newCelularEl = overlay.querySelector("#enq-voto-new-celular");
+            const newNome = newNomeEl ? newNomeEl.value.trim() : null;
+            const newCelular = newCelularEl ? newCelularEl.value.trim() : null;
+            const canSubmit = selectedQty !== null && (selectedCliente !== null || (newNome && newCelular));
+            confirmBtn.disabled = !canSubmit;
+            confirmBtn.textContent = (selectedCliente || !newNomeEl) ? "Confirmar" : "Criar e Votar";
+        }
+
+        overlay.querySelectorAll(".enq-voto-qty-chip").forEach(chip => {
+            chip.addEventListener("click", () => {
+                overlay.querySelectorAll(".enq-voto-qty-chip").forEach(c => c.classList.remove("selected"));
+                chip.classList.add("selected");
+                selectedQty = parseInt(chip.dataset.qty, 10);
+                updateConfirm();
+            });
+        });
+
+        buscaInput.addEventListener("input", () => {
+            clearTimeout(searchTimer);
+            selectedCliente = null;
+            updateConfirm();
+            const q = buscaInput.value.trim();
+            if (!q) {
+                resultDiv.innerHTML = "";
+                return;
+            }
+            searchTimer = setTimeout(async () => {
+                try {
+                    const r = await fetch(`/api/dashboard/clientes?q=${encodeURIComponent(q)}`, { credentials: "same-origin" });
+                    if (!r.ok) throw new Error(`Busca falhou: ${r.status}`);
+                    const data = await r.json();
+                    const found = data[0] || null;
+                    if (found) {
+                        selectedCliente = found;
+                        resultDiv.innerHTML = `<div class="enq-voto-found">✓ ${escHtml(found.nome || "")} · ${escHtml(found.celular || "")}</div>`;
+                    } else {
+                        selectedCliente = null;
+                        resultDiv.innerHTML = `
+                            <div class="enq-voto-new">
+                                <div class="warn">⚠ Cliente não encontrado. Preencha para cadastrar:</div>
+                                <div class="enq-voto-lbl">Nome completo</div>
+                                <input class="enq-voto-input" id="enq-voto-new-nome" value="${escHtml(q)}">
+                                <div class="enq-voto-lbl">Celular</div>
+                                <input class="enq-voto-input" id="enq-voto-new-celular" placeholder="Ex: 62999991234">
+                            </div>`;
+                        overlay.querySelector("#enq-voto-new-nome")?.addEventListener("input", updateConfirm);
+                        overlay.querySelector("#enq-voto-new-celular")?.addEventListener("input", updateConfirm);
+                    }
+                } catch (_) {
+                    resultDiv.innerHTML = "";
+                    selectedCliente = null;
+                }
+                updateConfirm();
+            }, 300);
+        });
+
+        confirmBtn.addEventListener("click", async () => {
+            confirmBtn.disabled = true;
+            errorDiv.style.display = "none";
+            const q = buscaInput.value.trim();
+            const body = { busca: q, qty: selectedQty };
+            if (!selectedCliente) {
+                body.nome = (overlay.querySelector("#enq-voto-new-nome")?.value || "").trim();
+                body.celular = (overlay.querySelector("#enq-voto-new-celular")?.value || "").trim();
+            }
+            try {
+                const r = await fetch(`/api/dashboard/enquetes/${encodeURIComponent(enqueteId)}/votos`, {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body),
+                });
+                const data = await r.json();
+                if (!r.ok) {
+                    errorDiv.textContent = data.detail || `Erro ${r.status}`;
+                    errorDiv.style.display = "";
+                    confirmBtn.disabled = false;
+                    return;
+                }
+                if (data.found === false) {
+                    errorDiv.textContent = "Cliente não encontrado. Preencha nome e celular.";
+                    errorDiv.style.display = "";
+                    confirmBtn.disabled = false;
+                    return;
+                }
+                _closeVotoModal();
+                loadDetail(state.selectedId);
+            } catch (e) {
+                errorDiv.textContent = `Erro: ${e.message}`;
+                errorDiv.style.display = "";
+                confirmBtn.disabled = false;
+            }
+        });
+
+        overlay.querySelector("#enq-voto-cancel").addEventListener("click", _closeVotoModal);
+        overlay.addEventListener("click", (e) => { if (e.target === overlay) _closeVotoModal(); });
+        buscaInput.focus();
+    }
+
+    function _closeVotoModal() {
+        document.getElementById("enq-voto-modal-overlay")?.remove();
     }
 
     // ---- handlers ----
