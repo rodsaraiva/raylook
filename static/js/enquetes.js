@@ -8,7 +8,7 @@
         items: [],
         total: 0,
         page: 1,
-        pageSize: 50,
+        pageSize: 10,
         search: "",
         selectedId: null,
         detail: null,
