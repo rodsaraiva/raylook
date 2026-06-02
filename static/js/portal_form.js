@@ -16,6 +16,19 @@ function sanitizeBrPhoneDigits(raw) {
 function formatBrPhoneDisplay(raw) {
     const d = String(raw || '').replace(/\D/g, '');
     if (!d) return '';
+
+    // EUA/Canadá: DDI = "1" (1 dígito) + área (3) + 7 = 11 total
+    if (d.startsWith('1')) {
+        if (d.length === 1) return '+1';
+        const area = d.slice(1, 4);
+        const mid  = d.slice(4, 7);
+        const end  = d.slice(7, 11);
+        if (d.length <= 4)  return `+1 (${area}`;
+        if (d.length <= 7)  return `+1 (${area}) ${mid}`;
+        return `+1 (${area}) ${mid}${end ? '-' + end : ''}`;
+    }
+
+    // Brasil: DDI = "55" (2 dígitos)
     if (d.length <= 2) return '+' + d;
     if (d.length <= 4) return `+${d.slice(0, 2)} (${d.slice(2)}`;
     if (d.length <= 5) return `+${d.slice(0, 2)} (${d.slice(2, 4)}) ${d.slice(4)}`;
