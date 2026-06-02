@@ -69,8 +69,8 @@ def _phone_variants(normalized: str) -> List[str]:
     """
     variants = [normalized]
 
-    # Se não começa com 55, adicionar
-    if not normalized.startswith("55") and len(normalized) >= 10:
+    # Se não começa com 55 e não é número internacional começando com 1 (EUA/Canadá), adicionar DDI BR
+    if not normalized.startswith("55") and not normalized.startswith("1") and len(normalized) >= 10:
         variants.append("55" + normalized)
 
     for v in list(variants):

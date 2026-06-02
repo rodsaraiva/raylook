@@ -786,6 +786,7 @@
                 <div class="summary-cell"><div class="l">Clientes</div><div class="v">${p.participants_count}</div></div>
                 <div class="summary-cell"><div class="l">Valor unit.</div><div class="v money">${valorUnit}</div></div>
                 <div class="summary-cell"><div class="l">No estado há</div><div class="v">${L.age(p.state_since)}</div></div>
+                ${p.fornecedor ? `<div class="summary-cell" style="grid-column:1/-1"><div class="l">Fornecedor</div><div class="v">${L.escapeHtml(p.fornecedor)}</div></div>` : ""}
             </div>
             ${isCancelled ? "" : `<div class="vtl-title">Jornada do pacote</div><div class="vtl">${stepsHtml}</div>`}
             <div class="detail-actions">

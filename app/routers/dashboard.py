@@ -473,6 +473,7 @@ def list_packages_by_state(
             "pagamentos": pags_summary,
             "pdf_sent_at": pkg.get("pdf_sent_at"),
             "shipped_at": pkg.get("shipped_at"),
+            "fornecedor": pkg.get("fornecedor") or "",
             "pending_reasons": pkg.get("pending_reasons") or [],
             "pending_observations": pkg.get("pending_observations") or "",
             "state_since": pkg.get(state_ts_field) or pkg.get("updated_at"),

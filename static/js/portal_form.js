@@ -6,7 +6,8 @@
 function sanitizeBrPhoneDigits(raw) {
     let d = String(raw || '').replace(/\D/g, '');
     d = d.replace(/^0+/, '');
-    if (d.length >= 10 && d.length <= 11 && !d.startsWith('55')) {
+    // Não forçar +55 se o número começa com 1 (EUA/Canadá) ou já tem DDI
+    if (d.length >= 10 && d.length <= 11 && !d.startsWith('55') && !d.startsWith('1')) {
         d = '55' + d;
     }
     return d;
