@@ -583,9 +583,6 @@
             const restoreBtn = (isAdmin && state === "cancelled")
                 ? `<button class="row-action" data-action="restore" data-id="${p.id}" title="Voltar pra fechado">Restaurar</button>`
                 : "";
-            const fornecedorBtn = (isAdmin && state !== "aberto" && state !== "cancelled")
-                ? `<button class="row-action" data-action="set-fornecedor" data-id="${p.id}" title="${p.fornecedor ? `Fornecedor: ${L.escapeHtml(p.fornecedor)} (clique para editar)` : "Definir fornecedor"}">🏭</button>`
-                : "";
             const REASON_LABELS = {
                 faltando_pecas: "Faltando peças", tamanhos_trocados: "Tamanhos trocados",
                 cores_trocadas: "Cores trocadas", modelo_errado: "Modelo errado",
@@ -604,7 +601,7 @@
                     ${pendingReasonsRow}
                 </div>
                 <div class="pkg-row-meta">${valueLabel}<div class="sub">há ${L.age(p.state_since)}</div></div>
-                <div class="pkg-row-actions">${backBtn}${etiquetaBtn}${fornecedorBtn}${actionBtn}${cancelBtn}${restoreBtn}</div>
+                <div class="pkg-row-actions">${backBtn}${etiquetaBtn}${actionBtn}${cancelBtn}${restoreBtn}</div>
             </div>`;
         }).join("");
         wrap.querySelectorAll(".pkg-row").forEach(row => {
@@ -632,23 +629,6 @@
                 e.stopPropagation();
                 if (btn.dataset.action === "drill") {
                     window.RaylookModal?.open(btn.dataset.id);
-                    return;
-                }
-                if (btn.dataset.action === "set-fornecedor") {
-                    e.stopPropagation();
-                    const forn = await promptFornecedor();
-                    if (!forn) return;
-                    const resp = await fetch(`/api/dashboard/packages/${btn.dataset.id}/fornecedor`, {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
-                        credentials: "include",
-                        body: JSON.stringify(forn),
-                    });
-                    if (resp.ok) {
-                        L.invalidateFornecedoresCache();
-                        await L.fetchData();
-                        render();
-                    }
                     return;
                 }
                 btn.disabled = true;
@@ -806,7 +786,7 @@
                 <div class="summary-cell"><div class="l">Clientes</div><div class="v">${p.participants_count}</div></div>
                 <div class="summary-cell"><div class="l">Valor unit.</div><div class="v money">${valorUnit}</div></div>
                 <div class="summary-cell"><div class="l">No estado há</div><div class="v">${L.age(p.state_since)}</div></div>
-                <div class="summary-cell" style="grid-column:1/-1"><div class="l">Fornecedor</div><div class="v">${p.fornecedor ? L.escapeHtml(p.fornecedor) : "—"}</div></div>
+                <div class="summary-cell" style="grid-column:1/-1"><div class="l">Fornecedor${isAdmin ? ` <button class="btn-edit-inline" data-edit-fornecedor title="Editar fornecedor">✏️</button>` : ""}</div><div class="v">${p.fornecedor ? L.escapeHtml(p.fornecedor) : "—"}</div></div>
             </div>
             ${isCancelled ? "" : `<div class="vtl-title">Jornada do pacote</div><div class="vtl">${stepsHtml}</div>`}
             <div class="detail-actions">
@@ -850,6 +830,21 @@
         detail.querySelector("[data-drill]")?.addEventListener("click", () => window.RaylookModal?.open(p.id));
         detail.querySelector("[data-cancel]")?.addEventListener("click", async () => {
             await L.doAction(p.id, "cancel", { confirmText: "Cancelar esse pacote?", okLabel: "Cancelar pacote", danger: true });
+        });
+        detail.querySelector("[data-edit-fornecedor]")?.addEventListener("click", async () => {
+            const forn = await promptFornecedor();
+            if (!forn) return;
+            const resp = await fetch(`/api/dashboard/packages/${p.id}/fornecedor`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(forn),
+            });
+            if (resp.ok) {
+                L.invalidateFornecedoresCache();
+                await L.fetchData();
+                render();
+            }
         });
     }
 
