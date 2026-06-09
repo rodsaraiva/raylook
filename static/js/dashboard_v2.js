@@ -6,6 +6,7 @@
     let activeState = null;
     let selectedId = null;
     let search = "";
+    let fornecedorFilter = ""; // "" = todos, "__none__" = sem fornecedor, senão nome exato
     let filter = { preset: "today", since: null, until: null };
     // Expõe pro finance.js consumir nos fetches (since/until da barra de cima).
     window.dashboardFilter = filter;
@@ -199,6 +200,19 @@
     }
     document.getElementById("greeting").textContent = `${greeting()}, Raylook`;
 
+    // Popula o dropdown de fornecedor com a lista cadastrada + "Sem fornecedor".
+    // Preserva a seleção atual ao repopular.
+    async function populateFornecedorFilter() {
+        const sel = document.getElementById("fornecedor-filter");
+        if (!sel) return;
+        const fornecedores = await L.fetchFornecedores();
+        const atual = sel.value;
+        sel.innerHTML = `<option value="">Todos os fornecedores</option>`
+            + fornecedores.map(f => `<option value="${L.escapeHtml(f)}">${L.escapeHtml(f)}</option>`).join("")
+            + `<option value="__none__">Sem fornecedor</option>`;
+        sel.value = atual; // mantém seleção; vira "" se a opção sumiu
+    }
+
     async function load() {
         try {
             data = await L.fetchData({ since: filter.since, until: filter.until });
@@ -215,6 +229,7 @@
             selectedId = pkgs[0] ? pkgs[0].id : null;
         }
         render();
+        populateFornecedorFilter();
     }
     window.RaylookReload = load;
 
@@ -526,12 +541,18 @@
                 || (p.clientes || []).some(c =>
                     (c.name || "").toLowerCase().includes(q) || phoneMatch(c.phone));
         }) : all;
-        const totalCount = filtered.length;
-        const paged = filtered.slice((listPage - 1) * LIST_PAGE_SIZE, listPage * LIST_PAGE_SIZE);
-        const totalPieces = filtered.reduce((a, p) => p.type === "client_row"
+        const byFornecedor = fornecedorFilter
+            ? filtered.filter(p => {
+                const f = (p.fornecedor || "").trim();
+                return fornecedorFilter === "__none__" ? f === "" : f === fornecedorFilter;
+            })
+            : filtered;
+        const totalCount = byFornecedor.length;
+        const paged = byFornecedor.slice((listPage - 1) * LIST_PAGE_SIZE, listPage * LIST_PAGE_SIZE);
+        const totalPieces = byFornecedor.reduce((a, p) => p.type === "client_row"
             ? a + (p.qty || 0)
             : a + (Math.min(p.total_qty, p.capacidade_total) || 0), 0);
-        const totalValue = filtered.reduce((a, p) => p.type === "client_row"
+        const totalValue = byFornecedor.reduce((a, p) => p.type === "client_row"
             ? a + (p.total_amount || 0)
             : a + (p.total_value || 0), 0);
         const noun = isClientView ? "cliente" : "pacote";
@@ -883,6 +904,13 @@
         selectedId = null;
         clearTimeout(_searchTimer);
         _searchTimer = setTimeout(() => renderList(), 300);
+    });
+
+    document.getElementById("fornecedor-filter").addEventListener("change", e => {
+        fornecedorFilter = e.target.value;
+        listPage = 1;
+        selectedId = null;
+        renderList();
     });
 
     function render() { renderRail(); renderList(); renderDetail(); }
