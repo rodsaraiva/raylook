@@ -544,6 +544,7 @@
         const byFornecedor = fornecedorFilter
             ? filtered.filter(p => {
                 const f = (p.fornecedor || "").trim();
+                // "__none__" = value da <option> "Sem fornecedor" no HTML
                 return fornecedorFilter === "__none__" ? f === "" : f === fornecedorFilter;
             })
             : filtered;
