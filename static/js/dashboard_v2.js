@@ -200,17 +200,23 @@
     }
     document.getElementById("greeting").textContent = `${greeting()}, Raylook`;
 
-    // Popula o dropdown de fornecedor com a lista cadastrada + "Sem fornecedor".
-    // Preserva a seleção atual ao repopular.
-    async function populateFornecedorFilter() {
+    // Opções = fornecedores presentes nos itens da aba ativa (distintos, ordenados),
+    // mais "Todos" e "Sem fornecedor". Mantém a seleção se ela ainda existir na aba;
+    // senão reseta pra "Todos" e sincroniza fornecedorFilter.
+    function populateFornecedorFilter() {
         const sel = document.getElementById("fornecedor-filter");
         if (!sel) return;
-        const fornecedores = await L.fetchFornecedores();
+        const presentes = [...new Set(currentItems()
+            .map(p => (p.fornecedor || "").trim())
+            .filter(Boolean))]
+            .sort((a, b) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
         const atual = sel.value;
         sel.innerHTML = `<option value="">Todos os fornecedores</option>`
-            + fornecedores.map(f => `<option value="${L.escapeHtml(f)}">${L.escapeHtml(f)}</option>`).join("")
+            + presentes.map(f => `<option value="${L.escapeHtml(f)}">${L.escapeHtml(f)}</option>`).join("")
             + `<option value="__none__">Sem fornecedor</option>`;
-        sel.value = atual; // mantém seleção; vira "" se a opção sumiu
+        const disponiveis = new Set(["", "__none__", ...presentes]);
+        sel.value = disponiveis.has(atual) ? atual : "";
+        fornecedorFilter = sel.value;
     }
 
     async function load() {
@@ -229,7 +235,6 @@
             selectedId = pkgs[0] ? pkgs[0].id : null;
         }
         render();
-        populateFornecedorFilter();
     }
     window.RaylookReload = load;
 
@@ -914,7 +919,7 @@
         renderList();
     });
 
-    function render() { renderRail(); renderList(); renderDetail(); }
+    function render() { populateFornecedorFilter(); renderRail(); renderList(); renderDetail(); }
     // Boot: aplica o preset default ('hoje') que popula since/until e dispara load().
     setFilterPreset(filter.preset);
 })();
