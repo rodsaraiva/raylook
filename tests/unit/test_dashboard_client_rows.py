@@ -184,3 +184,26 @@ def test_backfill_fallback_pkg_shipped_at_without_pc_shipped_at(fake_client):
     body = client.get("/api/dashboard/packages").json()
     assert body["counts"]["enviado"] == 2
     assert body["counts"]["separado"] == 0
+
+
+def test_client_row_includes_fornecedor(fake_client):
+    """client_row carrega o fornecedor do pacote pro filtro do dashboard."""
+    client, fake = fake_client
+    _setup_approved_pkg_with_two_clients(fake)
+    fake.tables["pacotes"][0]["fornecedor"] = "Acme Têxtil"
+
+    body = client.get("/api/dashboard/packages").json()
+    sep = body["packages_by_state"]["separado"]
+    assert sep, "esperava client_rows em separado"
+    for row in sep:
+        assert row["fornecedor"] == "Acme Têxtil"
+
+
+def test_client_row_fornecedor_defaults_empty(fake_client):
+    """Pacote sem fornecedor → client_row vem com string vazia, não ausente."""
+    client, fake = fake_client
+    _setup_approved_pkg_with_two_clients(fake)
+
+    body = client.get("/api/dashboard/packages").json()
+    for row in body["packages_by_state"]["separado"]:
+        assert row["fornecedor"] == ""
