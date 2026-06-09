@@ -167,6 +167,14 @@
         border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;
         padding: 6px 12px; font-size: 12px; width: 200px; font-family: inherit;
     }
+    .filter-select {
+        background: rgba(255,255,255,0.05); color: var(--text-primary);
+        border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;
+        padding: 6px 12px; font-size: 12px; font-family: inherit; cursor: pointer;
+        max-width: 180px;
+    }
+    .filter-select:focus { outline: none; border-color: var(--accent-soft); }
+    .list-head-controls { display: flex; align-items: center; gap: 8px; }
     .pkg-row {
         padding: 12px 18px; display: grid;
         grid-template-columns: 56px 1fr auto auto; gap: 10px; align-items: center;
@@ -1069,7 +1077,12 @@
                         <div class="pkg-list-title" id="list-title">Pacotes</div>
                         <div class="pkg-list-summary" id="list-summary"></div>
                     </div>
-                    <input class="search-box" placeholder="🔍 Buscar nome, telefone ou código (PAC…)" id="search">
+                    <div class="list-head-controls">
+                        <select class="filter-select" id="fornecedor-filter" title="Filtrar por fornecedor">
+                            <option value="">Todos os fornecedores</option>
+                        </select>
+                        <input class="search-box" placeholder="🔍 Buscar nome, telefone ou código (PAC…)" id="search">
+                    </div>
                 </div>
                 <div id="list"><div class="empty-state">Carregando…</div></div>
                 <div id="list-pagination" class="list-pagination"></div>
