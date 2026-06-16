@@ -76,3 +76,19 @@ def test_cancel_blocked_when_paid_clients(monkeypatch):
     assert body["status"] == "blocked_paid"
     assert body["paid_count"] == 1
     assert body["paid_clients"][0]["cliente_nome"] == "Ana"
+
+
+def test_cancel_returns_404_when_package_not_found(monkeypatch):
+    _silence_snapshots(monkeypatch)
+    from app.services.package_cancellation_service import PackageNotFound
+
+    def fake_cancel(package_id, force=False, cancelled_by=None):
+        raise PackageNotFound(package_id)
+
+    monkeypatch.setattr(
+        "app.services.package_cancellation_service.cancel_package", fake_cancel
+    )
+
+    client = TestClient(_make_app())
+    resp = client.post("/api/dashboard/packages/NOPE/cancel", json={})
+    assert resp.status_code == 404
