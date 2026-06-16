@@ -917,6 +917,9 @@ async def advance_package(pacote_id: str, request: Request, to: Optional[str] = 
                 client.update("pagamentos",
                               {"status": "paid", "paid_at": now},
                               filters=[("id", "eq", p["id"])])
+                # Confirma o débito do crédito aplicado (se houver) — fora do
+                # polling Asaas esse é o único ponto que abate do saldo.
+                credit_service.confirm_debit(pagamento_id=p["id"])
         return {"status": "ok", "previous": "confirmado", "new_state": "pago"}
 
     if state == "pago":
@@ -1320,6 +1323,7 @@ def mark_client_paid(pacote_id: str, cliente_id: str) -> Dict[str, Any]:
     client.update("pagamentos",
                   {"status": "paid", "paid_at": now},
                   filters=[("id", "eq", pag["id"])])
+    credit_service.confirm_debit(pagamento_id=pag["id"])
     return {"status": "ok", "action": "client_marked_paid", "cliente_id": cliente_id}
 
 

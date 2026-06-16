@@ -92,3 +92,72 @@ def test_cancel_returns_404_when_package_not_found(monkeypatch):
     client = TestClient(_make_app())
     resp = client.post("/api/dashboard/packages/NOPE/cancel", json={})
     assert resp.status_code == 404
+
+
+def test_advance_confirmado_confirms_credit_debit(monkeypatch):
+    confirmed = []
+    monkeypatch.setattr(
+        dashboard_module.credit_service,
+        "confirm_debit",
+        lambda **kw: confirmed.append(kw.get("pagamento_id")),
+    )
+
+    fake = MagicMock()
+    pkg = {"id": "PKG-1", "status": "approved"}
+    vendas = [{"id": "V1"}, {"id": "V2"}]
+    pags = [{"id": "PG1", "status": "sent"}, {"id": "PG2", "status": "sent"}]
+
+    def fake_select(table, **kwargs):
+        if table == "pacotes":
+            return pkg
+        if table == "vendas":
+            return vendas
+        if table == "pagamentos":
+            return pags
+        if table == "pacote_clientes":
+            return []
+        return None
+
+    fake.select.side_effect = fake_select
+    fake.now_iso.return_value = "2026-06-16T00:00:00Z"
+
+    monkeypatch.setattr(
+        dashboard_module.SupabaseRestClient, "from_settings", staticmethod(lambda: fake)
+    )
+    monkeypatch.setattr(dashboard_module, "_derive_state", lambda *a, **k: "confirmado")
+
+    req = SimpleNamespace(state=SimpleNamespace(role="admin"))
+    asyncio.run(dashboard_module.advance_package("PKG-1", req, to=None))
+
+    assert confirmed == ["PG1", "PG2"]
+
+
+def test_mark_client_paid_confirms_credit_debit(monkeypatch):
+    confirmed = []
+    monkeypatch.setattr(
+        dashboard_module.credit_service,
+        "confirm_debit",
+        lambda **kw: confirmed.append(kw.get("pagamento_id")),
+    )
+
+    fake = MagicMock()
+
+    def fake_select(table, **kwargs):
+        if table == "pacote_clientes":
+            return {"id": "PC1"}
+        if table == "vendas":
+            return {"id": "V1"}
+        if table == "pagamentos":
+            return {"id": "PG9", "status": "sent"}
+        return None
+
+    fake.select.side_effect = fake_select
+    fake.now_iso.return_value = "2026-06-16T00:00:00Z"
+    monkeypatch.setattr(
+        dashboard_module.SupabaseRestClient, "from_settings", staticmethod(lambda: fake)
+    )
+
+    # mark_client_paid é SYNC e NÃO recebe request — chamar com (pacote_id, cliente_id)
+    dashboard_module.mark_client_paid("PKG-1", "CLI-1")
+
+    assert confirmed == ["PG9"]
