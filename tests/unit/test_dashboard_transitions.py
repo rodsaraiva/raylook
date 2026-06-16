@@ -26,21 +26,37 @@ def test_cancel_404_when_package_missing(fake_client):
     assert res.status_code == 404
 
 
-def test_cancel_sets_status_cancelled(fake_client):
+# O endpoint agora delega ao package_cancellation_service (gera crédito + cascade).
+# A cascata real é testada em test_package_cancellation_service.py; aqui cobrimos o
+# contrato do endpoint (delegação, idempotência). Crédito/409/404 ficam em
+# test_dashboard_cancel_credit.py.
+def test_cancel_delegates_to_service(fake_client, monkeypatch):
     client, fake = fake_client
     fake.tables["pacotes"].append({"id": "p1", "status": "closed"})
+
+    called = {}
+
+    def fake_cancel(package_id, force=False, cancelled_by=None):
+        called["args"] = (package_id, force)
+        return {"cancelled_sales": 0, "cancelled_payments": 0, "credited_clients": 0}
+
+    monkeypatch.setattr(
+        "app.services.package_cancellation_service.cancel_package", fake_cancel
+    )
+
     res = client.post("/api/dashboard/packages/p1/cancel")
     assert res.status_code == 200
     assert res.json()["new_state"] == "cancelled"
-    assert fake.tables["pacotes"][0]["status"] == "cancelled"
-    assert fake.tables["pacotes"][0]["cancelled_at"] == fake.now_iso()
+    assert called["args"] == ("p1", False)
 
 
-def test_cancel_400_when_already_cancelled(fake_client):
+def test_cancel_already_cancelled_is_idempotent(fake_client):
+    # Mudança de contrato: antes era 400; agora o serviço é idempotente e devolve 200.
     client, fake = fake_client
     fake.tables["pacotes"].append({"id": "p1", "status": "cancelled"})
     res = client.post("/api/dashboard/packages/p1/cancel")
-    assert res.status_code == 400
+    assert res.status_code == 200
+    assert res.json().get("already_cancelled") is True
 
 
 # ── /restore ───────────────────────────────────────────────────────────────
