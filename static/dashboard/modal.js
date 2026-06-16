@@ -259,8 +259,26 @@ const RaylookModal = (() => {
                 const old = btn.textContent;
                 btn.textContent = "…";
                 try {
-                    const resp = await fetch(`/api/dashboard/packages/${pacoteId}/${action}`,
-                        { method: "POST", credentials: "include" });
+                    const url = `/api/dashboard/packages/${pacoteId}/${action}`;
+                    let resp = await fetch(url, { method: "POST", credentials: "include" });
+                    if (resp.status === 409 && action === "cancel") {
+                        const info = await resp.json().catch(() => ({}));
+                        const lista = (info.paid_clients || [])
+                            .map(c => `  • ${c.cliente_nome || "cliente"} — R$ ${Number(c.total_amount || 0).toFixed(2)}`)
+                            .join("\n");
+                        const aviso =
+                            `⚠️ ${info.paid_count} cliente(s) já pagaram este pacote:\n\n${lista}\n\n` +
+                            `O valor pago de cada um vira CRÉDITO na plataforma. Não há estorno em dinheiro.\n\nContinuar?`;
+                        if (!await confirmModal(aviso, { okLabel: "Cancelar mesmo assim", danger: true })) {
+                            btn.disabled = false; btn.textContent = old; return;
+                        }
+                        resp = await fetch(url, {
+                            method: "POST",
+                            credentials: "include",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ force: true }),
+                        });
+                    }
                     if (!resp.ok) {
                         const err = await resp.json().catch(() => ({ detail: `HTTP ${resp.status}` }));
                         throw new Error(err.detail || "Falha");
