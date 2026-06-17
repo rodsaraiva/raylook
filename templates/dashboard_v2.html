@@ -167,6 +167,15 @@
         border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;
         padding: 6px 12px; font-size: 12px; width: 200px; font-family: inherit;
     }
+    .list-head-controls { display: flex; align-items: center; gap: 8px; }
+    /* Reaproveita o padrão .pending-select do modal de fornecedor, em tamanho
+       compacto pra alinhar com o .search-box no header da lista. */
+    .filter-select-wrap { position: relative; flex: 0 0 auto; margin-bottom: 0; }
+    .filter-select-wrap .pending-select {
+        width: auto; min-width: 150px; max-width: 200px;
+        padding: 6px 30px 6px 12px; font-size: 12px;
+    }
+    .filter-select-wrap .pending-select-caret { right: 12px; }
     .pkg-row {
         padding: 12px 18px; display: grid;
         grid-template-columns: 56px 1fr auto auto; gap: 10px; align-items: center;
@@ -1069,7 +1078,15 @@
                         <div class="pkg-list-title" id="list-title">Pacotes</div>
                         <div class="pkg-list-summary" id="list-summary"></div>
                     </div>
-                    <input class="search-box" placeholder="🔍 Buscar nome, telefone ou código (PAC…)" id="search">
+                    <div class="list-head-controls">
+                        <div class="filter-select-wrap">
+                            <select class="pending-select" id="fornecedor-filter" title="Filtrar por fornecedor">
+                                <option value="">Todos os fornecedores</option>
+                            </select>
+                            <i class="fas fa-chevron-down pending-select-caret" aria-hidden="true"></i>
+                        </div>
+                        <input class="search-box" placeholder="🔍 Buscar nome, telefone ou código (PAC…)" id="search">
+                    </div>
                 </div>
                 <div id="list"><div class="empty-state">Carregando…</div></div>
                 <div id="list-pagination" class="list-pagination"></div>
@@ -1371,7 +1388,7 @@
 
 <script src="/static/dashboard/lib.js?v=3"></script>
 <script src="/static/dashboard/modal.js?v=3"></script>
-<script src="/static/js/dashboard_v2.js?v=2"></script>
+<script src="/static/js/dashboard_v2.js?v=20260609b"></script>
 <script src="/static/js/finance-toggle.js"></script>
 <script src="/static/js/finance.js"></script>
 <script src="/static/js/clientes.js"></script>

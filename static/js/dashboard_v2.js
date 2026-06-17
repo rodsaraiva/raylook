@@ -6,6 +6,7 @@
     let activeState = null;
     let selectedId = null;
     let search = "";
+    let fornecedorFilter = ""; // "" = todos, "__none__" = sem fornecedor, senão nome exato
     let filter = { preset: "today", since: null, until: null };
     // Expõe pro finance.js consumir nos fetches (since/until da barra de cima).
     window.dashboardFilter = filter;
@@ -198,6 +199,25 @@
         return "Boa noite";
     }
     document.getElementById("greeting").textContent = `${greeting()}, Raylook`;
+
+    // Opções = fornecedores presentes nos itens da aba ativa (distintos, ordenados),
+    // mais "Todos" e "Sem fornecedor". Mantém a seleção se ela ainda existir na aba;
+    // senão reseta pra "Todos" e sincroniza fornecedorFilter.
+    function populateFornecedorFilter() {
+        const sel = document.getElementById("fornecedor-filter");
+        if (!sel) return;
+        const presentes = [...new Set(currentItems()
+            .map(p => (p.fornecedor || "").trim())
+            .filter(Boolean))]
+            .sort((a, b) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
+        const atual = sel.value;
+        sel.innerHTML = `<option value="">Todos os fornecedores</option>`
+            + presentes.map(f => `<option value="${L.escapeHtml(f)}">${L.escapeHtml(f)}</option>`).join("")
+            + `<option value="__none__">Sem fornecedor</option>`;
+        const disponiveis = new Set(["", "__none__", ...presentes]);
+        sel.value = disponiveis.has(atual) ? atual : "";
+        fornecedorFilter = sel.value;
+    }
 
     async function load() {
         try {
@@ -526,12 +546,19 @@
                 || (p.clientes || []).some(c =>
                     (c.name || "").toLowerCase().includes(q) || phoneMatch(c.phone));
         }) : all;
-        const totalCount = filtered.length;
-        const paged = filtered.slice((listPage - 1) * LIST_PAGE_SIZE, listPage * LIST_PAGE_SIZE);
-        const totalPieces = filtered.reduce((a, p) => p.type === "client_row"
+        const byFornecedor = fornecedorFilter
+            ? filtered.filter(p => {
+                const f = (p.fornecedor || "").trim();
+                // "__none__" = value da <option> "Sem fornecedor" no HTML
+                return fornecedorFilter === "__none__" ? f === "" : f === fornecedorFilter;
+            })
+            : filtered;
+        const totalCount = byFornecedor.length;
+        const paged = byFornecedor.slice((listPage - 1) * LIST_PAGE_SIZE, listPage * LIST_PAGE_SIZE);
+        const totalPieces = byFornecedor.reduce((a, p) => p.type === "client_row"
             ? a + (p.qty || 0)
             : a + (Math.min(p.total_qty, p.capacidade_total) || 0), 0);
-        const totalValue = filtered.reduce((a, p) => p.type === "client_row"
+        const totalValue = byFornecedor.reduce((a, p) => p.type === "client_row"
             ? a + (p.total_amount || 0)
             : a + (p.total_value || 0), 0);
         const noun = isClientView ? "cliente" : "pacote";
@@ -885,7 +912,14 @@
         _searchTimer = setTimeout(() => renderList(), 300);
     });
 
-    function render() { renderRail(); renderList(); renderDetail(); }
+    document.getElementById("fornecedor-filter").addEventListener("change", e => {
+        fornecedorFilter = e.target.value;
+        listPage = 1;
+        selectedId = null;
+        renderList();
+    });
+
+    function render() { populateFornecedorFilter(); renderRail(); renderList(); renderDetail(); }
     // Boot: aplica o preset default ('hoje') que popula since/until e dispara load().
     setFilterPreset(filter.preset);
 })();

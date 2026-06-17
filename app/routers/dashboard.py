@@ -455,6 +455,7 @@ def list_packages_by_state(
                     "state_since": row_ts,
                     "age": _age_str(row_ts),
                     "created_at": pkg.get("created_at"),
+                    "fornecedor": pkg.get("fornecedor") or "",
                 })
             continue
 
