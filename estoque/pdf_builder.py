@@ -4,16 +4,20 @@ Gerador de PDF de etiquetas usando HTML/CSS (xhtml2pdf).
 
 from __future__ import annotations
 
+import base64
 import io
+import os
 import re
 import html
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import qrcode
 from jinja2 import Environment, FileSystemLoader
 from xhtml2pdf import pisa  # type: ignore
 
+from app.services.label_token import make_ship_token
 from finance.utils import extract_price, resolve_unit_price
 
 # --------------------------------------------------------------------------- #
@@ -38,14 +42,30 @@ def _fmt_brl(value: float) -> str:
     """Formata valor em BRL (apenas o número)."""
     return f"{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+def _qr_data_uri(url: str) -> str:
+    """Gera o QR como PNG data-URI pra embutir no template (xhtml2pdf aceita)."""
+    qr = qrcode.QRCode(box_size=4, border=1)
+    qr.add_data(url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+    return f"data:image/png;base64,{b64}"
+
 # --------------------------------------------------------------------------- #
 #  Builder                                                                    #
 # --------------------------------------------------------------------------- #
 
-def build_pdf(package: Dict[str, Any], commission_per_piece: float = 5.0) -> bytes:
-    """Gera o PDF da etiqueta a partir de um template HTML."""
-
-    # 1. Preparar dados
+def render_label_html(
+    package: Dict[str, Any],
+    commission_per_piece: float = 5.0,
+    formato: str = "a4",
+    w_mm: int = 60,
+    h_mm: int = 40,
+) -> str:
+    """Renderiza o HTML da etiqueta. formato='a4' (folha com vários clientes) ou
+    'termica' (1 etiqueta por página, com QR de envio)."""
     poll_title = package.get("poll_title", "Pedido")
     # Título alternativo se vier como ID (correção temporária do bug do dashboard)
     if poll_title and len(poll_title) > 30 and " " not in poll_title:
@@ -71,6 +91,9 @@ def build_pdf(package: Dict[str, Any], commission_per_piece: float = 5.0) -> byt
     # Ordena por quantidade
     sorted_votes = sorted(votes, key=lambda v: v.get("qty", 0), reverse=True)
 
+    domain = os.getenv("DOMAIN_HOST", "raylook.v4smc.com")
+    pacote_id = package.get("id") or ""
+
     processed_votes = []
     for i, v in enumerate(sorted_votes):
         # Robust parsing of quantity (accept "2", "2.0", numeric types, fall back to 0)
@@ -84,6 +107,11 @@ def build_pdf(package: Dict[str, Any], commission_per_piece: float = 5.0) -> byt
         subtotal = qty * float(unit_price or 0.0)
         total_comm = subtotal + qty * float(commission_per_piece)
 
+        qr_uri = ""
+        if formato == "termica" and v.get("cliente_id") and pacote_id:
+            token = make_ship_token(pacote_id, str(v["cliente_id"]))
+            qr_uri = _qr_data_uri(f"https://{domain}/s/{token}")
+
         processed_votes.append({
             "order_num": i + 1,
             "name": v.get("name") or "Desconhecido",
@@ -93,6 +121,7 @@ def build_pdf(package: Dict[str, Any], commission_per_piece: float = 5.0) -> byt
             "subtotal_fmt": _fmt_brl(subtotal),
             "commission_fmt": _fmt_brl(qty * float(commission_per_piece)),
             "total_with_commission_fmt": _fmt_brl(total_comm),
+            "qr_uri": qr_uri,
         })
 
     context = {
@@ -100,26 +129,37 @@ def build_pdf(package: Dict[str, Any], commission_per_piece: float = 5.0) -> byt
         "friendly_id": package.get("friendly_id") or "",
         "generated_at": datetime.now().strftime("%d/%m/%Y %H:%M"),
         "votes": processed_votes,
+        "total_votes": len(processed_votes),
         "unit_price": unit_price,
         "commission_per_piece": commission_per_piece,
         "pieces_label": pieces_label,
+        "w_mm": w_mm,
+        "h_mm": h_mm,
     }
 
-    # 2. Carregar Template
     template_dir = Path(__file__).parent / "templates"
     env = Environment(loader=FileSystemLoader(str(template_dir)))
-    template = env.get_template("etiqueta.html")
-    html_content = template.render(**context)
+    template_name = "etiqueta_termica.html" if formato == "termica" else "etiqueta.html"
+    template = env.get_template(template_name)
+    return template.render(**context)
 
-    # 3. Converter para PDF
+
+def build_pdf(
+    package: Dict[str, Any],
+    commission_per_piece: float = 5.0,
+    formato: str = "a4",
+    w_mm: int = 60,
+    h_mm: int = 40,
+) -> bytes:
+    """Gera o PDF da etiqueta (A4 ou térmica)."""
+    html_content = render_label_html(package, commission_per_piece, formato, w_mm, h_mm)
+
     pdf_buffer = io.BytesIO()
     pisa_status = pisa.CreatePDF(
         io.BytesIO(html_content.encode("utf-8")),
         dest=pdf_buffer,
-        encoding="utf-8"
+        encoding="utf-8",
     )
-
     if pisa_status.err:
         raise RuntimeError(f"Erro ao gerar PDF: {pisa_status.err}")
-
     return pdf_buffer.getvalue()
