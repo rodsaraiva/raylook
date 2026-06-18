@@ -8,7 +8,6 @@ import base64
 import io
 import os
 import re
-import html
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -82,8 +81,6 @@ def render_label_html(
         if s.lower() in {"none", "null", "undefined"}:
             s = ""
         pieces_label = s or "peças"
-    # Evitar injeção de HTML no template (Jinja aqui não usa autoescape)
-    pieces_label = html.escape(pieces_label, quote=True)
 
     valor_col = package.get("valor_col")
     unit_price = resolve_unit_price(poll_title, valor_col)
@@ -138,7 +135,10 @@ def render_label_html(
     }
 
     template_dir = Path(__file__).parent / "templates"
-    env = Environment(loader=FileSystemLoader(str(template_dir)))
+    # autoescape: nome/telefone/título vêm de dados do cliente (pushName do
+    # WhatsApp etc.) e o xhtml2pdf busca http/file de <img> — sem escape, um
+    # nome com <img src="http://host-interno/"> vira SSRF na geração do PDF.
+    env = Environment(loader=FileSystemLoader(str(template_dir)), autoescape=True)
     template_name = "etiqueta_termica.html" if formato == "termica" else "etiqueta.html"
     template = env.get_template(template_name)
     return template.render(**context)
