@@ -1137,6 +1137,7 @@ def get_package_etiqueta_pdf(pacote_id: str, request: Request) -> Response:
             "name": c.get("nome") or "Cliente",
             "phone": c.get("celular") or "",
             "qty": int(pc.get("qty") or 0),
+            "cliente_id": pc.get("cliente_id"),
         })
 
     package = {
@@ -1146,8 +1147,22 @@ def get_package_etiqueta_pdf(pacote_id: str, request: Request) -> Response:
         "votes": votes,
     }
 
+    fmt = (request.query_params.get("fmt") or "a4").lower()
+
+    def _qp_int(name: str, default: int) -> int:
+        try:
+            return int(request.query_params.get(name) or default)
+        except (TypeError, ValueError):
+            return default
+
+    w_mm = _qp_int("w", int(os.getenv("ETIQUETA_TERMICA_W_MM", "60")))
+    h_mm = _qp_int("h", int(os.getenv("ETIQUETA_TERMICA_H_MM", "40")))
+
     try:
-        pdf_bytes = build_pdf(package, settings.COMMISSION_PER_PIECE)
+        pdf_bytes = build_pdf(
+            package, settings.COMMISSION_PER_PIECE,
+            formato=fmt, w_mm=w_mm, h_mm=h_mm,
+        )
     except Exception:
         logger.exception("Falha ao gerar etiqueta on-demand pkg=%s", pacote_id)
         raise HTTPException(500, "Erro ao gerar PDF da etiqueta")
