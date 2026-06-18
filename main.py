@@ -61,6 +61,7 @@ from app.routers import customers as customers_router
 from app.routers import portal as portal_router
 from app.routers import dashboard as dashboard_router
 from app.routers import finance as finance_router
+from app.routers import shipping_qr as shipping_qr_router
 import time
 from uuid import UUID, uuid4
 from datetime import datetime, timedelta, timezone
@@ -265,6 +266,7 @@ _AUTH_PUBLIC_PREFIXES = (
     "/files/",   # LocalImageStorage — espelha "anyone with link" do Drive original
     "/metrics",  # prometheus
     "/portal",   # portal do cliente (auth próprio via sessão)
+    "/s/",       # QR da etiqueta térmica — marca cliente enviado (auth via token HMAC)
 )
 
 _DASH_COOKIE = "dash_session"
@@ -349,6 +351,7 @@ app.include_router(customers_router.router)
 app.include_router(portal_router.router)
 app.include_router(dashboard_router.router)
 app.include_router(finance_router.router)
+app.include_router(shipping_qr_router.router)
 if settings.ADHOC_PACKAGES_ENABLED:
     from app.api import adhoc_packages as adhoc_packages_api
     app.include_router(adhoc_packages_api.router)
