@@ -4,6 +4,8 @@ Trade-off aceito: quem tiver a etiqueta física consegue marcar envio; a ação 
 idempotente e reversível pelo admin."""
 from __future__ import annotations
 
+import html
+
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
@@ -17,7 +19,11 @@ router = APIRouter()
 def _page(title: str, body: str, ok: bool) -> HTMLResponse:
     color = "#16a34a" if ok else "#dc2626"
     icon = "✓" if ok else "⚠"
-    html = (
+    # Escapa no sink: `body` pode conter o nome do cliente (pushName do WhatsApp),
+    # que não é HTML-escapado em _sanitize_name — sem isso vira XSS na origem.
+    title = html.escape(title)
+    body = html.escape(body)
+    page = (
         '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         f"<title>{title}</title></head>"
@@ -27,7 +33,7 @@ def _page(title: str, body: str, ok: bool) -> HTMLResponse:
         f'<p style="font-size:16px;color:#333;">{body}</p>'
         "</body></html>"
     )
-    return HTMLResponse(html, status_code=200 if ok else 400)
+    return HTMLResponse(page, status_code=200 if ok else 400)
 
 
 @router.get("/s/{token}")

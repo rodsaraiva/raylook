@@ -66,3 +66,14 @@ def test_qr_package_missing(fake_client):
     res = client.get(f"/s/{make_ship_token('ghost', 'c1')}")
     assert res.status_code == 400
     assert "não" in res.text.lower()
+
+
+def test_qr_escapes_client_name(fake_client):
+    """Nome do cliente (pushName do WhatsApp) não pode injetar HTML/JS na página."""
+    client, fake = fake_client
+    _seed_paid(fake)
+    fake.tables["clientes"][0]["nome"] = "<img src=x onerror=alert(1)>"
+    res = client.get(f"/s/{make_ship_token('p1', 'c1')}")
+    assert res.status_code == 200
+    assert "<img src=x" not in res.text
+    assert "&lt;img src=x" in res.text
