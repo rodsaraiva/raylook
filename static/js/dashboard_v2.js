@@ -496,7 +496,8 @@
                 title="Marcar este cliente como enviado">Marcar enviado</button>`;
         }
         const etiquetaBtn = p.pdf_sent_at
-            ? `<a class="row-action" href="/api/dashboard/packages/${p.pacote_id}/etiqueta.pdf" target="_blank" rel="noopener" title="Baixar PDF da etiqueta">📄 Etiqueta</a>`
+            ? `<a class="row-action" href="/api/dashboard/packages/${p.pacote_id}/etiqueta.pdf" target="_blank" rel="noopener" title="Baixar PDF da etiqueta">📄 Etiqueta</a>` +
+              `<a class="row-action" href="/api/dashboard/packages/${p.pacote_id}/etiqueta.pdf?fmt=termica" target="_blank" rel="noopener" title="Etiqueta térmica (adesiva, 1 por cliente)">🏷️ Térmica</a>`
             : "";
         const valueLabel = p.total_amount ? L.moneyFull(p.total_amount) : "—";
         const phone = fmtPhone(p.cliente_phone);
@@ -596,7 +597,8 @@
             // Botão de download da etiqueta — aparece quando pdf_sent_at está set
             // (a partir de "separado"). Qualquer role logado pode baixar.
             const etiquetaBtn = p.pdf_sent_at
-                ? `<a class="row-action" href="/api/dashboard/packages/${p.id}/etiqueta.pdf" target="_blank" rel="noopener" title="Baixar PDF da etiqueta">📄 Etiqueta</a>`
+                ? `<a class="row-action" href="/api/dashboard/packages/${p.id}/etiqueta.pdf" target="_blank" rel="noopener" title="Baixar PDF da etiqueta">📄 Etiqueta</a>` +
+                  `<a class="row-action" href="/api/dashboard/packages/${p.id}/etiqueta.pdf?fmt=termica" target="_blank" rel="noopener" title="Etiqueta térmica (adesiva, 1 por cliente)">🏷️ Térmica</a>`
                 : "";
             const isAdmin = currentRole === "admin";
             const backBtn = (!isAdmin || state === "aberto" || state === "fechado" || state === "cancelled")
@@ -725,6 +727,7 @@
             <div class="detail-actions">
                 ${showMarkSent ? `<button class="btn-primary" data-client-advance>📦 Marcar enviado</button>` : ""}
                 ${p.pdf_sent_at ? `<a class="btn-ghost" href="/api/dashboard/packages/${p.pacote_id}/etiqueta.pdf" target="_blank" rel="noopener" style="text-decoration:none;">📄 Baixar etiqueta</a>` : ""}
+                ${p.pdf_sent_at ? `<a class="btn-ghost" href="/api/dashboard/packages/${p.pacote_id}/etiqueta.pdf?fmt=termica" target="_blank" rel="noopener" style="text-decoration:none;" title="Etiqueta térmica (adesiva, 1 por cliente)">🏷️ Térmica</a>` : ""}
                 <button class="btn-ghost" data-drill-pacote>Ver detalhes do pacote</button>
             </div>`;
 
@@ -823,6 +826,7 @@
                 ` : ((canAdvance && canDoAdvance(state, null)) ? `<button class="btn-primary" data-advance>${primaryLabel(state)}</button>` : "")}
                 ${canRegress ? `<button class="btn-ghost" data-regress>← Voltar pra etapa anterior</button>` : ""}
                 ${p.pdf_sent_at ? `<a class="btn-ghost" href="/api/dashboard/packages/${p.id}/etiqueta.pdf" target="_blank" rel="noopener" style="text-decoration:none;">📄 Baixar etiqueta</a>` : ""}
+                ${p.pdf_sent_at ? `<a class="btn-ghost" href="/api/dashboard/packages/${p.id}/etiqueta.pdf?fmt=termica" target="_blank" rel="noopener" style="text-decoration:none;" title="Etiqueta térmica (adesiva, 1 por cliente)">🏷️ Térmica</a>` : ""}
                 <button class="btn-ghost" data-drill>Ver detalhes completos</button>
                 ${(isAdmin && canAdvance) ? `<button class="btn-ghost" data-cancel style="color:var(--danger);">Cancelar pacote</button>` : ""}
             </div>`;

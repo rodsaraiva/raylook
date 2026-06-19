@@ -1,0 +1,42 @@
+<!-- estoque/templates/etiqueta_termica.html -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page { size: {{ w_mm }}mm {{ h_mm }}mm; margin: 2mm; }
+        body { font-family: Helvetica, Arial, sans-serif; color: #000; margin: 0; }
+        .label { page-break-after: always; }
+        .label:last-child { page-break-after: auto; }
+        table.l { width: 100%; border-collapse: collapse; }
+        td.txt { vertical-align: top; }
+        td.qr { width: 22mm; text-align: right; vertical-align: top; }
+        td.qr img { width: 20mm; height: 20mm; }
+        .meta { font-size: 7pt; color: #333; }
+        .name { font-size: 12pt; font-weight: bold; text-transform: uppercase; }
+        .phone { font-size: 8pt; }
+        .qty { font-size: 15pt; font-weight: bold; margin: 1mm 0; }
+        .vals { font-size: 7pt; }
+        .vals.tot { font-weight: bold; }
+    </style>
+</head>
+<body>
+    {% for v in votes %}
+    <div class="label">
+        <table class="l"><tr>
+            <td class="txt">
+                <div class="meta">{{ friendly_id }}</div>
+                <div class="name">{{ v.name }}</div>
+                <div class="phone">{{ v.phone }}</div>
+                <div class="qty">{{ v.qty }} {{ pieces_label }}</div>
+                {% if unit_price > 0 %}
+                <div class="vals">R$ {{ v.unit_price_fmt }} un · Total R$ {{ v.subtotal_fmt }}</div>
+                <div class="vals tot">+ R$ {{ v.commission_fmt }} assess. = R$ {{ v.total_with_commission_fmt }}</div>
+                {% endif %}
+            </td>
+            <td class="qr">{% if v.qr_uri %}<img src="{{ v.qr_uri }}">{% endif %}</td>
+        </tr></table>
+    </div>
+    {% endfor %}
+</body>
+</html>

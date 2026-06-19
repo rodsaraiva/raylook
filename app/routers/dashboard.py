@@ -1176,6 +1176,7 @@ def get_package_etiqueta_pdf(pacote_id: str, request: Request) -> Response:
             "name": c.get("nome") or "Cliente",
             "phone": c.get("celular") or "",
             "qty": int(pc.get("qty") or 0),
+            "cliente_id": pc.get("cliente_id"),
         })
 
     package = {
@@ -1185,8 +1186,22 @@ def get_package_etiqueta_pdf(pacote_id: str, request: Request) -> Response:
         "votes": votes,
     }
 
+    fmt = (request.query_params.get("fmt") or "a4").lower()
+
+    def _qp_int(name: str, default: int) -> int:
+        try:
+            return int(request.query_params.get(name) or default)
+        except (TypeError, ValueError):
+            return default
+
+    w_mm = _qp_int("w", int(os.getenv("ETIQUETA_TERMICA_W_MM", "60")))
+    h_mm = _qp_int("h", int(os.getenv("ETIQUETA_TERMICA_H_MM", "40")))
+
     try:
-        pdf_bytes = build_pdf(package, settings.COMMISSION_PER_PIECE)
+        pdf_bytes = build_pdf(
+            package, settings.COMMISSION_PER_PIECE,
+            formato=fmt, w_mm=w_mm, h_mm=h_mm,
+        )
     except Exception:
         logger.exception("Falha ao gerar etiqueta on-demand pkg=%s", pacote_id)
         raise HTTPException(500, "Erro ao gerar PDF da etiqueta")
@@ -1200,6 +1215,39 @@ def get_package_etiqueta_pdf(pacote_id: str, request: Request) -> Response:
 
 
 _CLIENT_FLOW = ["pago", "pendente", "separado", "enviado"]
+
+
+def _mark_client_shipped(client, pkg: Dict[str, Any], pc: Dict[str, Any], role: str) -> bool:
+    """Marca um pacote_cliente como enviado (idempotente). Seta também os
+    timestamps anteriores (payment_validated_at, pdf_sent_at) se faltarem —
+    equivale a avançar o cliente direto pra 'enviado'. Propaga pkg.shipped_at
+    quando for o último cliente sem envio. Retorna True se marcou agora."""
+    already_shipped = bool(pc.get("shipped_at"))
+    now = client.now_iso()
+    update_payload: Dict[str, Any] = {}
+    if not pc.get("payment_validated_at"):
+        update_payload["payment_validated_at"] = now
+    if not pc.get("pdf_sent_at"):
+        update_payload["pdf_sent_at"] = now
+    if not already_shipped:
+        update_payload["shipped_at"] = now
+    if update_payload:
+        client.update("pacote_clientes", update_payload, filters=[("id", "eq", pc["id"])])
+
+    if not already_shipped and not pkg.get("shipped_at"):
+        all_pcs = client.select(
+            "pacote_clientes", filters=[("pacote_id", "eq", pkg["id"])]
+        ) or []
+        all_shipped = all(
+            (other["id"] == pc["id"]) or other.get("shipped_at") for other in all_pcs
+        )
+        if all_shipped and all_pcs:
+            client.update(
+                "pacotes",
+                {"shipped_at": now, "shipped_by": role},
+                filters=[("id", "eq", pkg["id"])],
+            )
+    return not already_shipped
 
 
 @router.post("/packages/{pacote_id}/clients/{cliente_id}/advance")
@@ -1257,35 +1305,17 @@ def advance_client(
         )
 
     now = client.now_iso()
-    update_payload: Dict[str, Any] = {}
-    # Marca todos os timestamps até o target inclusive (idempotente nos já setados).
-    if target_idx >= 1 and not pc.get("payment_validated_at"):
-        update_payload["payment_validated_at"] = now
-    if target_idx >= 2 and not pc.get("pdf_sent_at"):
-        update_payload["pdf_sent_at"] = now
-    if target_idx >= 3 and not pc.get("shipped_at"):
-        update_payload["shipped_at"] = now
-    if update_payload:
-        client.update("pacote_clientes", update_payload, filters=[("id", "eq", pc["id"])])
-
-    # Se marcou shipped_at e este foi o último cliente sem shipped_at, propaga
-    # pra pkg.shipped_at — pacote vira 'enviado' no agregado.
-    if "shipped_at" in update_payload and not pkg.get("shipped_at"):
-        all_pcs = client.select(
-            "pacote_clientes",
-            filters=[("pacote_id", "eq", pacote_id)],
-        ) or []
-        # this pc já está atualizado no banco; checa todos os outros
-        all_shipped = all(
-            (other["id"] == pc["id"]) or other.get("shipped_at")
-            for other in all_pcs
-        )
-        if all_shipped and all_pcs:
-            client.update(
-                "pacotes",
-                {"shipped_at": now, "shipped_by": role},
-                filters=[("id", "eq", pacote_id)],
-            )
+    if target_idx >= 3:
+        # alvo 'enviado' (ou além): marca tudo + propaga via helper compartilhado
+        _mark_client_shipped(client, pkg, pc, role)
+    else:
+        update_payload: Dict[str, Any] = {}
+        if target_idx >= 1 and not pc.get("payment_validated_at"):
+            update_payload["payment_validated_at"] = now
+        if target_idx >= 2 and not pc.get("pdf_sent_at"):
+            update_payload["pdf_sent_at"] = now
+        if update_payload:
+            client.update("pacote_clientes", update_payload, filters=[("id", "eq", pc["id"])])
 
     return {
         "status": "ok",
