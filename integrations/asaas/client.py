@@ -5,8 +5,9 @@ import time
 import unicodedata
 import uuid
 import requests
-from integrations.asaas.rate_limiter import RateLimiter
 from typing import Any, Dict, Optional
+
+from integrations.asaas.rate_limiter import RateLimiter
 
 logger = logging.getLogger("raylook.integrations.asaas")
 
@@ -93,6 +94,7 @@ def _min_interval_from_env() -> float:
 
 # Singleton de módulo: compartilhado por TODAS as instâncias de AsaasClient,
 # então sync e portal passam pela mesma fila.
+# Intervalo configurado via ASAAS_MAX_RPS (default 2 rps -> 0.5 s).
 _LIMITER = RateLimiter(_min_interval_from_env())
 
 

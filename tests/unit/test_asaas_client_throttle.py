@@ -43,6 +43,8 @@ def test_sandbox_path_not_throttled(monkeypatch):
 
 
 def test_min_interval_from_env(monkeypatch):
+    monkeypatch.delenv("ASAAS_MAX_RPS", raising=False)
+    assert client_mod._min_interval_from_env() == 0.5  # ausente => default 2 rps
     monkeypatch.setenv("ASAAS_MAX_RPS", "4")
     assert client_mod._min_interval_from_env() == 0.25
     monkeypatch.setenv("ASAAS_MAX_RPS", "0")
