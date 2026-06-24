@@ -94,3 +94,52 @@ def test_accumulate_removes_open_when_all_votes_consumed():
     opens = [p for p in client.tables["pacotes"] if p["status"] == "open"]
     assert opens == [], "pacote open seq-0 stale deve ser removido quando pending == 0"
     assert any(p["id"] == "old" for p in client.tables["pacotes"]), "pacote closed deve ser preservado"
+
+
+def test_close_accumulated_freezes_current_votes():
+    tables = _base_tables("Bernardo", [_vote("v1", "c1", 16), _vote("v2", "c2", 16)])
+    client = FakeClient(tables)
+    svc = PackageService(client)
+    svc.rebuild_for_poll("e1")  # cria open com 32
+    res = svc.close_accumulated("e1")
+    assert res["status"] == "ok"
+    assert res["total_qty"] == 32
+    assert res["participants"] == 2
+    closed = [p for p in client.tables["pacotes"] if p["status"] == "closed"]
+    assert len(closed) == 1
+    assert closed[0]["total_qty"] == 32
+    assert closed[0]["capacidade_total"] == 32
+    assert closed[0]["sequence_no"] == 1
+    pcs = [pc for pc in client.tables["pacote_clientes"] if pc["pacote_id"] == closed[0]["id"]]
+    assert {pc["cliente_id"] for pc in pcs} == {"c1", "c2"}
+    # open some (votos consumidos)
+    assert not [p for p in client.tables["pacotes"] if p["status"] == "open"]
+
+
+def test_close_accumulated_empty_returns_no_votes():
+    tables = _base_tables("Bernardo", [])
+    client = FakeClient(tables)
+    assert PackageService(client).close_accumulated("e1")["status"] == "no_votes"
+
+
+def test_close_then_new_vote_starts_second_package():
+    tables = _base_tables("Bernardo", [_vote("v1", "c1", 9)])
+    client = FakeClient(tables)
+    svc = PackageService(client)
+    svc.rebuild_for_poll("e1")
+    svc.close_accumulated("e1")          # pacote 1 (seq 1) com 9
+    client.tables["votos"].append(_vote("v2", "c2", 12))  # voto novo
+    svc.rebuild_for_poll("e1")           # reabre acúmulo
+    opens = [p for p in client.tables["pacotes"] if p["status"] == "open"]
+    assert len(opens) == 1
+    assert opens[0]["total_qty"] == 12   # só o voto novo
+    res = svc.close_accumulated("e1")    # pacote 2 (seq 2)
+    seqs = sorted(p["sequence_no"] for p in client.tables["pacotes"] if p["status"] == "closed")
+    assert seqs == [1, 2]
+    assert res["total_qty"] == 12
+
+
+def test_close_rejects_non_session_enquete():
+    tables = _base_tables("Camisa lisa", [_vote("v1", "c1", 6)])
+    client = FakeClient(tables)
+    assert PackageService(client).close_accumulated("e1")["status"] == "not_session"
