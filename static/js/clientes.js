@@ -45,6 +45,7 @@
         document.getElementById("fin-group")?.classList.remove("open");
         window._financeOpen = false;
         window._enquetesClose?.();
+        window._bernardoClose?.();
         window._railCollapseGroups?.();
         // abre nosso grupo
         document.getElementById("clientes-group")?.classList.add("open");
@@ -59,7 +60,7 @@
         document.getElementById("clientes-group")?.classList.remove("open");
         // Só devolve a packages-area se nenhuma outra section ocupou o slot
         // (ex.: abrindo Financeiro logo em seguida, ele já marcou retracted).
-        if (!window._financeOpen && !window._enquetesOpen) {
+        if (!window._financeOpen && !window._enquetesOpen && !window._bernardoOpen) {
             document.getElementById("packages-area")?.classList.remove("retracted");
         }
     }

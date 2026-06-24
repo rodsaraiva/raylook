@@ -118,6 +118,7 @@
         document.getElementById("clientes-group")?.classList.remove("open");
         window._financeOpen = false;
         window._clientesOpen = false;
+        window._bernardoClose?.();
         window._railCollapseGroups?.();
         document.getElementById("enquetes-group")?.classList.add("open");
         refresh();
@@ -128,7 +129,7 @@
         window._enquetesOpen = false;
         document.getElementById("section-enquetes")?.classList.remove("active");
         document.getElementById("enquetes-group")?.classList.remove("open");
-        if (!window._financeOpen && !window._clientesOpen) {
+        if (!window._financeOpen && !window._clientesOpen && !window._bernardoOpen) {
             document.getElementById("packages-area")?.classList.remove("retracted");
         }
     }

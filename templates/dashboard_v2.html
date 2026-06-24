@@ -391,7 +391,8 @@
     .packages-area,
     #section-finance,
     #section-clientes,
-    #section-enquetes {
+    #section-enquetes,
+    #section-bernardo {
         grid-area: 1 / 1;
     }
 
@@ -416,7 +417,8 @@
 
     #section-finance,
     #section-clientes,
-    #section-enquetes {
+    #section-enquetes,
+    #section-bernardo {
         opacity: 0;
         transform: translateX(32px);
         pointer-events: none;
@@ -425,7 +427,8 @@
     }
     #section-finance.active,
     #section-clientes.active,
-    #section-enquetes.active {
+    #section-enquetes.active,
+    #section-bernardo.active {
         opacity: 1;
         transform: translateX(0);
         pointer-events: all;
@@ -1056,6 +1059,21 @@
                 </div>
             </div>
         </div>
+        <div class="rail-group" id="bernardo-group" data-group="sessoes">
+            <div class="rail-group-header" id="bernardo-group-header">
+                <span class="rail-group-label">Sessões</span>
+                <i class="fas fa-chevron-down rail-group-chevron"></i>
+            </div>
+            <div class="rail-group-body">
+                <div class="rail-step active" data-session-view="Bernardo">
+                    <div class="num">1</div>
+                    <div>
+                        <div class="label">Bernardo</div>
+                        <div class="sub">acúmulo por enquete</div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Área de conteúdo: pacotes e financeiro empilhados, troca retrátil -->
@@ -1277,6 +1295,19 @@
                 </div>
             </div>
         </div><!-- /section-clientes -->
+
+        <!-- PAINEL SESSÕES → BERNARDO -->
+        <div id="section-bernardo">
+            <div class="enq-list-wrap">
+                <div class="enq-list-head">
+                    <div class="enq-list-title-block">
+                        <span class="enq-list-title">Sessão Bernardo</span>
+                        <span id="bernardo-meta" class="enq-list-meta">—</span>
+                    </div>
+                </div>
+                <div class="enq-list" id="bernardo-cards"></div>
+            </div>
+        </div><!-- /section-bernardo -->
     </div><!-- /content-area -->
 </div><!-- /layout -->
 
@@ -1376,5 +1407,6 @@
 <script src="/static/js/finance.js"></script>
 <script src="/static/js/clientes.js"></script>
 <script src="/static/js/enquetes.js"></script>
+<script src="/static/js/sessao_bernardo.js"></script>
 </body>
 </html>

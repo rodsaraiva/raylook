@@ -16,6 +16,7 @@
         window._railCollapseGroups?.();
         window._clientesClose?.();
         window._enquetesClose?.();
+        window._bernardoClose?.();
         setGroupOpen(true);
         if (view) window.financeSetView?.(view);
         window.financeRefresh?.();
@@ -30,7 +31,7 @@
         // Sem isso, abrir Financeiro a partir de Clientes (que dispara
         // closeFinance/closeClientes recíproco) acabava removendo retracted
         // recém-adicionado, sobrepondo packages-area com a section nova.
-        if (!window._clientesOpen && !window._enquetesOpen) {
+        if (!window._clientesOpen && !window._enquetesOpen && !window._bernardoOpen) {
             document.getElementById('packages-area')?.classList.remove('retracted');
         }
     }
