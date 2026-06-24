@@ -17,9 +17,10 @@ class RateLimiter:
     def wait(self) -> None:
         """Bloqueia até passar `min_interval` desde a última liberação.
 
-        Segura o lock durante o sleep: serializa os chamadores numa fila e
-        garante a taxa mesmo com threads concorrentes (chamadas vêm de
-        `asyncio.to_thread`, então o sleep não bloqueia o event loop).
+        Segura o lock durante o sleep: serializa os chamadores numa fila FIFO e
+        garante a taxa mesmo com threads concorrentes. O sleep bloqueia a thread
+        chamadora; quem não pode bloquear o event loop deve invocar via
+        `asyncio.to_thread` ou worker thread equivalente.
         """
         if self._min_interval <= 0:
             return
