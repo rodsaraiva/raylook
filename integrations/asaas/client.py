@@ -5,6 +5,7 @@ import time
 import unicodedata
 import uuid
 import requests
+from integrations.asaas.rate_limiter import RateLimiter
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger("raylook.integrations.asaas")
@@ -80,6 +81,21 @@ def _sanitize_description(text: str, max_length: int = 250) -> str:
     cleaned = re.sub(r"\s+", " ", "".join(cleaned_chars)).strip()
     return cleaned[:max_length] or "Cobranca"
 
+
+def _min_interval_from_env() -> float:
+    """Intervalo mínimo (s) entre chamadas ao Asaas, derivado de ASAAS_MAX_RPS."""
+    try:
+        rps = float(os.getenv("ASAAS_MAX_RPS", "2"))
+    except (TypeError, ValueError):
+        rps = 2.0
+    return (1.0 / rps) if rps > 0 else 0.0
+
+
+# Singleton de módulo: compartilhado por TODAS as instâncias de AsaasClient,
+# então sync e portal passam pela mesma fila.
+_LIMITER = RateLimiter(_min_interval_from_env())
+
+
 class AsaasClient:
     def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None):
         # F-053: se não foi passado explicitamente, consulta o test_mode_service
@@ -108,6 +124,7 @@ class AsaasClient:
             logger.info("[asaas-stub] %s %s payload=%s", method, path, payload)
             return _stub_response(method, path, payload if isinstance(payload, dict) else None)
         url = self.base_url + "/" + path.lstrip("/")
+        _LIMITER.wait()
         resp = requests.request(method, url, headers=self._headers(), timeout=30, **kwargs)
         logger.info("Asaas %s %s -> %d", method, path, resp.status_code)
         if not resp.ok:
