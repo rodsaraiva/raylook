@@ -396,7 +396,6 @@
                 if (willOpen && window._financeOpen) window.toggleFinanceView();
                 if (willOpen && window._clientesOpen) window._clientesClose?.();
                 if (willOpen && window._enquetesOpen) window._enquetesClose?.();
-                if (willOpen && window._bernardoOpen) window._bernardoClose?.();
                 if (willOpen) {
                     // Seleciona o primeiro estado do grupo — mesma UX que
                     // Financeiro/Clientes já têm (abrir = ir pra primeira aba).
@@ -419,7 +418,6 @@
                 if (window._financeOpen) window.toggleFinanceView();
                 if (window._clientesOpen) window._clientesClose?.();
                 if (window._enquetesOpen) window._enquetesClose?.();
-                if (window._bernardoOpen) window._bernardoClose?.();
                 activeState = el.dataset.state;
                 listPage = 1;
                 const pkgs = currentItems();
