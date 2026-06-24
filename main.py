@@ -62,6 +62,7 @@ from app.routers import portal as portal_router
 from app.routers import dashboard as dashboard_router
 from app.routers import finance as finance_router
 from app.routers import shipping_qr as shipping_qr_router
+from app.routers import bernardo as bernardo_router
 import time
 from uuid import UUID, uuid4
 from datetime import datetime, timedelta, timezone
@@ -352,6 +353,7 @@ app.include_router(portal_router.router)
 app.include_router(dashboard_router.router)
 app.include_router(finance_router.router)
 app.include_router(shipping_qr_router.router)
+app.include_router(bernardo_router.router)
 if settings.ADHOC_PACKAGES_ENABLED:
     from app.api import adhoc_packages as adhoc_packages_api
     app.include_router(adhoc_packages_api.router)
