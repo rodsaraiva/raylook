@@ -575,7 +575,7 @@ class PackageService:
                 "commission_amount": commission_amount,
                 "total_amount": round(subtotal + commission_amount, 2),
             })
-        opened_at = _safe_datetime(pending[0].get("voted_at")).isoformat()
+        opened_at = min(_safe_datetime(v.get("voted_at")) for v in pending).isoformat()
         closed_at = max(_safe_datetime(v.get("voted_at")) for v in pending).isoformat()
 
         rpc_result = self.client.rpc("close_package", {
@@ -583,28 +583,30 @@ class PackageService:
             "p_votes": votes_payload, "p_opened_at": opened_at, "p_closed_at": closed_at,
             "p_capacidade_total": total_qty, "p_total_qty": total_qty,
         })
-        if not isinstance(rpc_result, dict) or rpc_result.get("status") not in ("ok", None):
-            if isinstance(rpc_result, dict) and rpc_result.get("status") == "no_votes":
-                return {"status": "no_votes"}
         new_pkg_id = rpc_result.get("pacote_id") if isinstance(rpc_result, dict) else None
+        if not new_pkg_id:
+            status = rpc_result.get("status") if isinstance(rpc_result, dict) else None
+            if status == "no_votes":
+                return {"status": "no_votes"}
+            logger.warning("close_package não retornou pacote_id: %s enquete=%s", rpc_result, enquete_id)
+            return {"status": "rpc_error"}
 
-        if new_pkg_id:
-            if enquete_fornecedor:
-                try:
-                    self.client.update("pacotes", {"fornecedor": enquete_fornecedor},
-                                       filters=[("id", "eq", str(new_pkg_id))])
-                except Exception:
-                    logger.warning("falha propagando fornecedor pro pacote %s", new_pkg_id)
+        if enquete_fornecedor:
             try:
-                from app.services.friendly_id_service import assign_friendly_id
-                assign_friendly_id(self.client, str(new_pkg_id))
+                self.client.update("pacotes", {"fornecedor": enquete_fornecedor},
+                                   filters=[("id", "eq", str(new_pkg_id))])
             except Exception:
-                logger.exception("falha ao atribuir friendly_id pacote=%s", new_pkg_id)
+                logger.warning("falha propagando fornecedor pro pacote %s", new_pkg_id)
+        try:
+            from app.services.friendly_id_service import assign_friendly_id
+            assign_friendly_id(self.client, str(new_pkg_id))
+        except Exception:
+            logger.exception("falha ao atribuir friendly_id pacote=%s", new_pkg_id)
 
-        # Votos consumidos -> remove o open summary (próximo voto reabre acúmulo).
+        # Votos consumidos -> remove o open summary (próximo voto reabre o acúmulo).
         self.client.delete(
             "pacotes",
-            filters=[("enquete_id", "eq", enquete_id), ("sequence_no", "eq", 0)],
+            filters=[("enquete_id", "eq", enquete_id), ("sequence_no", "eq", 0), ("status", "eq", "open")],
         )
         return {"status": "ok", "pacote_id": new_pkg_id,
                 "total_qty": total_qty, "participants": len(pending)}

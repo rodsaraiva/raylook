@@ -143,3 +143,31 @@ def test_close_rejects_non_session_enquete():
     tables = _base_tables("Camisa lisa", [_vote("v1", "c1", 6)])
     client = FakeClient(tables)
     assert PackageService(client).close_accumulated("e1")["status"] == "not_session"
+
+
+class _RpcFailClient(FakeClient):
+    """FakeClient que faz close_package retornar erro sem pacote_id."""
+
+    def rpc(self, fn_name, args=None):
+        if fn_name == "close_package":
+            return {"status": "error", "pacote_id": None}
+        return super().rpc(fn_name, args)
+
+
+def test_close_accumulated_rpc_failure_preserves_accumulator():
+    tables = _base_tables("Bernardo", [_vote("v1", "c1", 16), _vote("v2", "c2", 16)])
+    client = _RpcFailClient(tables)
+    svc = PackageService(client)
+    svc.rebuild_for_poll("e1")  # cria open seq-0 com 32
+    res = svc.close_accumulated("e1")
+    assert res["status"] != "ok", f"esperava status != ok, got {res}"
+    assert res["status"] == "rpc_error"
+    opens = [p for p in client.tables["pacotes"] if p.get("status") == "open" and p.get("sequence_no") == 0]
+    assert len(opens) == 1, "acumulador open seq-0 deve ser preservado após falha da RPC"
+
+
+def test_close_accumulated_not_found_when_enquete_missing():
+    tables = _base_tables("Bernardo", [])
+    client = FakeClient(tables)
+    res = PackageService(client).close_accumulated("ghost")
+    assert res == {"status": "not_found"}
