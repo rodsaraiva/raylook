@@ -71,3 +71,26 @@ def test_non_bernardo_still_closes_at_24():
     closed = [p for p in client.tables["pacotes"] if p["status"] == "closed"]
     assert len(closed) == 1
     assert closed[0]["total_qty"] == 24
+
+
+def test_accumulate_removes_open_when_all_votes_consumed():
+    # c1 tem qty 6; já consumido integralmente num pacote closed.
+    # Existe também um pacote open seq-0 stale -> deve ser removido.
+    tables = _base_tables("Bernardo", [_vote("v1", "c1", 6)])
+    tables["pacotes"].append({
+        "id": "old", "enquete_id": "e1", "sequence_no": 1,
+        "status": "closed", "total_qty": 6, "capacidade_total": 6,
+    })
+    tables["pacote_clientes"].append({
+        "id": "pc1", "pacote_id": "old", "cliente_id": "c1",
+        "voto_id": "v1", "produto_id": "prod1", "qty": 6,
+    })
+    tables["pacotes"].append({
+        "id": "open0", "enquete_id": "e1", "sequence_no": 0,
+        "status": "open", "total_qty": 6, "capacidade_total": 6, "participants_count": 1,
+    })
+    client = FakeClient(tables)
+    PackageService(client).rebuild_for_poll("e1")
+    opens = [p for p in client.tables["pacotes"] if p["status"] == "open"]
+    assert opens == [], "pacote open seq-0 stale deve ser removido quando pending == 0"
+    assert any(p["id"] == "old" for p in client.tables["pacotes"]), "pacote closed deve ser preservado"

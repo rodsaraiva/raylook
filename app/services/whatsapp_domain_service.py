@@ -518,7 +518,8 @@ class PackageService:
         else:
             self.client.delete(
                 "pacotes",
-                filters=[("enquete_id", "eq", enquete_id), ("sequence_no", "eq", 0)],
+                filters=[("enquete_id", "eq", enquete_id), ("sequence_no", "eq", 0),
+                         ("status", "eq", "open")],
             )
         return {"mode": "accumulate", "open_qty": open_qty,
                 "participants": len(pending), "closed_count": 0}
