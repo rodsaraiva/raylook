@@ -2,15 +2,16 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Adicionar uma aba "Bernardo" no dashboard cujas enquetes acumulam votos indefinidamente até um botão "fechar pacote" criar um pacote com todos os votos do momento — sem alterar o fluxo legado (subset-sum 24).
+**Goal:** Entregar a sessão "Bernardo" numa **página standalone `/bernardo`** cujas enquetes acumulam votos indefinidamente até um botão "fechar pacote" criar um pacote com todos os votos do momento — sem alterar o fluxo legado (subset-sum 24) **nem o dashboard normal**.
 
-**Architecture:** Sessões definidas em código (`app/sessions.py`). `PackageService.rebuild_for_poll` ganha um ramo no topo: enquete que casa com sessão `accumulate` é desviada para `_rebuild_accumulate` (mantém um único pacote `open`, nunca fecha em 24, nunca toca pacotes `closed`/`approved`). Um botão chama `close_accumulated`, que reusa a RPC transacional `close_package` com `total_qty` = soma real. Pacote fechado segue o pipeline normal.
+**Architecture:** Sessões definidas em código (`app/sessions.py`). `PackageService.rebuild_for_poll` ganha um ramo no topo: enquete que casa com sessão `accumulate` é desviada para `_rebuild_accumulate` (mantém um único pacote `open`, nunca fecha em 24, nunca toca pacotes `closed`/`approved`). Um botão chama `close_accumulated`, que reusa a RPC transacional `close_package` com `total_qty` = soma real. Pacote fechado segue o pipeline normal. **Entrega isolada (fase 1):** UI numa página própria `/bernardo` + router dedicado `app/routers/bernardo.py` (`/api/bernardo/*`); o dashboard normal (`dashboard.py` + arquivos de UI) fica **intocado**. Os commits T4/T5 revertem o protótipo-aba e movem os endpoints pra o router novo.
 
 **Tech Stack:** Python 3.11+, FastAPI, Jinja2, JS vanilla, SQLite (dev) / PostgREST+Postgres (prod), pytest.
 
 ## Global Constraints
 
 - **Não-regressão:** enquetes que não casam com sessão `accumulate` mantêm comportamento idêntico ao atual. A ramificação fica no topo de `rebuild_for_poll`, antes de qualquer lógica de subset-sum.
+- **Isolamento do dashboard normal (fase 1):** a feature vive em `/bernardo` + `app/routers/bernardo.py`. Ao fim, `app/routers/dashboard.py`, `templates/dashboard_v2.html`, `static/js/dashboard_v2.js`, `static/js/clientes.js`, `static/js/enquetes.js`, `static/js/finance-toggle.js` devem ficar **sem diff** vs. `main`. Únicos compartilhados tocados: o ramo guardado em `whatsapp_domain_service.py` e 1 linha de registro de router no `main.py`.
 - **Sem migration / sem mudança de schema.** Modo derivado do `titulo` + config em código.
 - **DB isolado** (`raylook_*`): nada pode afetar outros projetos.
 - **Match da sessão:** substring case-insensitive sobre `enquetes.titulo`. Default: `{"name":"Bernardo","match":"Bernardo","mode":"accumulate"}`.
@@ -515,22 +516,37 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task 4: Endpoints da sessão (`GET`/`POST` em `dashboard.py`)
+### Task 4: Router dedicado `app/routers/bernardo.py` + página `/bernardo`
+
+**Contexto:** o protótipo (commit `d010d3c`) pôs os endpoints dentro de
+`app/routers/dashboard.py`. Esta task **move** tudo pra um router dedicado e
+**reverte** `dashboard.py`, pra o dashboard normal ficar sem diff.
 
 **Files:**
-- Modify: `app/routers/dashboard.py` (imports + dois endpoints novos, adicionar no fim do arquivo, perto dos demais `/api/dashboard/*`)
-- Test: `tests/unit/test_dashboard_sessions.py`
+- Create: `app/routers/bernardo.py` (rota da página + 2 endpoints de API, sem prefixo — paths completos)
+- Modify: `main.py` (1 linha: `app.include_router(bernardo.router)`)
+- Revert: `app/routers/dashboard.py` (remover o import de `SESSIONS`/`accumulate_session_for_title`/`PackageService` e os 2 endpoints + `_session_by_name` do protótipo → volta a ficar sem diff vs. antes do Bernardo)
+- Test: `tests/unit/test_bernardo_api.py` (renomeia o antigo `test_dashboard_sessions.py`)
 
 **Interfaces:**
-- Consumes: `SupabaseRestClient.from_settings`, `PackageService`, `app.sessions.{SESSIONS, accumulate_session_for_title}`.
+- Consumes: `SupabaseRestClient.from_settings`, `PackageService`, `app.sessions.{SESSIONS, accumulate_session_for_title}`, `Jinja2Templates`.
 - Produces:
-  - `GET /api/dashboard/sessions/{session_name}` → `{"session": str, "enquetes": [{"enquete_id","titulo","total_qty","participants_count","participants":[{"nome","qty"}]}]}`.
-  - `POST /api/dashboard/sessions/{session_name}/close` body `{"enquete_id": str}` → repassa o dict de `PackageService.close_accumulated`. 404 se sessão/enquete inexistente; 400 se enquete não pertence à sessão ou body sem `enquete_id`.
+  - `GET /bernardo` → HTML (`templates/bernardo.html`).
+  - `GET /api/bernardo/sessions/{session_name}` → `{"session": str, "enquetes": [{"enquete_id","titulo","total_qty","participants_count","participants":[{"nome","qty"}]}]}`.
+  - `POST /api/bernardo/sessions/{session_name}/close` body `{"enquete_id": str}` → repassa o dict de `PackageService.close_accumulated`. 404 se sessão/enquete inexistente; 400 se enquete não pertence à sessão ou sem `enquete_id`.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Reverter os endpoints do protótipo em `dashboard.py`**
+
+Remover de `app/routers/dashboard.py` o que o commit `d010d3c` adicionou: o import
+`from app.sessions import SESSIONS, accumulate_session_for_title`, o
+`from app.services.whatsapp_domain_service import PackageService`, o helper
+`_session_by_name` e os dois endpoints `get_session` / `close_session_package`.
+Conferir: `git diff 35345d4 -- app/routers/dashboard.py` deve ficar **vazio**.
+
+- [ ] **Step 2: Escrever o teste (falhando) em `tests/unit/test_bernardo_api.py`**
 
 ```python
-# tests/unit/test_dashboard_sessions.py
+# tests/unit/test_bernardo_api.py
 from __future__ import annotations
 
 import pytest
@@ -556,7 +572,7 @@ def test_get_session_lists_matching_enquetes_with_accumulation(fake_client):
     fake.tables["clientes"].append({"id": "c1", "nome": "Ana"})
     fake.tables["votos"].append({"id": "v1", "enquete_id": "e1", "cliente_id": "c1",
                                  "qty": 16, "voted_at": "2026-06-24T10:00:00Z", "status": "in"})
-    res = client.get("/api/dashboard/sessions/Bernardo")
+    res = client.get("/api/bernardo/sessions/Bernardo")
     assert res.status_code == 200
     body = res.json()
     assert body["session"] == "Bernardo"
@@ -569,49 +585,63 @@ def test_get_session_lists_matching_enquetes_with_accumulation(fake_client):
 
 def test_get_session_404_when_unknown(fake_client):
     client, _ = fake_client
-    assert client.get("/api/dashboard/sessions/Inexistente").status_code == 404
+    assert client.get("/api/bernardo/sessions/Inexistente").status_code == 404
 
 
 def test_post_close_rejects_non_session_enquete(fake_client):
     client, fake = fake_client
     fake.tables["enquetes"].append({"id": "e2", "titulo": "Camisa lisa", "status": "open"})
-    res = client.post("/api/dashboard/sessions/Bernardo/close", json={"enquete_id": "e2"})
+    res = client.post("/api/bernardo/sessions/Bernardo/close", json={"enquete_id": "e2"})
     assert res.status_code == 400
 
 
 def test_post_close_calls_service(fake_client, monkeypatch):
     client, fake = fake_client
     fake.tables["enquetes"].append({"id": "e1", "titulo": "Bernardo", "status": "open"})
-    import app.routers.dashboard as dash
-    monkeypatch.setattr(dash.PackageService, "close_accumulated",
+    import app.routers.bernardo as bern
+    monkeypatch.setattr(bern.PackageService, "close_accumulated",
                         lambda self, eid: {"status": "ok", "pacote_id": "x", "total_qty": 16, "participants": 1})
-    res = client.post("/api/dashboard/sessions/Bernardo/close", json={"enquete_id": "e1"})
+    res = client.post("/api/bernardo/sessions/Bernardo/close", json={"enquete_id": "e1"})
     assert res.status_code == 200
     assert res.json() == {"status": "ok", "pacote_id": "x", "total_qty": 16, "participants": 1}
 
 
 def test_post_close_400_without_enquete_id(fake_client):
     client, _ = fake_client
-    assert client.post("/api/dashboard/sessions/Bernardo/close", json={}).status_code == 400
+    assert client.post("/api/bernardo/sessions/Bernardo/close", json={}).status_code == 400
+
+
+def test_page_route_serves_html(fake_client):
+    client, _ = fake_client
+    res = client.get("/bernardo")
+    assert res.status_code == 200
+    assert "text/html" in res.headers["content-type"]
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+Run: `DASHBOARD_AUTH_DISABLED=true pytest tests/unit/test_bernardo_api.py -v`
+Expected: FAIL (rotas não existem).
 
-Run: `DASHBOARD_AUTH_DISABLED=true pytest tests/unit/test_dashboard_sessions.py -v`
-Expected: FAIL (404 em todas as rotas — endpoints não existem).
-
-- [ ] **Step 3: Implement os endpoints**
-
-No topo de `app/routers/dashboard.py`, adicionar aos imports:
+- [ ] **Step 3: Implementar `app/routers/bernardo.py` + registrar no `main.py`**
 
 ```python
+# app/routers/bernardo.py
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+
+from app.config import settings
 from app.sessions import SESSIONS, accumulate_session_for_title
+from app.services.supabase_service import SupabaseRestClient
 from app.services.whatsapp_domain_service import PackageService
-```
 
-No fim do arquivo, adicionar:
+router = APIRouter(tags=["bernardo"])
+templates = Jinja2Templates(directory="templates")
 
-```python
+
 def _session_by_name(session_name: str) -> Optional[Dict[str, Any]]:
     for s in SESSIONS:
         if s["name"].casefold() == session_name.casefold():
@@ -619,7 +649,13 @@ def _session_by_name(session_name: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-@router.get("/sessions/{session_name}")
+@router.get("/bernardo", response_class=HTMLResponse)
+def bernardo_page(request: Request):
+    """Página standalone da sessão Bernardo."""
+    return templates.TemplateResponse(request, "bernardo.html", {"settings": settings})
+
+
+@router.get("/api/bernardo/sessions/{session_name}")
 def get_session(session_name: str) -> Dict[str, Any]:
     """Enquetes da sessão (modo acúmulo) + o acúmulo corrente de cada uma."""
     session = _session_by_name(session_name)
@@ -660,7 +696,7 @@ def get_session(session_name: str) -> Dict[str, Any]:
     return {"session": session["name"], "enquetes": items}
 
 
-@router.post("/sessions/{session_name}/close")
+@router.post("/api/bernardo/sessions/{session_name}/close")
 async def close_session_package(session_name: str, request: Request) -> Dict[str, Any]:
     """Fecha o pacote acumulado de UMA enquete da sessão (botão 'fechar pacote')."""
     session = _session_by_name(session_name)
@@ -681,122 +717,177 @@ async def close_session_package(session_name: str, request: Request) -> Dict[str
     return PackageService(client).close_accumulated(enquete_id)
 ```
 
-> Nota: se houver import circular ao importar `PackageService` no topo de `dashboard.py`, mover o `from app.services.whatsapp_domain_service import PackageService` para dentro das funções.
+Registrar no `main.py` (junto aos demais `app.include_router(...)`):
 
-- [ ] **Step 4: Run test to verify it passes**
+```python
+from app.routers import bernardo as bernardo_router
+app.include_router(bernardo_router.router)
+```
 
-Run: `DASHBOARD_AUTH_DISABLED=true pytest tests/unit/test_dashboard_sessions.py -v`
-Expected: PASS (5 passed).
+> **Auth:** as rotas admin são protegidas por middleware (ver `DASHBOARD_AUTH_DISABLED`).
+> Confirmar que `/bernardo` e `/api/bernardo/*` caem na MESMA proteção que `/` e
+> `/api/dashboard/*`; se o middleware usa allowlist de paths, garantir que sejam
+> tratadas como protegidas (admin). Verificar lendo o middleware de auth no `main.py`.
 
-- [ ] **Step 5: Commit**
+Run: `DASHBOARD_AUTH_DISABLED=true pytest tests/unit/test_bernardo_api.py -v`
+Expected: PASS (6 passed).
+
+- [ ] **Step 4: Commit**
 
 ```bash
-git add app/routers/dashboard.py tests/unit/test_dashboard_sessions.py
-git commit -m "feat: endpoints da sessão Bernardo (listar acúmulo + fechar)
+git rm tests/unit/test_dashboard_sessions.py 2>/dev/null || true
+git add app/routers/bernardo.py app/routers/dashboard.py main.py tests/unit/test_bernardo_api.py
+git commit -m "refactor(bernardo): endpoints num router dedicado /api/bernardo + rota da página
 
-Por quê: a aba precisa ler o acúmulo corrente por enquete e o botão precisa
-de uma rota que valida a sessão antes de fechar (não fecha enquete legada).
+Por quê: entregar a feature numa página standalone /bernardo sem tocar no router
+do dashboard normal (dashboard.py volta a ficar sem diff). Inclui GET /bernardo
+que serve a página.
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
 
-### Task 5: Aba "Bernardo" no dashboard (frontend)
+### Task 5: Página standalone `/bernardo` (reverter a integração-aba)
+
+**Contexto:** o protótipo (commit `2dde48c`) integrou a feature como aba dentro do
+dashboard, tocando 5 arquivos compartilhados. Esta task **reverte** essa integração
+e entrega a UI numa página própria.
 
 **Files:**
-- Modify: `templates/dashboard_v2.html` (sidebar: novo rail-group "Bernardo"; novo painel principal `#bernardo-view`)
-- Modify: `static/js/dashboard_v2.js` (handler de navegação + render + botão fechar)
+- Revert (estado pré-Bernardo): `templates/dashboard_v2.html`, `static/js/dashboard_v2.js`, `static/js/clientes.js`, `static/js/enquetes.js`, `static/js/finance-toggle.js`
+- Delete: `static/js/sessao_bernardo.js` (era a versão-aba)
+- Create: `templates/bernardo.html`, `static/js/bernardo_page.js`
 
-**Interfaces:**
-- Consumes: `GET /api/dashboard/sessions/Bernardo`, `POST /api/dashboard/sessions/Bernardo/close`.
+- [ ] **Step 1: Reverter a integração-aba**
 
-- [ ] **Step 1: Ler o padrão de navegação existente**
+```bash
+git checkout 35345d4 -- templates/dashboard_v2.html static/js/dashboard_v2.js \
+  static/js/clientes.js static/js/enquetes.js static/js/finance-toggle.js
+git rm static/js/sessao_bernardo.js
+```
+Conferir: `git diff 35345d4 -- templates/dashboard_v2.html static/js/dashboard_v2.js static/js/clientes.js static/js/enquetes.js static/js/finance-toggle.js` deve ficar **vazio** (dashboard normal intocado).
 
-Antes de editar, ler em `static/js/dashboard_v2.js` como as views alternam (procurar `data-enquetes-view`, `data-fin-view`, `data-clientes-view` e a função que mostra/esconde os painéis principais) e em `templates/dashboard_v2.html` o bloco `<div class="sidebar">` (~972) e os painéis de view (ex.: Enquetes ~1235). **Seguir exatamente esse padrão** (mesmas classes `rail-group`/`rail-step`, mesmo mecanismo de troca de painel). Não inventar um sistema de abas novo.
+- [ ] **Step 2: Criar `templates/bernardo.html`**
 
-- [ ] **Step 2: Adicionar o rail-group no HTML**
-
-No `<div class="sidebar">`, adicionar um grupo novo (mesma marcação dos existentes), por ex.:
+Página própria, reusando o tema do dashboard. Antes de escrever, ler o `<head>` de
+`templates/dashboard_v2.html` pra herdar a mesma fonte e o mesmo CSS-base (variáveis
+`--accent`, `--text-primary`, `--text-muted`, etc.). Esqueleto:
 
 ```html
-<div class="rail-group">
-    <span class="rail-group-label">Sessões</span>
-    <div class="rail-step" data-session-view="Bernardo">
-        <span class="rail-step-label">Bernardo</span>
-    </div>
-</div>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Raylook · Bernardo</title>
+  <!-- reusar a MESMA fonte/estilos-base que o dashboard_v2.html referencia -->
+  <style>
+    body { background: var(--bg, #0f0f12); color: var(--text-primary, #eee);
+           font-family: 'Outfit', sans-serif; margin: 0; }
+    .bernardo-wrap { max-width: 760px; margin: 0 auto; padding: 24px; }
+    .bernardo-title { font-size: 20px; font-weight: 700; margin-bottom: 16px; }
+    .bn-card { border: 1px solid rgba(255,255,255,0.08); border-radius: 12px;
+               padding: 16px; margin-bottom: 12px; }
+    .bn-card-title { font-weight: 600; }
+    .bn-card-meta { color: var(--text-muted, #999); font-size: 13px; margin-top: 6px; }
+    .bn-btn { margin-top: 12px; padding: 8px 14px; border-radius: 8px; cursor: pointer; }
+    .bn-btn[disabled] { opacity: .5; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <div class="bernardo-wrap">
+    <div class="bernardo-title">Sessão Bernardo</div>
+    <div id="bernardo-cards">Carregando…</div>
+  </div>
+  <script src="/static/js/bernardo_page.js"></script>
+</body>
+</html>
 ```
 
-E um painel principal (irmão dos painéis de Enquetes/Financeiro/Clientes), inicialmente escondido conforme o padrão do arquivo:
+- [ ] **Step 3: Criar `static/js/bernardo_page.js`**
 
-```html
-<div id="bernardo-view" class="view" hidden>
-    <div class="pkg-list-title">Sessão Bernardo</div>
-    <div id="bernardo-cards"></div>
-</div>
-```
-
-(Ajustar nomes de classe/atributo `hidden`/`active` ao que o padrão real usa — descoberto no Step 1.)
-
-- [ ] **Step 3: Implementar render + ação no JS**
-
-Adicionar em `static/js/dashboard_v2.js` (integrando ao switch de navegação descoberto no Step 1 — ao clicar no `data-session-view`, mostrar `#bernardo-view` e chamar `loadBernardo`):
+Página inteira (sem view-toggling). Strings de usuário **escapadas** antes do DOM.
 
 ```javascript
-async function loadBernardo() {
-  const wrap = document.getElementById('bernardo-cards');
-  wrap.innerHTML = 'Carregando…';
-  const res = await fetch('/api/dashboard/sessions/Bernardo');
-  const data = await res.json();
-  if (!data.enquetes.length) { wrap.innerHTML = 'Nenhuma enquete Bernardo ativa.'; return; }
-  wrap.innerHTML = '';
-  for (const enq of data.enquetes) {
-    const card = document.createElement('div');
-    card.className = 'pkg-card';
-    const parts = enq.participants.map(p => `${p.nome}: ${p.qty}`).join(' · ') || '—';
-    card.innerHTML = `
-      <div class="pkg-card-title">${enq.titulo}</div>
-      <div class="pkg-card-meta">Acúmulo: <b>${enq.total_qty}</b> peças · ${enq.participants_count} cliente(s)</div>
-      <div class="pkg-card-meta">${parts}</div>`;
-    const btn = document.createElement('button');
-    btn.textContent = 'Fechar pacote';
-    btn.disabled = enq.total_qty <= 0;
-    btn.onclick = async () => {
-      btn.disabled = true;
-      const r = await fetch('/api/dashboard/sessions/Bernardo/close', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enquete_id: enq.enquete_id }),
-      });
-      const out = await r.json();
-      if (out.status === 'ok') { loadBernardo(); }
-      else { alert('Não foi possível fechar: ' + (out.status || 'erro')); btn.disabled = false; }
-    };
-    card.appendChild(btn);
-    wrap.appendChild(card);
+(function () {
+  const SESSION = "Bernardo";
+  function escapeHtml(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, c => (
+      { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+    ));
   }
-}
+  async function load() {
+    const wrap = document.getElementById("bernardo-cards");
+    wrap.textContent = "Carregando…";
+    let data;
+    try {
+      const res = await fetch(`/api/bernardo/sessions/${SESSION}`, { credentials: "same-origin" });
+      data = await res.json();
+    } catch (e) { wrap.textContent = "Erro ao carregar."; return; }
+    if (!data.enquetes || !data.enquetes.length) {
+      wrap.textContent = "Nenhuma enquete Bernardo ativa."; return;
+    }
+    wrap.innerHTML = "";
+    for (const enq of data.enquetes) {
+      const parts = (enq.participants || [])
+        .map(p => `${escapeHtml(p.nome)}: ${escapeHtml(String(p.qty))}`).join(" · ") || "—";
+      const card = document.createElement("div");
+      card.className = "bn-card";
+      card.innerHTML =
+        `<div class="bn-card-title">${escapeHtml(enq.titulo)}</div>` +
+        `<div class="bn-card-meta">Acúmulo: <b>${escapeHtml(String(enq.total_qty))}</b> peças · ${escapeHtml(String(enq.participants_count))} cliente(s)</div>` +
+        `<div class="bn-card-meta">${parts}</div>`;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "bn-btn";
+      btn.textContent = "Fechar pacote";
+      btn.disabled = (enq.total_qty || 0) <= 0;
+      btn.onclick = async () => {
+        btn.disabled = true;
+        try {
+          const r = await fetch(`/api/bernardo/sessions/${SESSION}/close`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            credentials: "same-origin", body: JSON.stringify({ enquete_id: enq.enquete_id }),
+          });
+          const out = await r.json();
+          if (out.status === "ok") { load(); }
+          else { alert("Não foi possível fechar: " + (out.status || "erro")); btn.disabled = false; }
+        } catch (e) { alert("Erro: " + e.message); btn.disabled = false; }
+      };
+      card.appendChild(btn);
+      wrap.appendChild(card);
+    }
+  }
+  document.addEventListener("DOMContentLoaded", load);
+})();
 ```
-
-(Reusar classes de card existentes — `pkg-card`/`pkg-card-title` etc. — conforme o que o HTML real já define; ajustar nomes no Step 1.)
 
 - [ ] **Step 4: Validar no browser (obrigatório para UI)**
 
+Subir o server numa **porta livre** + SQLite scratch (NÃO usar a 8000 — é o container
+de prod no host):
 ```bash
-cd /root/rodrigo/raylook
-PYTHONPATH=.venv/lib/python3.12/site-packages:. python3 main.py &   # SQLite + sandbox
+DASHBOARD_AUTH_DISABLED=true RAYLOOK_SANDBOX=true DATA_BACKEND=sqlite DATA_DIR=/tmp/bdb \
+  .venv/bin/uvicorn main:app --host 127.0.0.1 --port 8023
 ```
-
-Com Playwright MCP (ou navegador): abrir `http://127.0.0.1:8000`, logar, clicar na aba **Bernardo**. Sem dados ela mostra "Nenhuma enquete Bernardo ativa." Inserir manualmente no SQLite (`data/raylook.db`) uma enquete com título contendo "Bernardo", um produto e alguns votos; recarregar a aba; conferir o acúmulo e clicar **Fechar pacote**. Confirmar: pacote vira `closed` (aparece na seção "fechado" do fluxo normal), acúmulo zera, e um voto novo reabre o acúmulo. Tirar screenshot. Parar o server ao fim.
+Seedar (via `SupabaseRestClient.from_settings()` com o mesmo `DATA_DIR`) uma enquete
+com título contendo "Bernardo" + produto + alguns votos. Abrir
+`http://127.0.0.1:8023/bernardo` (Playwright): conferir o acúmulo ao vivo, clicar
+**Fechar pacote**, confirmar que o pacote vira `closed` (`GET /api/dashboard/packages`
+mostra em "fechado" com `total_qty` = soma real ≠ 24), o acúmulo zera, e um voto novo
+reabre. Screenshot. Parar o server. Confirmar que o Docker de prod segue intocado.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add templates/dashboard_v2.html static/js/dashboard_v2.js
-git commit -m "feat: aba Bernardo no dashboard com botão fechar pacote
+git add templates/dashboard_v2.html static/js/dashboard_v2.js static/js/clientes.js \
+  static/js/enquetes.js static/js/finance-toggle.js static/js/sessao_bernardo.js \
+  templates/bernardo.html static/js/bernardo_page.js
+git commit -m "feat(bernardo): página standalone /bernardo; reverte a integração-aba
 
-Por quê: operador precisa ver o acúmulo ao vivo por enquete e fechar quando
-quiser. Reusa o padrão de navegação/cards existente.
+Por quê: entregar a feature isolada numa página própria, sem tocar nos arquivos
+do dashboard normal (revertidos ao estado pré-Bernardo).
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
@@ -814,19 +905,27 @@ Expected: tudo verde. Em especial, os testes legados de pacote/rebuild/advance c
 
 - [ ] **Step 2: Type-check (se configurado)**
 
-Run: `mypy app/sessions.py app/services/whatsapp_domain_service.py app/routers/dashboard.py 2>/dev/null || echo "mypy não configurado/sem alvo — ok"`
+Run: `mypy app/sessions.py app/services/whatsapp_domain_service.py app/routers/bernardo.py 2>/dev/null || echo "mypy não configurado/sem alvo — ok"`
 Expected: sem erros novos introduzidos (ou mensagem de skip).
 
-- [ ] **Step 3: Conferir diff e ausência de migration**
+- [ ] **Step 3: Conferir isolamento, diff e ausência de migration**
 
 Run: `git diff --stat main..HEAD && git log --oneline main..HEAD`
-Expected: arquivos tocados = `app/sessions.py`, `app/services/whatsapp_domain_service.py`, `app/routers/dashboard.py`, `templates/dashboard_v2.html`, `static/js/dashboard_v2.js`, testes e docs. **Nenhum** arquivo em `deploy/postgres/migrations/` ou alteração de schema.
+Expected — arquivos **novos/tocados** da feature: `app/sessions.py`, `app/services/whatsapp_domain_service.py` (ramo guardado), `app/routers/bernardo.py`, `main.py` (1 linha de registro), `templates/bernardo.html`, `static/js/bernardo_page.js`, testes (`test_sessions.py`, `test_whatsapp_domain_accumulate.py`, `test_bernardo_api.py`) e docs.
+
+**Gate de isolamento (crítico):** o dashboard normal deve ficar SEM diff —
+```
+git diff main..HEAD -- app/routers/dashboard.py templates/dashboard_v2.html \
+  static/js/dashboard_v2.js static/js/clientes.js static/js/enquetes.js static/js/finance-toggle.js
+```
+deve sair **vazio**. **Nenhum** arquivo em `deploy/postgres/migrations/` ou alteração de schema.
 
 - [ ] **Step 4: NÃO fazer push** — relatar ao usuário que está pronto para revisão e aguardar aprovação para `git push`.
 
 ## Self-Review (verificação do plano contra o spec)
 
-- **Cobertura do spec:** config (T1) · ramo de rebuild + subtração por cliente (T2) · close_accumulated + reabertura (T3) · endpoints GET/POST + validação de sessão (T4) · aba/botão frontend (T5) · downstream inalterado e sem migration (T2/T3/T6) · edge cases (T2/T3 testes). ✔
-- **Não-regressão:** `test_non_bernardo_still_closes_at_24` (T2) + suite legada (T6). ✔
-- **Sem placeholders:** todo passo traz código/comando concreto. Frontend (T5) tem Step 1 de leitura porque a UI integra num JS grande já existente; os snippets são concretos e ajustados às classes reais nesse passo. ✔
+- **Cobertura do spec:** config (T1) · ramo de rebuild + subtração por cliente (T2) · close_accumulated + reabertura (T3) · router dedicado `/api/bernardo` + rota da página + revert do dashboard.py (T4) · página standalone `/bernardo` + revert da integração-aba (T5) · downstream inalterado e sem migration (T2/T3/T6) · isolamento do dashboard normal (T4/T5/T6) · edge cases (T2/T3 testes). ✔
+- **Não-regressão:** `test_non_bernardo_still_closes_at_24` (T2) + suite legada (T6) + gate de isolamento (T6 Step 3: dashboard normal sem diff). ✔
+- **Sem placeholders:** todo passo traz código/comando concreto. T5 Step 2 tem leitura do `<head>` do `dashboard_v2.html` só pra herdar fonte/CSS-base na página nova. ✔
 - **Consistência de tipos:** `_accumulate_pending`, `_rebuild_accumulate`, `close_accumulated`, `session_for_title`, `accumulate_session_for_title`, `_session_by_name` usados com as mesmas assinaturas em todas as tasks. ✔
+- **Migração do protótipo:** T4 reverte os endpoints em `dashboard.py` e T5 reverte a integração-aba (5 arquivos) via `git checkout 35345d4 -- …`; o que se mantém são os commits de backend (T1–T3, intocados) + os novos T4/T5. ✔

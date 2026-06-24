@@ -91,39 +91,57 @@ def session_for_title(titulo: str | None) -> dict | None:
     dispara `_rebuild_accumulate`, que reabre o acúmulo com `total_qty = 0`
     (ou seja, o open some até chegar voto novo).
 
-### 3. Endpoint (admin)
+### 3. Entrega isolada — página `/bernardo` (fase 1)
 
-`POST /api/dashboard/sessions/{session_name}/close`
-- Body: `{"enquete_id": "<id>"}`.
-- Valida que a enquete existe e que seu `titulo` casa com a sessão `{session_name}`
-  em modo `accumulate` (defesa: não fecha por essa rota enquetes legadas).
-- Chama `PackageService.close_accumulated(enquete_id)`.
-- Respostas: `{"status":"ok", "pacote_id":..., "total_qty":..., "participants":...}`
-  ou `{"status":"no_votes"}` (HTTP 200, frontend trata).
-- Auth: mesma proteção dos demais endpoints `/api/dashboard/*`.
+**Decisão (2026-06-24):** em vez de integrar como aba *dentro* do dashboard, a
+fase 1 entrega a feature numa **página standalone `/bernardo`**, para **não
+tocar em nenhum arquivo do dashboard normal**. Os endpoints e a rota da página
+vivem num **router dedicado** `app/routers/bernardo.py` (registrado no `main.py`),
+e `app/routers/dashboard.py` fica **intocado**.
 
-### 4. Frontend — aba "Bernardo"
+Único "toque" em código compartilhado nesta fase: o ramo guardado em
+`whatsapp_domain_service.py::rebuild_for_poll` (#2, necessário pro acúmulo valer
+em votos reais do webhook) + a linha de registro do router no `main.py`. Uma
+fase 2 futura pode promover a página a aba do dashboard, se desejado.
 
-- Nova aba no dashboard admin, **dirigida pela config de sessões** (renderiza uma
-  aba por sessão `accumulate`; hoje só "Bernardo").
-- A aba lista as **enquetes** cujo titulo casa com a sessão, e para cada uma:
-  - o acúmulo ao vivo: `total_qty` + nº de participantes + lista
-    cliente/qty (calculados no read a partir dos votos pendentes — o open é só
-    summary, então o endpoint de leitura computa os pendentes).
-  - botão **"fechar pacote"** (desabilitado se acúmulo == 0). Ao clicar →
-    `POST .../close` → recarrega a aba.
+### 4. Router dedicado `app/routers/bernardo.py` (prefixo próprio)
+
+- `GET /bernardo` — serve `templates/bernardo.html` (página admin, mesma proteção
+  de auth da rota `/` do dashboard).
+- `GET /api/bernardo/sessions/{session_name}` — devolve as enquetes da sessão
+  (status `open` que casam com o match) + o **acúmulo corrente** de cada uma:
+  `total_qty` + nº de participantes + lista `{nome, qty}` (computados no read a
+  partir dos votos pendentes; o open é só summary).
+- `POST /api/bernardo/sessions/{session_name}/close` — body `{"enquete_id"}`.
+  Valida que a enquete existe e casa com a sessão `accumulate` (defesa: não fecha
+  enquete legada). Chama `PackageService.close_accumulated(enquete_id)`.
+  Respostas: `{"status":"ok", "pacote_id", "total_qty", "participants"}` |
+  `{"status":"no_votes"}` | `{"status":"not_session"}` | `{"status":"not_found"}`
+  | `{"status":"no_product"}` | `{"status":"rpc_error"}` (HTTP 200; front trata).
+
+### 5. Frontend — página standalone `/bernardo`
+
+- `templates/bernardo.html` — página própria, reusa o tema CSS do dashboard
+  (mesmas variáveis/base), sem o sistema de "views" sobrepostas. Layout: cabeçalho
+  + lista de cards de enquete.
+- `static/js/bernardo_page.js` — carrega no `DOMContentLoaded` (sem view-toggling,
+  sem exclusão mútua), busca `GET /api/bernardo/sessions/Bernardo` e renderiza um
+  card por enquete: título, acúmulo ao vivo (`total_qty` + participantes), e um
+  botão **"fechar pacote"** (desabilitado se acúmulo == 0). Ao clicar →
+  `POST /api/bernardo/sessions/Bernardo/close` → recarrega a lista. Strings de
+  usuário (`titulo`, `nome`) **escapadas** antes de ir ao DOM (histórico de XSS
+  do repo).
+- **Nenhum arquivo do dashboard normal é tocado** (`dashboard_v2.html/js`,
+  `clientes.js`, `enquetes.js`, `finance-toggle.js` ficam intactos).
 - Pacotes Bernardo já `closed` **continuam aparecendo e fluindo nas seções
-  normais** (fechado → confirmado → pago → … → enviado), sem nenhuma alteração.
-- Endpoint de leitura da aba: reaproveita/estende o de packages, ou um
-  `GET /api/dashboard/sessions/{session_name}` que devolve as enquetes da sessão
-  + acúmulo corrente. (Decidir no plano; preferir reuso.)
+  normais** do dashboard (fechado → confirmado → … → enviado), sem alteração.
 
-### 5. Downstream inalterado
+### 6. Downstream inalterado
 
 Um pacote Bernardo `closed` é um pacote normal: gerente aprova → vira `approved`
 → cobrança PIX Asaas → pago → separado → enviado. Idêntico ao fluxo atual.
 
-### 6. Schema
+### 7. Schema
 
 **Nenhuma migration.** O modo é derivado do `titulo` da enquete + a config em
 código. Banco isolado (`raylook_*`) intocado. Zero risco de regressão no schema.
@@ -151,16 +169,21 @@ código. Banco isolado (`raylook_*`) intocado. Zero risco de regressão no schem
 5. Subtração por cliente: cliente que aumentou qty após snapshot → delta no
    próximo pacote.
 6. Não-regressão: enquete **sem** match segue fechando em 24 exatamente como hoje.
-7. Endpoint: `POST .../close` happy path + `no_votes` + rejeição de enquete
-   legada.
+7. Endpoint: `POST /api/bernardo/sessions/{nome}/close` happy path + `no_votes` +
+   rejeição de enquete legada; `GET /api/bernardo/sessions/{nome}` lista acúmulo.
 
 ## Critérios de aceite
 
 - [ ] Enquetes Bernardo acumulam sem fechar em 24.
-- [ ] Botão "fechar pacote" cria pacote `closed` com todos os votos do momento.
+- [ ] Botão "fechar pacote" (na página `/bernardo`) cria pacote `closed` com todos
+      os votos do momento.
 - [ ] Votos posteriores formam novo acúmulo / novo pacote.
 - [ ] Pacote Bernardo `closed` flui no pipeline normal sem mudanças.
 - [ ] Enquetes não-Bernardo: comportamento idêntico ao atual (testes legados
       passam).
+- [ ] **Dashboard normal intocado:** `dashboard.py`, `dashboard_v2.html/js`,
+      `clientes.js`, `enquetes.js`, `finance-toggle.js` sem diff.
+- [ ] Único compartilhado tocado: ramo guardado em `whatsapp_domain_service.py`
+      + registro do router em `main.py`.
 - [ ] Sem migration; banco intocado.
 - [ ] Testes 1-7 passando.
