@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Any, Dict, List, Optional
@@ -20,6 +20,12 @@ from app.services.finance_service import (
 
 router = APIRouter(prefix="/api/finance")
 logger = logging.getLogger("raylook.routers.finance")
+
+
+def _session_for_request(request: Request) -> Optional[str]:
+    """Força a sessão Bernardo pro role bernardo (segrega no backend, não via
+    query do cliente). Demais roles: None = vê tudo."""
+    return "Bernardo" if getattr(request.state, "role", None) == "bernardo" else None
 
 finance_manager = FinanceManager()
 
@@ -90,6 +96,7 @@ class WriteOffRequest(BaseModel):
 
 @router.get("/receivables")
 async def get_receivables(
+    request: Request,
     since: Optional[str] = None,
     until: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
@@ -99,7 +106,8 @@ async def get_receivables(
     pagamentos.created_at (BRT). Sem filtros, retorna tudo.
     """
     try:
-        return build_receivables_by_client(since=since, until=until)
+        return build_receivables_by_client(
+            since=since, until=until, session=_session_for_request(request))
     except Exception:
         logger.exception("Erro ao agregar receivables")
         return JSONResponse(status_code=500, content={"error": "internal"})
@@ -107,12 +115,14 @@ async def get_receivables(
 
 @router.get("/aging-summary")
 async def get_aging_summary(
+    request: Request,
     since: Optional[str] = None,
     until: Optional[str] = None,
 ) -> Dict[str, Any]:
     """KPIs de aging para o topo da aba (com mesmo filtro de receivables)."""
     try:
-        return build_aging_summary(since=since, until=until)
+        return build_aging_summary(
+            since=since, until=until, session=_session_for_request(request))
     except Exception:
         logger.exception("Erro ao construir aging summary")
         return JSONResponse(status_code=500, content={"error": "internal"})
@@ -120,6 +130,7 @@ async def get_aging_summary(
 
 @router.get("/paid")
 async def get_paid(
+    request: Request,
     since: Optional[str] = None,
     until: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
@@ -129,7 +140,8 @@ async def get_paid(
     pagamentos.paid_at (BRT).
     """
     try:
-        return build_paid_by_client(since=since, until=until)
+        return build_paid_by_client(
+            since=since, until=until, session=_session_for_request(request))
     except Exception:
         logger.exception("Erro ao agregar pagos")
         return JSONResponse(status_code=500, content={"error": "internal"})
@@ -137,12 +149,14 @@ async def get_paid(
 
 @router.get("/paid-summary")
 async def get_paid_summary(
+    request: Request,
     since: Optional[str] = None,
     until: Optional[str] = None,
 ) -> Dict[str, Any]:
     """KPIs da aba Pagos."""
     try:
-        return build_paid_summary(since=since, until=until)
+        return build_paid_summary(
+            since=since, until=until, session=_session_for_request(request))
     except Exception:
         logger.exception("Erro ao construir paid summary")
         return JSONResponse(status_code=500, content={"error": "internal"})
