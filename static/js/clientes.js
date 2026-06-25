@@ -45,6 +45,7 @@
         document.getElementById("fin-group")?.classList.remove("open");
         window._financeOpen = false;
         window._enquetesClose?.();
+        window._bernardoClose?.();
         window._railCollapseGroups?.();
         // abre nosso grupo
         document.getElementById("clientes-group")?.classList.add("open");

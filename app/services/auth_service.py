@@ -18,7 +18,7 @@ from typing import Optional, Tuple
 import bcrypt
 
 
-ROLES = ("admin", "estoque", "logistica")
+ROLES = ("admin", "estoque", "logistica", "bernardo")
 SESSION_MAX_AGE = 8 * 60 * 60  # 8h
 
 
@@ -121,9 +121,12 @@ def can_restore(role: str) -> bool:
 def visible_groups(role: str) -> Tuple[str, ...]:
     """Quais dropdowns do rail o role enxerga (id usado em RAIL_GROUPS no JS)."""
     if role == "admin":
-        return ("comercial", "estoque", "logistica", "enquetes", "financeiro")
+        return ("comercial", "bernardo", "estoque", "logistica",
+                "enquetes", "financeiro", "clientes")
     if role == "estoque":
-        return ("estoque",)
+        return ("estoque", "enquetes", "clientes")
     if role == "logistica":
-        return ("logistica",)
+        return ("logistica", "enquetes", "clientes")
+    if role == "bernardo":
+        return ("bernardo",)
     return ()

@@ -31,6 +31,12 @@
     if (!visibleGroups.has("financeiro")) {
         document.getElementById("fin-group")?.style.setProperty("display", "none");
     }
+    if (!visibleGroups.has("enquetes")) {
+        document.getElementById("enquetes-group")?.style.setProperty("display", "none");
+    }
+    if (!visibleGroups.has("clientes")) {
+        document.getElementById("clientes-group")?.style.setProperty("display", "none");
+    }
 
     const DESCS = {
         aberto: "Formando", fechado: "Aguardando gerente",
@@ -341,6 +347,7 @@
             states: ["aberto", "fechado", "confirmado", "pago"],
             extras: ["cancelled"],
         },
+        { id: "bernardo", label: "Bernardo", panel: true },
         {
             id: "estoque",
             label: "Estoque",
@@ -369,6 +376,17 @@
     function renderRail() {
         const rail = document.getElementById("rail");
         const groupsHtml = RAIL_GROUPS.filter(g => visibleGroups.has(g.id)).map(g => {
+            if (g.panel) {
+                const isOpen = !!window._bernardoOpen;
+                return `
+                <div class="rail-group ${isOpen ? "open" : ""}" data-group="${g.id}">
+                    <div class="rail-group-header" data-panel="${g.id}">
+                        <span class="rail-group-label">${g.label}</span>
+                        <span class="rail-group-total"></span>
+                        <i class="fas fa-chevron-down rail-group-chevron"></i>
+                    </div>
+                </div>`;
+            }
             const open = groupOpen[g.id];
             const totalCount = g.states.reduce((sum, s) => sum + (data.counts[s] || 0), 0);
             const stepsHtml = g.states.map((s, i) => {
@@ -405,7 +423,13 @@
 
         rail.innerHTML = groupsHtml;
 
-        rail.querySelectorAll(".rail-group-header").forEach(h =>
+        rail.querySelectorAll('.rail-group-header[data-panel]').forEach(h =>
+            h.addEventListener("click", () => {
+                if (h.dataset.panel === "bernardo") window._bernardoToggle?.();
+            })
+        );
+
+        rail.querySelectorAll(".rail-group-header:not([data-panel])").forEach(h =>
             h.addEventListener("click", () => {
                 const id = h.dataset.toggle;
                 const willOpen = !groupOpen[id];
@@ -416,6 +440,7 @@
                 if (willOpen && window._financeOpen) window.toggleFinanceView();
                 if (willOpen && window._clientesOpen) window._clientesClose?.();
                 if (willOpen && window._enquetesOpen) window._enquetesClose?.();
+                if (willOpen) window._bernardoClose?.();
                 if (willOpen) {
                     // Seleciona o primeiro estado do grupo — mesma UX que
                     // Financeiro/Clientes já têm (abrir = ir pra primeira aba).
@@ -438,6 +463,7 @@
                 if (window._financeOpen) window.toggleFinanceView();
                 if (window._clientesOpen) window._clientesClose?.();
                 if (window._enquetesOpen) window._enquetesClose?.();
+                if (window._bernardoOpen) window._bernardoClose?.();
                 activeState = el.dataset.state;
                 listPage = 1;
                 const pkgs = currentItems();

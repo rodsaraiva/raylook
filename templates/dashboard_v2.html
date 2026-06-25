@@ -400,7 +400,8 @@
     .packages-area,
     #section-finance,
     #section-clientes,
-    #section-enquetes {
+    #section-enquetes,
+    #section-bernardo {
         grid-area: 1 / 1;
     }
 
@@ -425,7 +426,8 @@
 
     #section-finance,
     #section-clientes,
-    #section-enquetes {
+    #section-enquetes,
+    #section-bernardo {
         opacity: 0;
         transform: translateX(32px);
         pointer-events: none;
@@ -434,7 +436,8 @@
     }
     #section-finance.active,
     #section-clientes.active,
-    #section-enquetes.active {
+    #section-enquetes.active,
+    #section-bernardo.active {
         opacity: 1;
         transform: translateX(0);
         pointer-events: all;
@@ -946,6 +949,18 @@
         outline: none; border-color: var(--accent);
         box-shadow: 0 0 0 3px rgba(232,197,106,0.15);
     }
+    #section-bernardo h2 { font-size: 18px; margin: 0 0 16px; }
+    #section-bernardo .bn-card { border: 1px solid rgba(255,255,255,0.08); border-radius: 12px;
+               padding: 16px 18px; margin-bottom: 12px; background: rgba(255,255,255,0.02); }
+    #section-bernardo .bn-card-title { font-weight: 600; font-size: 15px; }
+    #section-bernardo .bn-card-meta { color: var(--text-muted, #999); font-size: 13px; margin-top: 6px;
+                    font-variant-numeric: tabular-nums; }
+    #section-bernardo .bn-card-meta b { color: var(--text-primary, #eee); }
+    #section-bernardo .bn-btn { margin-top: 14px; padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer;
+              background: var(--accent, #d4a017); color: var(--bg-main, #111); font-weight: 600;
+              font-family: inherit; font-size: 13px; }
+    #section-bernardo .bn-btn[disabled] { opacity: .45; cursor: not-allowed; }
+    #section-bernardo .bn-empty { color: var(--text-muted, #999); padding: 24px 0; }
 </style>
 </head>
 <body>
@@ -1294,6 +1309,10 @@
                 </div>
             </div>
         </div><!-- /section-clientes -->
+        <div id="section-bernardo">
+            <h2>Bernardo — acúmulo</h2>
+            <div id="bernardo-cards" class="bn-empty">Carregando…</div>
+        </div><!-- /section-bernardo -->
     </div><!-- /content-area -->
 </div><!-- /layout -->
 
@@ -1388,10 +1407,12 @@
 
 <script src="/static/dashboard/lib.js?v=3"></script>
 <script src="/static/dashboard/modal.js?v=3"></script>
-<script src="/static/js/dashboard_v2.js?v=20260609b"></script>
+<script src="/static/js/dashboard_v2.js?v=20260625"></script>
 <script src="/static/js/finance-toggle.js"></script>
 <script src="/static/js/finance.js"></script>
 <script src="/static/js/clientes.js"></script>
 <script src="/static/js/enquetes.js"></script>
+<script src="/static/js/bernardo_cards.js"></script>
+<script src="/static/js/bernardo_section.js"></script>
 </body>
 </html>
