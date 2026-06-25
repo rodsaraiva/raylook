@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
@@ -17,7 +17,18 @@ from app.sessions import SESSIONS, accumulate_session_for_title
 from app.services.supabase_service import SupabaseRestClient
 from app.services.whatsapp_domain_service import PackageService
 
-router = APIRouter(tags=["bernardo"])
+_BERNARDO_ROLES = {"admin", "bernardo"}
+
+
+def require_bernardo_access(request: Request) -> str:
+    """403 a menos que o role seja admin ou bernardo (defesa em profundidade)."""
+    role = getattr(request.state, "role", None)
+    if role not in _BERNARDO_ROLES:
+        raise HTTPException(status_code=403, detail="forbidden")
+    return role
+
+
+router = APIRouter(tags=["bernardo"], dependencies=[Depends(require_bernardo_access)])
 templates = Jinja2Templates(directory="templates")
 
 

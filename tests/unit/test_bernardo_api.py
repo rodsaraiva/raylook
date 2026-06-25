@@ -67,3 +67,27 @@ def test_page_route_serves_html(fake_client):
     res = client.get("/bernardo")
     assert res.status_code == 200
     assert "text/html" in res.headers["content-type"]
+
+
+import pytest
+from types import SimpleNamespace
+from fastapi import HTTPException
+from app.routers.bernardo import require_bernardo_access
+
+
+def _req(role):
+    return SimpleNamespace(state=SimpleNamespace(role=role))
+
+
+def test_guard_allows_admin():
+    assert require_bernardo_access(_req("admin")) == "admin"
+
+
+def test_guard_allows_bernardo():
+    assert require_bernardo_access(_req("bernardo")) == "bernardo"
+
+
+def test_guard_blocks_estoque():
+    with pytest.raises(HTTPException) as exc:
+        require_bernardo_access(_req("estoque"))
+    assert exc.value.status_code == 403
