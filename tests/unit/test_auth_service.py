@@ -6,8 +6,10 @@ def test_bernardo_is_a_role():
     assert "bernardo" in auth.ROLES
 
 
-def test_visible_groups_bernardo_only_sees_bernardo():
-    assert auth.visible_groups("bernardo") == ("bernardo",)
+def test_visible_groups_bernardo_sees_operational_tabs():
+    assert auth.visible_groups("bernardo") == (
+        "bernardo", "estoque", "logistica", "financeiro",
+    )
 
 
 def test_visible_groups_admin_includes_bernardo_and_clientes():
