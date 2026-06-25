@@ -170,6 +170,38 @@ const RaylookDashboard = (() => {
                 ? `/api/dashboard/packages/${pacoteId}/clients/${clienteId}/${action}${qs}`
                 : `/api/dashboard/packages/${pacoteId}/${action}${qs}`;
             const resp = await fetch(url, init);
+            if (resp.status === 409 && action === "cancel") {
+                const info = await resp.json().catch(() => ({}));
+                const lista = (info.paid_clients || [])
+                    .map(c => `  • ${c.cliente_nome || "cliente"} — R$ ${Number(c.total_amount || 0).toFixed(2)}`)
+                    .join("\n");
+                const aviso =
+                    `⚠️ ${info.paid_count} cliente(s) já pagaram este pacote:\n\n${lista}\n\n` +
+                    `Se cancelar assim mesmo:\n` +
+                    `  • O valor pago de cada um vira CRÉDITO na plataforma (abatido nas próximas compras).\n` +
+                    `  • Não há estorno em dinheiro.\n  • Todos os pedidos (pagos e pendentes) serão cancelados.\n\n` +
+                    `Continuar?`;
+                const ask2 = window.RaylookModal?.confirm
+                    ? window.RaylookModal.confirm(aviso, { danger: true, okLabel: "Cancelar mesmo assim" })
+                    : Promise.resolve(window.confirm(aviso));
+                if (!await ask2) return false;
+                const resp2 = await fetch(url, {
+                    method: "POST",
+                    credentials: "include",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ force: true }),
+                });
+                if (!resp2.ok) {
+                    const e2 = await resp2.json().catch(() => ({ detail: `HTTP ${resp2.status}` }));
+                    throw new Error(e2.detail || "Falha");
+                }
+                const payload2 = await resp2.json();
+                if (window.RaylookModal) {
+                    window.RaylookModal.toast(successText || msgForAction(action, payload2), "success");
+                }
+                if (window.RaylookReload) await window.RaylookReload();
+                return payload2;
+            }
             if (!resp.ok) {
                 const e = await resp.json().catch(() => ({ detail: `HTTP ${resp.status}` }));
                 throw new Error(e.detail || "Falha");

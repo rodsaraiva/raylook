@@ -35,6 +35,10 @@ logger = logging.getLogger(__name__)
 
 from app.config import settings
 from app.services import auth_service as _auth
+import asyncio
+
+from fastapi.responses import JSONResponse
+from app.services import credit_service
 from app.services.supabase_service import SupabaseRestClient
 from app.services.whatsapp_domain_service import ALLOWED_QTY
 
@@ -451,6 +455,7 @@ def list_packages_by_state(
                     "state_since": row_ts,
                     "age": _age_str(row_ts),
                     "created_at": pkg.get("created_at"),
+                    "fornecedor": pkg.get("fornecedor") or "",
                 })
             continue
 
@@ -913,6 +918,9 @@ async def advance_package(pacote_id: str, request: Request, to: Optional[str] = 
                 client.update("pagamentos",
                               {"status": "paid", "paid_at": now},
                               filters=[("id", "eq", p["id"])])
+                # Confirma o débito do crédito aplicado (se houver) — fora do
+                # polling Asaas esse é o único ponto que abate do saldo.
+                credit_service.confirm_debit(pagamento_id=p["id"])
         return {"status": "ok", "previous": "confirmado", "new_state": "pago"}
 
     if state == "pago":
@@ -1032,23 +1040,54 @@ def regress_package(pacote_id: str, request: Request) -> Dict[str, Any]:
 
 
 @router.post("/packages/{pacote_id}/cancel")
-def cancel_package(pacote_id: str, request: Request) -> Dict[str, Any]:
+async def cancel_package(pacote_id: str, request: Request) -> Dict[str, Any]:
+    """Cancela o pacote em cascata gerando crédito pros que já pagaram.
+
+    Sem `force` e havendo pagamentos pagos: retorna 409 `blocked_paid` com a
+    lista de clientes pagos pra UI confirmar. Com `force=true`: cancela tudo e
+    o valor pago de cada cliente vira crédito na plataforma.
+    """
     role = _role_from(request)
     if not _auth.can_cancel(role):
         raise HTTPException(403, "Apenas o administrador pode cancelar pacotes.")
-    client = SupabaseRestClient.from_settings()
-    pkg = client.select("pacotes", filters=[("id", "eq", pacote_id)], single=True)
-    if not pkg:
+
+    force = False
+    try:
+        body = await request.json()
+        if isinstance(body, dict):
+            force = bool(body.get("force") or False)
+    except Exception:
+        pass
+
+    from app.services import package_cancellation_service as pcs
+    try:
+        result = await asyncio.to_thread(
+            pcs.cancel_package, pacote_id, force=force, cancelled_by=role
+        )
+    except pcs.PackageNotFound:
         raise HTTPException(404, "Pacote não encontrado")
-    if (pkg.get("status") or "") == "cancelled":
-        raise HTTPException(400, "Pacote já está cancelado")
-    now = client.now_iso()
-    client.update("pacotes", {
-        "status": "cancelled",
-        "cancelled_at": now,
-        "cancelled_by": "simulated@dev",
-    }, filters=[("id", "eq", pacote_id)])
-    return {"status": "ok", "new_state": "cancelled"}
+    except pcs.PackageCancelBlocked as exc:
+        return JSONResponse(
+            status_code=409,
+            content={
+                "status": "blocked_paid",
+                "paid_count": len(exc.paid_info),
+                "paid_clients": exc.paid_info,
+            },
+        )
+
+    try:
+        from app.services.finance_service import (
+            refresh_charge_snapshot, refresh_dashboard_stats,
+        )
+        from app.services.customer_service import refresh_customer_rows_snapshot
+        await asyncio.to_thread(refresh_charge_snapshot)
+        await asyncio.to_thread(refresh_dashboard_stats)
+        await asyncio.to_thread(refresh_customer_rows_snapshot)
+    except Exception:
+        logger.warning("cancel_package: refresh de snapshots falhou", exc_info=True)
+
+    return {"status": "ok", "new_state": "cancelled", **result}
 
 
 @router.patch("/packages/{pacote_id}/fornecedor")
@@ -1315,6 +1354,7 @@ def mark_client_paid(pacote_id: str, cliente_id: str) -> Dict[str, Any]:
     client.update("pagamentos",
                   {"status": "paid", "paid_at": now},
                   filters=[("id", "eq", pag["id"])])
+    credit_service.confirm_debit(pagamento_id=pag["id"])
     return {"status": "ok", "action": "client_marked_paid", "cliente_id": cliente_id}
 
 

@@ -34,6 +34,7 @@ Antes de qualquer migration em prod:
 | `RESEND_EMAIL_STUB` | `true` | `true` mantém envio de email (Resend) só logado — desacopla de `RAYLOOK_SANDBOX` |
 | `DATA_BACKEND` | `postgres` | `sqlite` é só pra dev local |
 | `ASAAS_PROD_TOKEN` | setado | Token de produção da conta Raylook no Asaas |
+| `ASAAS_MAX_RPS` | `2` (default) | Teto de req/s ao Asaas; fila global paceja as chamadas e evita 429 por rajada. `0` desliga o throttle |
 
 `deploy/.env` (gitignored) guarda esses valores e é lido pelo CI no `docker stack deploy`.
 
