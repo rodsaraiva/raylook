@@ -16,6 +16,7 @@
         window._railCollapseGroups?.();
         window._clientesClose?.();
         window._enquetesClose?.();
+        window._bernardoClose?.();
         setGroupOpen(true);
         if (view) window.financeSetView?.(view);
         window.financeRefresh?.();
