@@ -122,3 +122,35 @@ def test_response_shape_has_expected_keys(client_with_fake):
     assert body["states"] == [
         "aberto", "fechado", "confirmado", "pago", "pendente", "separado", "enviado",
     ]
+
+
+def test_packages_tagged_with_session_by_title(monkeypatch):
+    from tests._helpers.fake_supabase import FakeSupabaseClient, install_fake
+    fake = FakeSupabaseClient({
+        "pacotes": [
+            {"id": "pk-b", "status": "open", "sequence_no": 1, "enquete_id": "e-bern",
+             "capacidade_total": 24, "total_qty": 0,
+             "opened_at": "2026-06-01T10:00:00+00:00",
+             "created_at": "2026-06-01T10:00:00+00:00",
+             "updated_at": "2026-06-01T10:00:00+00:00"},
+            {"id": "pk-c", "status": "open", "sequence_no": 2, "enquete_id": "e-com",
+             "capacidade_total": 24, "total_qty": 0,
+             "opened_at": "2026-06-01T11:00:00+00:00",
+             "created_at": "2026-06-01T11:00:00+00:00",
+             "updated_at": "2026-06-01T11:00:00+00:00"},
+        ],
+        "enquetes": [
+            {"id": "e-bern", "produto_id": "p1", "titulo": "Bernardo — Inverno", "external_poll_id": "wa-b"},
+            {"id": "e-com", "produto_id": "p1", "titulo": "Camiseta Preta", "external_poll_id": "wa-c"},
+        ],
+        "produtos": [{"id": "p1", "nome": "X", "valor_unitario": 50.0}],
+        "clientes": [], "pacote_clientes": [], "vendas": [], "pagamentos": [], "votos": [],
+    })
+    install_fake(monkeypatch, fake)
+    import main as main_module
+    from fastapi.testclient import TestClient
+    client = TestClient(main_module.app)
+    body = client.get("/api/dashboard/packages").json()
+    by_id = {it["id"]: it for it in body["packages_by_state"]["aberto"]}
+    assert by_id["pk-b"]["session"] == "Bernardo"
+    assert by_id["pk-c"]["session"] is None

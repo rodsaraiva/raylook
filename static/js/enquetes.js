@@ -118,7 +118,7 @@
         document.getElementById("clientes-group")?.classList.remove("open");
         window._financeOpen = false;
         window._clientesOpen = false;
-        window._bernardoClose?.();
+
         window._railCollapseGroups?.();
         document.getElementById("enquetes-group")?.classList.add("open");
         refresh();

@@ -41,6 +41,7 @@ from fastapi.responses import JSONResponse
 from app.services import credit_service
 from app.services.supabase_service import SupabaseRestClient
 from app.services.whatsapp_domain_service import ALLOWED_QTY
+from app.sessions import session_for_title
 
 
 def _role_from(request: Request) -> str:
@@ -466,6 +467,7 @@ def list_packages_by_state(
             "friendly_id": pkg.get("friendly_id"),
             "enquete_id": pkg.get("enquete_id"),
             "enquete_title": enq.get("titulo"),
+            "session": (session_for_title(enq.get("titulo")) or {}).get("name"),
             "external_poll_id": enq.get("external_poll_id"),
             "produto_name": prod.get("nome") if prod else None,
             "image": f"/files/{drive_id}" if drive_id else None,

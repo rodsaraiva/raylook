@@ -4,6 +4,7 @@
     const L = window.RaylookDashboard;
     let data = null;
     let activeState = null;
+    let activeSession = "comercial";
     let selectedId = null;
     let search = "";
     let fornecedorFilter = ""; // "" = todos, "__none__" = sem fornecedor, senão nome exato
@@ -234,7 +235,7 @@
             return;
         }
         if (!activeState) {
-            activeState = L.STATES.find(s => (data.packages_by_state[s] || []).length > 0) || "aberto";
+            activeState = L.STATES.find(s => itemsFor(activeSession, s).length > 0) || "aberto";
         }
         const pkgs = currentItems();
         if (!selectedId || !pkgs.find(p => p.id === selectedId)) {
@@ -329,10 +330,14 @@
         if (window._enquetesOpen) window.enquetesRefresh?.();
     });
 
-    function currentItems() {
-        if (activeState === "cancelled") return data.cancelled || [];
-        return data.packages_by_state[activeState] || [];
+    function itemsFor(session, state) {
+        const list = state === "cancelled" ? (data.cancelled || []) : (data.packages_by_state[state] || []);
+        if (session === "bernardo") return list.filter(p => p.session === "Bernardo");
+        if (session === "comercial") return list.filter(p => p.session !== "Bernardo");
+        return list; // "all" — estoque/logística
     }
+    function sessionCount(state, session) { return itemsFor(session, state).length; }
+    function currentItems() { return itemsFor(activeSession, activeState); }
 
     // Dropdowns Comercial / Estoque / Logística (Financeiro tem header próprio).
     // `labels` sobrescreve L.STATE_LABELS dentro daquele grupo apenas.
@@ -341,31 +346,23 @@
     // Mesmo estado pode aparecer em mais de um grupo (ex: "separado" em
     // Estoque e Logística): é apenas re-exposição visual, o estado é o mesmo.
     const RAIL_GROUPS = [
-        {
-            id: "comercial",
-            label: "Comercial",
-            states: ["aberto", "fechado", "confirmado", "pago"],
-            extras: ["cancelled"],
-        },
-        { id: "bernardo", label: "Bernardo", panel: true },
-        {
-            id: "estoque",
-            label: "Estoque",
-            states: ["pago", "pendente", "separado"],
-            labels: { pago: "Fila de separação" },
-        },
-        {
-            id: "logistica",
-            label: "Logística",
-            states: ["separado", "enviado"],
-        },
+        { id: "comercial", label: "Comercial", session: "comercial",
+          states: ["aberto", "fechado", "confirmado", "pago"], extras: ["cancelled"] },
+        { id: "bernardo", label: "Bernardo", session: "bernardo",
+          states: ["aberto", "fechado", "confirmado", "pago"], extras: ["cancelled"] },
+        { id: "estoque", label: "Estoque", session: "all",
+          states: ["pago", "pendente", "separado"], labels: { pago: "Fila de separação" } },
+        { id: "logistica", label: "Logística", session: "all",
+          states: ["separado", "enviado"] },
     ];
 
     // Estado inicial: abre o primeiro grupo visível pro role.
-    const groupOpen = { comercial: false, estoque: false, logistica: false };
+    const groupOpen = { comercial: false, bernardo: false, estoque: false, logistica: false };
     if (visibleGroups.has("comercial")) groupOpen.comercial = true;
+    else if (visibleGroups.has("bernardo")) groupOpen.bernardo = true;
     else if (visibleGroups.has("estoque")) groupOpen.estoque = true;
     else if (visibleGroups.has("logistica")) groupOpen.logistica = true;
+    activeSession = groupOpen.comercial ? "comercial" : (groupOpen.bernardo ? "bernardo" : "all");
 
     // Exposto pro finance-toggle.js fechar os dropdowns ao abrir o financeiro.
     window._railCollapseGroups = function () {
@@ -376,38 +373,29 @@
     function renderRail() {
         const rail = document.getElementById("rail");
         const groupsHtml = RAIL_GROUPS.filter(g => visibleGroups.has(g.id)).map(g => {
-            if (g.panel) {
-                const isOpen = !!window._bernardoOpen;
-                return `
-                <div class="rail-group ${isOpen ? "open" : ""}" data-group="${g.id}">
-                    <div class="rail-group-header" data-panel="${g.id}">
-                        <span class="rail-group-label">${g.label}</span>
-                        <span class="rail-group-total"></span>
-                        <i class="fas fa-chevron-down rail-group-chevron"></i>
-                    </div>
-                </div>`;
-            }
             const open = groupOpen[g.id];
-            const totalCount = g.states.reduce((sum, s) => sum + (data.counts[s] || 0), 0);
+            const totalCount = g.states.reduce((sum, s) => sum + sessionCount(s, g.session), 0);
             const stepsHtml = g.states.map((s, i) => {
                 const label = g.labels?.[s] ?? L.STATE_LABELS[s];
+                const isActive = s === activeState && g.session === activeSession;
                 return `
-                <div class="rail-step ${s === activeState ? "active" : ""}" data-state="${s}">
+                <div class="rail-step ${isActive ? "active" : ""}" data-state="${s}" data-session="${g.session}">
                     <div class="num">${i + 1}</div>
                     <div>
                         <div class="label">${label}</div>
                         <div class="sub">${DESCS[s]}</div>
                     </div>
-                    <div class="count">${data.counts[s] || 0}</div>
+                    <div class="count">${sessionCount(s, g.session)}</div>
                 </div>`;
             }).join("");
             const extrasHtml = (g.extras || []).map(s => {
                 if (s !== "cancelled") return "";
+                const isActive = activeState === "cancelled" && g.session === activeSession;
                 return `
-                <div class="rail-step rail-cancelled ${activeState === "cancelled" ? "active" : ""}" data-state="cancelled">
+                <div class="rail-step rail-cancelled ${isActive ? "active" : ""}" data-state="cancelled" data-session="${g.session}">
                     <div class="num" style="background:rgba(248,113,113,0.15);color:var(--danger);">×</div>
                     <div><div class="label">Cancelados</div><div class="sub">histórico</div></div>
-                    <div class="count">${data.counts.cancelled || 0}</div>
+                    <div class="count">${sessionCount("cancelled", g.session)}</div>
                 </div>`;
             }).join("");
             return `
@@ -423,30 +411,20 @@
 
         rail.innerHTML = groupsHtml;
 
-        rail.querySelectorAll('.rail-group-header[data-panel]').forEach(h =>
-            h.addEventListener("click", () => {
-                if (h.dataset.panel === "bernardo") window._bernardoToggle?.();
-            })
-        );
-
-        rail.querySelectorAll(".rail-group-header:not([data-panel])").forEach(h =>
+        rail.querySelectorAll(".rail-group-header").forEach(h =>
             h.addEventListener("click", () => {
                 const id = h.dataset.toggle;
                 const willOpen = !groupOpen[id];
-                // Acordeon: só um grupo aberto por vez.
                 Object.keys(groupOpen).forEach(k => { groupOpen[k] = false; });
                 groupOpen[id] = willOpen;
-                // Abrir um dropdown comercial/estoque deve fechar Financeiro e Clientes.
                 if (willOpen && window._financeOpen) window.toggleFinanceView();
                 if (willOpen && window._clientesOpen) window._clientesClose?.();
                 if (willOpen && window._enquetesOpen) window._enquetesClose?.();
-                if (willOpen) window._bernardoClose?.();
                 if (willOpen) {
-                    // Seleciona o primeiro estado do grupo — mesma UX que
-                    // Financeiro/Clientes já têm (abrir = ir pra primeira aba).
                     const group = RAIL_GROUPS.find(g => g.id === id);
+                    activeSession = group.session;
                     const firstState = group?.states?.[0];
-                    if (firstState && firstState !== activeState) {
+                    if (firstState) {
                         activeState = firstState;
                         listPage = 1;
                         const pkgs = currentItems();
@@ -463,7 +441,7 @@
                 if (window._financeOpen) window.toggleFinanceView();
                 if (window._clientesOpen) window._clientesClose?.();
                 if (window._enquetesOpen) window._enquetesClose?.();
-                if (window._bernardoOpen) window._bernardoClose?.();
+                activeSession = el.dataset.session;
                 activeState = el.dataset.state;
                 listPage = 1;
                 const pkgs = currentItems();
@@ -855,6 +833,7 @@
                 ${p.pdf_sent_at ? `<a class="btn-ghost" href="/api/dashboard/packages/${p.id}/etiqueta.pdf?fmt=termica" target="_blank" rel="noopener" style="text-decoration:none;" title="Etiqueta térmica (adesiva, 1 por cliente)">🏷️ Térmica</a>` : ""}
                 <button class="btn-ghost" data-drill>Ver detalhes completos</button>
                 ${(isAdmin && canAdvance) ? `<button class="btn-ghost" data-cancel style="color:var(--danger);">Cancelar pacote</button>` : ""}
+                ${(p.session === "Bernardo" && state === "aberto") ? `<button class="btn-primary" data-fechar-bernardo>Fechar pacote</button>` : ""}
             </div>`;
 
         detail.querySelectorAll("[data-advance]").forEach(btn => btn.addEventListener("click", async () => {
@@ -887,6 +866,33 @@
         detail.querySelector("[data-drill]")?.addEventListener("click", () => window.RaylookModal?.open(p.id));
         detail.querySelector("[data-cancel]")?.addEventListener("click", async () => {
             await L.doAction(p.id, "cancel", { confirmText: "Cancelar esse pacote?", okLabel: "Cancelar pacote", danger: true });
+        });
+        detail.querySelector("[data-fechar-bernardo]")?.addEventListener("click", async () => {
+            if (!confirm("Fechar o pacote acumulado desta enquete agora?")) return;
+            const MSG = {
+                no_votes: "Sem votos pra fechar.",
+                not_session: "Enquete não pertence à sessão.",
+                not_found: "Enquete não encontrada.",
+                no_product: "Enquete sem produto associado.",
+                rpc_error: "Falha ao fechar o pacote (tente de novo).",
+            };
+            try {
+                const r = await fetch("/api/bernardo/sessions/Bernardo/close", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "same-origin",
+                    body: JSON.stringify({ enquete_id: p.enquete_id }),
+                });
+                const out = await r.json();
+                if (out.status === "ok") {
+                    selectedId = null;
+                    load();
+                } else {
+                    alert(MSG[out.status] || ("Não foi possível fechar: " + (out.status || "erro")));
+                }
+            } catch (e) {
+                alert("Erro: " + e.message);
+            }
         });
         detail.querySelector("[data-edit-fornecedor]")?.addEventListener("click", async () => {
             const forn = await promptFornecedor();
