@@ -4,7 +4,7 @@
 
 **Goal:** Expor a sessão Bernardo (acúmulo + "fechar pacote") dentro do dashboard `/`, entre Comercial e Estoque, visível só a `admin` e a um novo usuário `bernardo` (senha `Bernard0`), que enxerga somente essa sessão.
 
-**Architecture:** Novo papel `bernardo` em `auth_service.ROLES`; `visible_groups` vira fonte única de verdade dos blocos da sidebar. O front (`dashboard_v2.js`/`.html`) injeta um header "Bernardo" no rail e uma `#section-bernardo` que reusa `GET /api/bernardo/sessions/Bernardo` (mesma lógica do `/bernardo` standalone, já em prod). Guard no router restringe `/api/bernardo/*` + `/bernardo` a admin+bernardo. Hash bcrypt entra em `docker-stack.yml` + `deploy/.env`.
+**Architecture:** Novo papel `bernardo` em `auth_service.ROLES`; `visible_groups` vira fonte única de verdade dos blocos da sidebar. O render dos cards de acúmulo é extraído para um módulo compartilhado `static/js/bernardo_cards.js` (`window.BernardoCards.render`), reusado pela página standalone `/bernardo` (já em prod) e pela nova `#section-bernardo` no dashboard. O front (`dashboard_v2.js`/`.html`) injeta um header "Bernardo" no rail entre Comercial e Estoque. Guard no router restringe `/api/bernardo/*` + `/bernardo` a admin+bernardo. Hash bcrypt entra em `docker-stack.yml` + `deploy/.env`.
 
 **Tech Stack:** Python 3.12 / FastAPI, bcrypt, Jinja2, JS vanilla, pytest, Docker Swarm.
 
@@ -16,6 +16,7 @@
 - Testes rodam com `DASHBOARD_AUTH_DISABLED=true` → middleware injeta `role="admin"`.
 - Comando de teste: `DASHBOARD_AUTH_DISABLED=true pytest tests/unit/ -v`.
 - Validação de UI: servidor scratch em **porta livre (8023)** + SQLite scratch; **porta 8000 é o container de PROD — não usar.**
+- Render dos cards é fonte única em `window.BernardoCards.render(containerEl, session)` — sem duplicar a lógica entre página standalone e view do dashboard.
 - Deploy só via push em `main` (CI lê `deploy/.env` do host). Sem migration de banco.
 - `git commit` termina com a linha `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
 
@@ -200,21 +201,163 @@ git commit -m "feat(bernardo): restringe /api/bernardo e /bernardo a admin+berna
 
 ---
 
-### Task 3: Chrome da sessão Bernardo no `/` (rail + section + gating)
+### Task 3: Extrair render compartilhado `bernardo_cards.js` + refatorar a página standalone
 
-Frontend sem suíte JS — validação é no **browser** (porta 8023 + SQLite scratch). Entrega: posicionamento + visibilidade por papel + abrir/fechar de uma `#section-bernardo` vazia.
+DRY: a lógica de render dos cards (fetch + cards + "Fechar pacote") vira fonte única em `window.BernardoCards.render`, consumida pela página `/bernardo` (já em prod) e, na Task 4, pela view do dashboard. Validação no **browser** (`/bernardo` deve continuar idêntica).
 
 **Files:**
-- Modify: `templates/dashboard_v2.html` (CSS de `#section-*`; novo `#section-bernardo`; estilos `.bn-*`; `<script>` do `bernardo_section.js`)
-- Modify: `static/js/dashboard_v2.js` (gating dos blocos estáticos; entrada `bernardo` em `RAIL_GROUPS`; ramo `panel` no `renderRail`; wiring de clique; fechar Bernardo nos handlers de estado)
-- Modify: `static/js/enquetes.js`, `static/js/finance-toggle.js`, `static/js/clientes.js` (fechar Bernardo ao abrir cada uma)
-- Create: `static/js/bernardo_section.js` (open/close; `refresh()` fica vazio até a Task 4)
+- Create: `static/js/bernardo_cards.js`
+- Modify: `static/js/bernardo_page.js` (passa a chamar `BernardoCards.render`)
+- Modify: `templates/bernardo.html` (carregar `bernardo_cards.js` antes do `bernardo_page.js`)
 
 **Interfaces:**
-- Consumes: `visibleGroups` (Set de `/api/me`), elementos `#section-*`, `#packages-area`, grupos `*-group`.
-- Produces (globais usados pela Task 4 e pelas outras views): `window._bernardoOpen` (bool), `window._bernardoClose()`, `window._bernardoToggle()`, função interna `refresh()`.
+- Produces: `window.BernardoCards.render(containerEl, session)` — `async`, faz `GET /api/bernardo/sessions/${session}`, renderiza os cards em `containerEl`; cada botão "Fechar pacote" faz `POST .../close` e, em `status==="ok"`, re-chama `render(containerEl, session)` (auto-refresh). Strings de usuário escapadas antes do DOM.
 
-- [ ] **Step 1: HTML — `#section-bernardo`, estilos e script**
+- [ ] **Step 1: Criar `static/js/bernardo_cards.js`**
+
+Extrair a lógica atual de `bernardo_page.js` (escapeHtml, STATUS_MSG, load) parametrizando `containerEl` e `session`:
+
+```javascript
+// Render compartilhado dos cards de acúmulo Bernardo.
+// Usado pela página standalone /bernardo e pela view #section-bernardo do dashboard.
+// Strings de usuário escapadas antes do DOM.
+(function () {
+  function escapeHtml(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, c => (
+      { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+    ));
+  }
+
+  const STATUS_MSG = {
+    no_votes: "Sem votos pra fechar.",
+    not_session: "Enquete não pertence à sessão.",
+    not_found: "Enquete não encontrada.",
+    no_product: "Enquete sem produto associado.",
+    rpc_error: "Falha ao fechar o pacote (tente de novo).",
+  };
+
+  async function render(containerEl, session) {
+    if (!containerEl) return;
+    containerEl.className = "bn-empty";
+    containerEl.textContent = "Carregando…";
+    let data;
+    try {
+      const res = await fetch(`/api/bernardo/sessions/${session}`, { credentials: "same-origin" });
+      data = await res.json();
+    } catch (e) {
+      containerEl.textContent = "Erro ao carregar.";
+      return;
+    }
+    if (!data.enquetes || !data.enquetes.length) {
+      containerEl.textContent = "Nenhuma enquete Bernardo ativa.";
+      return;
+    }
+    containerEl.className = "";
+    containerEl.innerHTML = "";
+    for (const enq of data.enquetes) {
+      const parts = (enq.participants || [])
+        .map(p => `${escapeHtml(p.nome)}: ${escapeHtml(String(p.qty))}`)
+        .join(" · ") || "—";
+      const card = document.createElement("div");
+      card.className = "bn-card";
+      card.innerHTML =
+        `<div class="bn-card-title">${escapeHtml(enq.titulo)}</div>` +
+        `<div class="bn-card-meta">Acúmulo: <b>${escapeHtml(String(enq.total_qty))}</b> peças · ` +
+          `${escapeHtml(String(enq.participants_count))} cliente(s)</div>` +
+        `<div class="bn-card-meta">${parts}</div>`;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "bn-btn";
+      btn.textContent = "Fechar pacote";
+      btn.disabled = (enq.total_qty || 0) <= 0;
+      btn.onclick = async () => {
+        btn.disabled = true;
+        try {
+          const r = await fetch(`/api/bernardo/sessions/${session}/close`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ enquete_id: enq.enquete_id }),
+          });
+          const out = await r.json();
+          if (out.status === "ok") {
+            render(containerEl, session);
+          } else {
+            alert(STATUS_MSG[out.status] || ("Não foi possível fechar: " + (out.status || "erro")));
+            btn.disabled = false;
+          }
+        } catch (e) {
+          alert("Erro: " + e.message);
+          btn.disabled = false;
+        }
+      };
+      card.appendChild(btn);
+      containerEl.appendChild(card);
+    }
+  }
+
+  window.BernardoCards = { render };
+})();
+```
+
+- [ ] **Step 2: Refatorar `static/js/bernardo_page.js` pra usar o módulo**
+
+Substituir TODO o conteúdo de `static/js/bernardo_page.js` por:
+
+```javascript
+// Página standalone /bernardo — usa o render compartilhado (BernardoCards).
+(function () {
+  document.addEventListener("DOMContentLoaded", () => {
+    window.BernardoCards.render(document.getElementById("bernardo-cards"), "Bernardo");
+  });
+})();
+```
+
+- [ ] **Step 3: Carregar `bernardo_cards.js` antes do `bernardo_page.js` no template**
+
+Em `templates/bernardo.html`, achar o `<script src="/static/js/bernardo_page.js"></script>` e inserir, **imediatamente antes** dele:
+
+```html
+  <script src="/static/js/bernardo_cards.js"></script>
+```
+
+- [ ] **Step 4: Validar `/bernardo` no browser (sem regressão)**
+
+```bash
+export RAYLOOK_USER_ADMIN_HASH=$(PYTHONPATH=.venv/lib/python3.12/site-packages:. python3 -c "import bcrypt;print(bcrypt.hashpw(b'admin123',bcrypt.gensalt()).decode())")
+export RAYLOOK_USER_ESTOQUE_HASH="$RAYLOOK_USER_ADMIN_HASH" RAYLOOK_USER_LOGISTICA_HASH="$RAYLOOK_USER_ADMIN_HASH"
+export SESSION_SECRET=devsecret PORTAL_SECURE_COOKIES=false
+export DATA_DIR=/tmp/claude-0/-root-rodrigo-raylook/01d0bfe4-55ac-4f98-ba5b-9a9c94bd27c3/scratchpad
+PYTHONPATH=.venv/lib/python3.12/site-packages:. nohup python3 -m uvicorn main:app --host 127.0.0.1 --port 8023 >/tmp/bn8023.log 2>&1 &
+```
+
+Validar (Playwright MCP): logar como `admin`, abrir `/bernardo` → cards renderizam igual a antes (ou "Nenhuma enquete Bernardo ativa." sem dados). Sem erro de console (`BernardoCards is not defined` etc.).
+
+- [ ] **Step 5: Derrubar scratch e commitar**
+
+```bash
+pkill -f "uvicorn main:app --host 127.0.0.1 --port 8023" || true
+git add static/js/bernardo_cards.js static/js/bernardo_page.js templates/bernardo.html
+git commit -m "refactor(bernardo): render dos cards em módulo compartilhado BernardoCards"
+```
+
+---
+
+### Task 4: Sessão Bernardo no `/` (rail + section + gating + conteúdo)
+
+Frontend sem suíte JS — validação é no **browser** (porta 8023 + SQLite scratch). Entrega: Bernardo entre Comercial e Estoque, visível por papel, abrindo a view que renderiza os cards via `BernardoCards`.
+
+**Files:**
+- Modify: `templates/dashboard_v2.html` (CSS de `#section-*`; estilos `.bn-*`; novo `#section-bernardo`; `<script>` de `bernardo_cards.js` + `bernardo_section.js`)
+- Modify: `static/js/dashboard_v2.js` (gating dos blocos estáticos; entrada `bernardo` em `RAIL_GROUPS`; ramo `panel` no `renderRail`; wiring de clique; fechar Bernardo nos handlers de estado)
+- Create: `static/js/bernardo_section.js` (open/close + `refresh()` chama `BernardoCards.render`)
+- Modify: `static/js/enquetes.js`, `static/js/finance-toggle.js`, `static/js/clientes.js` (fechar Bernardo ao abrir cada uma)
+
+**Interfaces:**
+- Consumes: `window.BernardoCards.render` (Task 3); `visibleGroups` (Set de `/api/me`); `#section-*`, `#packages-area`, grupos `*-group`.
+- Produces (globais usados pelas outras views): `window._bernardoOpen` (bool), `window._bernardoClose()`, `window._bernardoToggle()`.
+
+- [ ] **Step 1: HTML — `#section-bernardo`, estilos e scripts**
 
 Em `templates/dashboard_v2.html`:
 
@@ -226,9 +369,10 @@ Em `templates/dashboard_v2.html`:
     #section-bernardo.active {
 ```
 
-(b) Adicionar os estilos `.bn-*` dentro do `<style>` do head (copiados da página standalone):
+(b) Adicionar os estilos `.bn-*` (escopados na seção) dentro do `<style>` do head:
 
 ```css
+    #section-bernardo h2 { font-size: 18px; margin: 0 0 16px; }
     #section-bernardo .bn-card { border: 1px solid rgba(255,255,255,0.08); border-radius: 12px;
                padding: 16px 18px; margin-bottom: 12px; background: rgba(255,255,255,0.02); }
     #section-bernardo .bn-card-title { font-weight: 600; font-size: 15px; }
@@ -240,7 +384,6 @@ Em `templates/dashboard_v2.html`:
               font-family: inherit; font-size: 13px; }
     #section-bernardo .bn-btn[disabled] { opacity: .45; cursor: not-allowed; }
     #section-bernardo .bn-empty { color: var(--text-muted, #999); padding: 24px 0; }
-    #section-bernardo h2 { font-size: 18px; margin: 0 0 16px; }
 ```
 
 (c) Adicionar a seção no `content-area`, logo após o fechamento de `section-clientes` (`</div><!-- /section-clientes -->`, ~L1279):
@@ -252,17 +395,18 @@ Em `templates/dashboard_v2.html`:
         </div><!-- /section-bernardo -->
 ```
 
-(d) Incluir o script ao lado dos outros (após `enquetes.js`, ~L1378):
+(d) Incluir os scripts ao lado dos outros (após `enquetes.js`, ~L1378), nesta ordem:
 
 ```html
+<script src="/static/js/bernardo_cards.js"></script>
 <script src="/static/js/bernardo_section.js"></script>
 ```
 
-- [ ] **Step 2: Criar `static/js/bernardo_section.js` (open/close, refresh vazio)**
+- [ ] **Step 2: Criar `static/js/bernardo_section.js`**
 
 ```javascript
-// Sessão Bernardo integrada ao dashboard /. Reusa /api/bernardo/*.
-// View-toggling espelha enquetes.js. refresh() preenchido na Task 4.
+// Sessão Bernardo integrada ao dashboard /. View-toggling espelha enquetes.js.
+// Render delegado ao módulo compartilhado BernardoCards.
 (function () {
   const SESSION = "Bernardo";
   const state = { open: false };
@@ -283,7 +427,7 @@ Em `templates/dashboard_v2.html`:
     window._clientesOpen = false;
     window._railCollapseGroups?.();
     document.querySelector('[data-group="bernardo"]')?.classList.add("open");
-    refresh();
+    window.BernardoCards?.render(document.getElementById("bernardo-cards"), SESSION);
   }
 
   function closeBernardo() {
@@ -302,9 +446,6 @@ Em `templates/dashboard_v2.html`:
 
   window._bernardoClose = closeBernardo;
   window._bernardoToggle = toggleBernardo;
-
-  function refresh() { /* Task 4 preenche */ }
-  window._bernardoRefresh = refresh;
 })();
 ```
 
@@ -359,41 +500,35 @@ E logo após `rail.innerHTML = groupsHtml;`, registrar o clique do header-panel:
 
 - [ ] **Step 6: `dashboard_v2.js` — fechar Bernardo ao navegar por estado**
 
-No handler de clique do `.rail-group-header` (dentro do `if (willOpen) {...}`) e no handler de `.rail-step`, acrescentar — junto das chamadas `window._enquetesClose?.()` já existentes:
+No handler de clique do `.rail-group-header` (dentro do `if (willOpen) {...}`) e no início do callback do `.rail-step`, acrescentar — junto das chamadas `window._enquetesClose?.()` já existentes:
 
 ```javascript
                 if (window._bernardoOpen) window._bernardoClose?.();
 ```
 
-(Dois pontos: o bloco `if (willOpen && window._enquetesOpen) ...` do header e o início do callback do `.rail-step`.)
-
 - [ ] **Step 7: Fechar Bernardo ao abrir Enquetes / Financeiro / Clientes**
 
-Em cada função de abertura, junto de onde já removem `.active` das outras sections, acrescentar:
+Em cada função de abertura, junto de onde já removem `.active` das outras sections, acrescentar `window._bernardoClose?.();`:
 
-- `static/js/enquetes.js` (em `openEnquetes`, perto de L118): `window._bernardoClose?.();`
-- `static/js/finance-toggle.js` (na função que abre o financeiro, onde seta `_financeOpen = true`): `window._bernardoClose?.();`
-- `static/js/clientes.js` (em `openClientes`, perto de L45-50): `window._bernardoClose?.();`
+- `static/js/enquetes.js` (em `openEnquetes`, perto de L118)
+- `static/js/finance-toggle.js` (na função que abre o financeiro, onde seta `_financeOpen = true`)
+- `static/js/clientes.js` (em `openClientes`, perto de L45-50)
 
 - [ ] **Step 8: Subir servidor scratch e validar no browser**
 
 ```bash
-# hashes p/ login local (admin + bernardo); não usar porta 8000 (prod)
 export RAYLOOK_USER_ADMIN_HASH=$(PYTHONPATH=.venv/lib/python3.12/site-packages:. python3 -c "import bcrypt;print(bcrypt.hashpw(b'admin123',bcrypt.gensalt()).decode())")
 export RAYLOOK_USER_BERNARDO_HASH=$(PYTHONPATH=.venv/lib/python3.12/site-packages:. python3 -c "import bcrypt;print(bcrypt.hashpw(b'Bernard0',bcrypt.gensalt()).decode())")
-export RAYLOOK_USER_ESTOQUE_HASH="$RAYLOOK_USER_ADMIN_HASH"
-export RAYLOOK_USER_LOGISTICA_HASH="$RAYLOOK_USER_ADMIN_HASH"
+export RAYLOOK_USER_ESTOQUE_HASH="$RAYLOOK_USER_ADMIN_HASH" RAYLOOK_USER_LOGISTICA_HASH="$RAYLOOK_USER_ADMIN_HASH"
 export SESSION_SECRET=devsecret PORTAL_SECURE_COOKIES=false
 export DATA_DIR=/tmp/claude-0/-root-rodrigo-raylook/01d0bfe4-55ac-4f98-ba5b-9a9c94bd27c3/scratchpad
 PYTHONPATH=.venv/lib/python3.12/site-packages:. nohup python3 -m uvicorn main:app --host 127.0.0.1 --port 8023 >/tmp/bn8023.log 2>&1 &
 ```
 
 Validar (Playwright MCP), **sem `DASHBOARD_AUTH_DISABLED`**:
-1. `/login` como `admin` → o rail mostra **Bernardo entre Comercial e Estoque**; clicar abre `#section-bernardo` (cards vazios/"Carregando…"); clicar em Comercial/Enquetes fecha Bernardo.
-2. `/login` como `bernardo`/`Bernard0` → sidebar mostra **só Bernardo** (sem rail de estados, sem Enquetes/Financeiro/Clientes).
-3. `/logout` entre os dois.
-
-Expected: posicionamento e gating corretos nos dois papéis.
+1. `/login` como `admin` → rail mostra **Bernardo entre Comercial e Estoque**; clicar abre `#section-bernardo` com os cards (ou "Nenhuma enquete Bernardo ativa."); clicar em Comercial/Enquetes fecha Bernardo.
+2. `/login` como `bernardo`/`Bernard0` → sidebar mostra **só Bernardo** (sem rail de estados, sem Enquetes/Financeiro/Clientes); a view abre e os cards renderizam.
+3. `/logout` entre os dois. Sem erro de console.
 
 - [ ] **Step 9: Derrubar o scratch e commitar**
 
@@ -402,118 +537,6 @@ pkill -f "uvicorn main:app --host 127.0.0.1 --port 8023" || true
 git add templates/dashboard_v2.html static/js/dashboard_v2.js static/js/bernardo_section.js \
         static/js/enquetes.js static/js/finance-toggle.js static/js/clientes.js
 git commit -m "feat(bernardo): sessão no rail do / (entre Comercial e Estoque) + gating por papel"
-```
-
----
-
-### Task 4: Conteúdo da view Bernardo (cards + fechar pacote)
-
-**Files:**
-- Modify: `static/js/bernardo_section.js` (preencher `refresh()`)
-
-**Interfaces:**
-- Consumes: `GET /api/bernardo/sessions/Bernardo`, `POST /api/bernardo/sessions/Bernardo/close` (já existentes); `#bernardo-cards`.
-- Produces: render dos cards + botão "Fechar pacote" idêntico ao `/bernardo`.
-
-- [ ] **Step 1: Preencher `refresh()` em `static/js/bernardo_section.js`**
-
-Substituir `function refresh() { /* Task 4 preenche */ }` por:
-
-```javascript
-  function escapeHtml(s) {
-    return String(s == null ? "" : s).replace(/[&<>"']/g, c => (
-      { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
-    ));
-  }
-
-  const STATUS_MSG = {
-    no_votes: "Sem votos pra fechar.",
-    not_session: "Enquete não pertence à sessão.",
-    not_found: "Enquete não encontrada.",
-    no_product: "Enquete sem produto associado.",
-    rpc_error: "Falha ao fechar o pacote (tente de novo).",
-  };
-
-  async function refresh() {
-    const wrap = document.getElementById("bernardo-cards");
-    if (!wrap) return;
-    wrap.className = "bn-empty";
-    wrap.textContent = "Carregando…";
-    let data;
-    try {
-      const res = await fetch(`/api/bernardo/sessions/${SESSION}`, { credentials: "same-origin" });
-      data = await res.json();
-    } catch (e) {
-      wrap.textContent = "Erro ao carregar.";
-      return;
-    }
-    if (!data.enquetes || !data.enquetes.length) {
-      wrap.textContent = "Nenhuma enquete Bernardo ativa.";
-      return;
-    }
-    wrap.className = "";
-    wrap.innerHTML = "";
-    for (const enq of data.enquetes) {
-      const parts = (enq.participants || [])
-        .map(p => `${escapeHtml(p.nome)}: ${escapeHtml(String(p.qty))}`)
-        .join(" · ") || "—";
-      const card = document.createElement("div");
-      card.className = "bn-card";
-      card.innerHTML =
-        `<div class="bn-card-title">${escapeHtml(enq.titulo)}</div>` +
-        `<div class="bn-card-meta">Acúmulo: <b>${escapeHtml(String(enq.total_qty))}</b> peças · ` +
-          `${escapeHtml(String(enq.participants_count))} cliente(s)</div>` +
-        `<div class="bn-card-meta">${parts}</div>`;
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "bn-btn";
-      btn.textContent = "Fechar pacote";
-      btn.disabled = (enq.total_qty || 0) <= 0;
-      btn.onclick = async () => {
-        btn.disabled = true;
-        try {
-          const r = await fetch(`/api/bernardo/sessions/${SESSION}/close`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "same-origin",
-            body: JSON.stringify({ enquete_id: enq.enquete_id }),
-          });
-          const out = await r.json();
-          if (out.status === "ok") {
-            refresh();
-          } else {
-            alert(STATUS_MSG[out.status] || ("Não foi possível fechar: " + (out.status || "erro")));
-            btn.disabled = false;
-          }
-        } catch (e) {
-          alert("Erro: " + e.message);
-          btn.disabled = false;
-        }
-      };
-      card.appendChild(btn);
-      wrap.appendChild(card);
-    }
-  }
-  window._bernardoRefresh = refresh;
-```
-
-(Remover a definição-stub antiga de `refresh`/`window._bernardoRefresh`; manter só esta.)
-
-- [ ] **Step 2: Validar no browser (mesma subida da Task 3, Step 8)**
-
-Subir o scratch, criar dados de teste (uma enquete cujo título contém "Bernardo" + alguns votos via webhook/seed SQLite), logar como `admin`:
-1. Abrir Bernardo → cards mostram acúmulo (titulo, total_qty, participantes).
-2. "Fechar pacote" com `total_qty>0` → some/recarrega; pacote aparece no pipeline normal (Comercial → "Fechado").
-3. Botão desabilitado quando `total_qty == 0`.
-
-Como alternativa de dados, validar o caminho via `/bernardo` standalone (mesma API) e confirmar paridade visual da view integrada.
-
-- [ ] **Step 3: Derrubar scratch e commitar**
-
-```bash
-pkill -f "uvicorn main:app --host 127.0.0.1 --port 8023" || true
-git add static/js/bernardo_section.js
-git commit -m "feat(bernardo): cards de acúmulo + fechar pacote na view do dashboard"
 ```
 
 ---
@@ -565,7 +588,7 @@ git commit -m "chore(deploy): exige RAYLOOK_USER_BERNARDO_HASH no service dashbo
 
 ### Fechamento
 
-- [ ] Rodar suíte unитária completa: `DASHBOARD_AUTH_DISABLED=true pytest tests/unit/ -v` → tudo verde.
+- [ ] Rodar suíte unitária completa: `DASHBOARD_AUTH_DISABLED=true pytest tests/unit/ -v` → tudo verde.
 - [ ] `git diff main...HEAD --stat` revisado.
 - [ ] Abrir PR (push **só com aprovação do usuário**). O deploy depende de `deploy/.env` do host ter `RAYLOOK_USER_BERNARDO_HASH` **antes** do `docker stack deploy` (senão `:?obrigatório` falha o deploy).
 
@@ -573,10 +596,12 @@ git commit -m "chore(deploy): exige RAYLOOK_USER_BERNARDO_HASH no service dashbo
 
 - Papel `bernardo` + ROLES + verify_credentials → Task 1. ✓
 - `visible_groups` fonte única (4 papéis) → Task 1. ✓
-- Bernardo entre Comercial e Estoque → Task 3 (Steps 4-5). ✓
-- Gating de Enquetes/Financeiro/Clientes p/ bernardo → Task 3 (Step 3) + Task 1. ✓
-- View reusando `/api/bernardo/*` → Task 4. ✓
+- Render dos cards sem duplicação (módulo compartilhado) → Task 3. ✓
+- `/bernardo` standalone segue funcionando → Task 3 (refatorado p/ usar o módulo, validado no browser). ✓
+- Bernardo entre Comercial e Estoque → Task 4 (Steps 4-5). ✓
+- Gating de Enquetes/Financeiro/Clientes p/ bernardo → Task 4 (Step 3) + Task 1. ✓
+- View reusando `/api/bernardo/*` via `BernardoCards` → Task 4 (Step 2). ✓
 - Guard admin+bernardo na API/página → Task 2. ✓
 - Hash em docker-stack + deploy/.env → Task 5. ✓
 - Testes de auth + guard + browser → Tasks 1,2,3,4. ✓
-- Sem migration; `/bernardo` standalone intacto → respeitado (nenhuma task altera a página/standalone nem schema). ✓
+- Sem migration → respeitado (nenhuma task altera schema). ✓
