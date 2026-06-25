@@ -18,6 +18,7 @@ from app.services.group_context_service import (
     test_group_chat_id,
 )
 from app.services.supabase_service import SupabaseRestClient, supabase_domain_enabled
+from app.sessions import session_for_title
 from app.services.runtime_state_service import (
     FINANCE_CHARGES_STATE_KEY,
     FINANCE_STATS_STATE_KEY,
@@ -900,10 +901,53 @@ def _date_range_iso(since: str | None, until: str | None) -> tuple[str | None, s
     return since_iso, until_iso
 
 
+def _title_matches_session(titulo: str | None, session: str | None) -> bool:
+    """True quando não há filtro (session falsy) ou quando o título casa
+    com a sessão alvo. Reusa a regra única de session_for_title."""
+    if not session:
+        return True
+    s = session_for_title(titulo or "")
+    return bool(s) and s.get("name") == session
+
+
+def _allowed_venda_ids_for_session(
+    client: "SupabaseRestClient",
+    venda_by_id: Dict[str, Dict[str, Any]],
+    session: str | None,
+) -> set[str] | None:
+    """Set de venda_ids cujo título de enquete casa com a sessão.
+    Retorna None quando session é falsy (sem filtro). Resolve a cadeia
+    venda→pacote→enquete só quando o filtro é pedido."""
+    if not session:
+        return None
+    pacote_ids = list({str(v.get("pacote_id")) for v in venda_by_id.values() if v.get("pacote_id")})
+    pacotes = _select_in_batches(
+        client, "pacotes", columns="id,enquete_id",
+        filter_field="id", values=pacote_ids,
+    )
+    enquete_ids = list({str(p["enquete_id"]) for p in pacotes if p.get("enquete_id")})
+    enquetes = _select_in_batches(
+        client, "enquetes", columns="id,titulo",
+        filter_field="id", values=enquete_ids,
+    )
+    title_by_enquete = {str(e["id"]): (e.get("titulo") or "") for e in enquetes}
+    title_by_pacote = {
+        str(p["id"]): title_by_enquete.get(str(p.get("enquete_id") or ""), "")
+        for p in pacotes
+    }
+    allowed: set[str] = set()
+    for vid, v in venda_by_id.items():
+        titulo = title_by_pacote.get(str(v.get("pacote_id") or ""), "")
+        if _title_matches_session(titulo, session):
+            allowed.add(str(vid))
+    return allowed
+
+
 def build_receivables_by_client(
     now_iso: str | None = None,
     since: str | None = None,
     until: str | None = None,
+    session: str | None = None,
 ) -> List[Dict[str, Any]]:
     """Agrega pagamentos pendentes (created/sent) por cliente.
 
@@ -980,6 +1024,9 @@ def build_receivables_by_client(
             if enq:
                 enquete_titulo = enq.get("titulo") or ""
 
+        if not _title_matches_session(enquete_titulo, session):
+            continue
+
         created_at = _parse_dt(pag.get("created_at"))
         # Calcula idade em dias pela data (sem hora) para consistência
         age_days = (now.date() - created_at.date()).days if created_at else 0
@@ -1020,6 +1067,7 @@ def build_aging_summary(
     now_iso: str | None = None,
     since: str | None = None,
     until: str | None = None,
+    session: str | None = None,
 ) -> Dict[str, Any]:
     """KPIs de aging: total a receber, distribuição em buckets,
     idade média ponderada e taxa de conversão 30d.
@@ -1058,10 +1106,11 @@ def build_aging_summary(
     venda_ids = list({str(p["venda_id"]) for p in pagamentos_pendentes if p.get("venda_id")})
     vendas = _select_in_batches(
         client, "vendas",
-        columns="id,cliente_id,total_amount",
+        columns="id,cliente_id,total_amount,pacote_id",
         filter_field="id", values=venda_ids,
     )
     venda_by_id = {str(v["id"]): v for v in vendas}
+    allowed_vendas = _allowed_venda_ids_for_session(client, venda_by_id, session)
 
     buckets = {label: {"amount": 0.0, "count": 0} for label, _, _ in AGING_BUCKETS}
     total = 0.0
@@ -1071,6 +1120,8 @@ def build_aging_summary(
     for pag in pagamentos_pendentes:
         venda = venda_by_id.get(str(pag.get("venda_id")))
         if not venda:
+            continue
+        if allowed_vendas is not None and str(pag.get("venda_id")) not in allowed_vendas:
             continue
         valor = float(venda.get("total_amount") or 0)
         created_at = _parse_dt(pag.get("created_at"))
@@ -1099,6 +1150,7 @@ def build_paid_by_client(
     now_iso: str | None = None,
     since: str | None = None,
     until: str | None = None,
+    session: str | None = None,
 ) -> List[Dict[str, Any]]:
     """Agrega pagamentos liquidados (status=paid) por cliente.
 
@@ -1174,6 +1226,9 @@ def build_paid_by_client(
             if enq:
                 enquete_titulo = enq.get("titulo") or ""
 
+        if not _title_matches_session(enquete_titulo, session):
+            continue
+
         paid_at_raw = pag.get("paid_at") or pag.get("created_at")
         paid_at = _parse_dt(paid_at_raw)
         age_days = (now.date() - paid_at.date()).days if paid_at else 0
@@ -1217,6 +1272,7 @@ def build_paid_summary(
     now_iso: str | None = None,
     since: str | None = None,
     until: str | None = None,
+    session: str | None = None,
 ) -> Dict[str, Any]:
     """KPIs da aba Pagos: total recebido, total comissões, ticket médio
     e nº cobranças pagas.
@@ -1248,10 +1304,11 @@ def build_paid_summary(
     venda_ids = list({str(p["venda_id"]) for p in pagamentos if p.get("venda_id")})
     vendas = _select_in_batches(
         client, "vendas",
-        columns="id,cliente_id,total_amount,commission_amount",
+        columns="id,cliente_id,total_amount,commission_amount,pacote_id",
         filter_field="id", values=venda_ids,
     )
     venda_by_id = {str(v["id"]): v for v in vendas}
+    allowed_vendas = _allowed_venda_ids_for_session(client, venda_by_id, session)
 
     total = 0.0
     total_commission = 0.0
@@ -1261,6 +1318,8 @@ def build_paid_summary(
     for pag in pagamentos:
         venda = venda_by_id.get(str(pag.get("venda_id")))
         if not venda:
+            continue
+        if allowed_vendas is not None and str(pag.get("venda_id")) not in allowed_vendas:
             continue
         valor = float(venda.get("total_amount") or 0)
         total += valor

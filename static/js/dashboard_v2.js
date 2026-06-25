@@ -38,6 +38,12 @@
     if (!visibleGroups.has("clientes")) {
         document.getElementById("clientes-group")?.style.setProperty("display", "none");
     }
+    // Bernardo vê Financeiro, mas Créditos é saldo por cliente (não segrega por
+    // enquete) — esconde a view.
+    if (currentRole === "bernardo") {
+        document.querySelector('#fin-group .rail-step[data-fin-view="credits"]')
+            ?.style.setProperty("display", "none");
+    }
 
     const DESCS = {
         aberto: "Formando", fechado: "Aguardando gerente",
@@ -345,14 +351,16 @@
     // "Cancelados" dentro do Comercial só visualmente; o fluxo continua igual.
     // Mesmo estado pode aparecer em mais de um grupo (ex: "separado" em
     // Estoque e Logística): é apenas re-exposição visual, o estado é o mesmo.
+    // Pro role bernardo, Estoque/Logística só mostram pacotes Bernardo.
+    const opSession = currentRole === "bernardo" ? "bernardo" : "all";
     const RAIL_GROUPS = [
         { id: "comercial", label: "Comercial", session: "comercial",
           states: ["aberto", "fechado", "confirmado", "pago"], extras: ["cancelled"] },
         { id: "bernardo", label: "Bernardo", session: "bernardo",
           states: ["aberto", "fechado", "confirmado", "pago"], extras: ["cancelled"] },
-        { id: "estoque", label: "Estoque", session: "all",
+        { id: "estoque", label: "Estoque", session: opSession,
           states: ["pago", "pendente", "separado"], labels: { pago: "Fila de separação" } },
-        { id: "logistica", label: "Logística", session: "all",
+        { id: "logistica", label: "Logística", session: opSession,
           states: ["separado", "enviado"] },
     ];
 
@@ -629,7 +637,7 @@
             <div class="pkg-row ${p.id === selectedId ? "selected" : ""}" data-id="${p.id}">
                 <div class="pkg-thumb">${thumb}</div>
                 <div class="pkg-row-main">
-                    <div class="name">${L.escapeHtml(meta.item)}</div>
+                    <div class="name">${L.escapeHtml(meta.item)}${p.session === "Bernardo" ? ` <span class="badge-bernardo">Bernardo</span>` : ""}</div>
                     <div class="sub">${L.escapeHtml(subBits || L.clientesShort(p.clientes, 2))} · ${p.total_qty}/${p.capacidade_total}</div>
                     ${pendingReasonsRow}
                 </div>
@@ -811,7 +819,7 @@
             <div class="head">
                 <div class="head-img">${headImg}</div>
                 <h2>${L.escapeHtml(meta.item)} <span class="seq">${L.escapeHtml(p.friendly_id || (p.sequence_no != null ? `#${p.sequence_no}` : "—"))}</span></h2>
-                <div class="subtitle">${L.pill(state)} · ${L.escapeHtml(p.external_poll_id || "")}</div>
+                <div class="subtitle">${L.pill(state)} · ${L.escapeHtml(p.external_poll_id || "")}${p.session === "Bernardo" ? ` <span class="badge-bernardo">Bernardo</span>` : ""}</div>
                 ${chipsHtml}
                 ${pendingHtml}
             </div>

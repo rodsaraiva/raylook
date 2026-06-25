@@ -85,3 +85,24 @@ def test_history_returns_timeline(client_fake):
     assert res.status_code == 200
     events = res.json()
     assert any(e["kind"] == "package_confirmed" for e in events)
+
+
+def test_session_forced_for_bernardo_role():
+    import types
+    from app.routers.finance import _session_for_request
+    req = types.SimpleNamespace(state=types.SimpleNamespace(role="bernardo"))
+    assert _session_for_request(req) == "Bernardo"
+
+
+def test_session_none_for_admin_role():
+    import types
+    from app.routers.finance import _session_for_request
+    req = types.SimpleNamespace(state=types.SimpleNamespace(role="admin"))
+    assert _session_for_request(req) is None
+
+
+def test_session_none_when_role_absent():
+    import types
+    from app.routers.finance import _session_for_request
+    req = types.SimpleNamespace(state=types.SimpleNamespace())
+    assert _session_for_request(req) is None

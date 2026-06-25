@@ -128,5 +128,5 @@ def visible_groups(role: str) -> Tuple[str, ...]:
     if role == "logistica":
         return ("logistica", "enquetes", "clientes")
     if role == "bernardo":
-        return ("bernardo",)
+        return ("bernardo", "estoque", "logistica", "financeiro")
     return ()
