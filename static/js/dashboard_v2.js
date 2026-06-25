@@ -833,6 +833,7 @@
                 ${p.pdf_sent_at ? `<a class="btn-ghost" href="/api/dashboard/packages/${p.id}/etiqueta.pdf?fmt=termica" target="_blank" rel="noopener" style="text-decoration:none;" title="Etiqueta térmica (adesiva, 1 por cliente)">🏷️ Térmica</a>` : ""}
                 <button class="btn-ghost" data-drill>Ver detalhes completos</button>
                 ${(isAdmin && canAdvance) ? `<button class="btn-ghost" data-cancel style="color:var(--danger);">Cancelar pacote</button>` : ""}
+                ${(p.session === "Bernardo" && state === "aberto") ? `<button class="btn-primary" data-fechar-bernardo>Fechar pacote</button>` : ""}
             </div>`;
 
         detail.querySelectorAll("[data-advance]").forEach(btn => btn.addEventListener("click", async () => {
@@ -865,6 +866,33 @@
         detail.querySelector("[data-drill]")?.addEventListener("click", () => window.RaylookModal?.open(p.id));
         detail.querySelector("[data-cancel]")?.addEventListener("click", async () => {
             await L.doAction(p.id, "cancel", { confirmText: "Cancelar esse pacote?", okLabel: "Cancelar pacote", danger: true });
+        });
+        detail.querySelector("[data-fechar-bernardo]")?.addEventListener("click", async () => {
+            if (!confirm("Fechar o pacote acumulado desta enquete agora?")) return;
+            const MSG = {
+                no_votes: "Sem votos pra fechar.",
+                not_session: "Enquete não pertence à sessão.",
+                not_found: "Enquete não encontrada.",
+                no_product: "Enquete sem produto associado.",
+                rpc_error: "Falha ao fechar o pacote (tente de novo).",
+            };
+            try {
+                const r = await fetch("/api/bernardo/sessions/Bernardo/close", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "same-origin",
+                    body: JSON.stringify({ enquete_id: p.enquete_id }),
+                });
+                const out = await r.json();
+                if (out.status === "ok") {
+                    selectedId = null;
+                    load();
+                } else {
+                    alert(MSG[out.status] || ("Não foi possível fechar: " + (out.status || "erro")));
+                }
+            } catch (e) {
+                alert("Erro: " + e.message);
+            }
         });
         detail.querySelector("[data-edit-fornecedor]")?.addEventListener("click", async () => {
             const forn = await promptFornecedor();
