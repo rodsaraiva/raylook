@@ -409,7 +409,7 @@
             })
         );
 
-        rail.querySelectorAll(".rail-group-header").forEach(h =>
+        rail.querySelectorAll(".rail-group-header:not([data-panel])").forEach(h =>
             h.addEventListener("click", () => {
                 const id = h.dataset.toggle;
                 const willOpen = !groupOpen[id];
