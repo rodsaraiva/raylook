@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Raylook · Bernardo</title>
+  <!-- reusa o tema do dashboard (variáveis --accent/--text-*/--bg-* + fonte Outfit) -->
+  <link rel="stylesheet" href="/static/dashboard/base.css">
+  <style>
+    body { margin: 0; background: var(--bg-main, #0f0f12); color: var(--text-primary, #eee);
+           font-family: 'Outfit', sans-serif; }
+    .bernardo-wrap { max-width: 760px; margin: 0 auto; padding: 28px 24px; }
+    .bernardo-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
+    .bernardo-title { font-size: 24px; font-weight: 700; }
+    .bernardo-sub { color: var(--text-muted, #999); font-size: 13px; margin-bottom: 20px; }
+    .bernardo-head a { color: var(--text-muted, #999); font-size: 12px; text-decoration: none; }
+    .bn-card { border: 1px solid rgba(255,255,255,0.08); border-radius: 12px;
+               padding: 16px 18px; margin-bottom: 12px; background: rgba(255,255,255,0.02); }
+    .bn-card-title { font-weight: 600; font-size: 15px; }
+    .bn-card-meta { color: var(--text-muted, #999); font-size: 13px; margin-top: 6px;
+                    font-variant-numeric: tabular-nums; }
+    .bn-card-meta b { color: var(--text-primary, #eee); }
+    .bn-btn { margin-top: 14px; padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer;
+              background: var(--accent, #d4a017); color: var(--bg-main, #111); font-weight: 600;
+              font-family: inherit; font-size: 13px; }
+    .bn-btn[disabled] { opacity: .45; cursor: not-allowed; }
+    .bn-empty { color: var(--text-muted, #999); padding: 24px 0; }
+  </style>
+</head>
+<body>
+  <div class="bernardo-wrap">
+    <div class="bernardo-head">
+      <div class="bernardo-title">Sessão Bernardo</div>
+      <a href="/">← Dashboard</a>
+    </div>
+    <div class="bernardo-sub">Votos acumulam até você fechar o pacote.</div>
+    <div id="bernardo-cards" class="bn-empty">Carregando…</div>
+  </div>
+  <script src="/static/js/bernardo_page.js"></script>
+</body>
+</html>

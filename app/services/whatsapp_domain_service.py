@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from app.config import settings
 from app.services.supabase_service import SupabaseRestClient, supabase_domain_enabled
+from app.sessions import accumulate_session_for_title
 from finance.utils import extract_price
 
 logger = logging.getLogger("raylook.whatsapp_domain")
@@ -455,6 +456,161 @@ class PackageService:
         ids = {v["id"] for v in subset}
         return subset, [v for v in votes if v["id"] not in ids]
 
+    def _accumulate_pending(
+        self, enquete_id: str, active_votes: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Votos ainda não congelados: ativos menos a qty já consumida por
+        cliente em pacotes closed/approved desta enquete (subtração por cliente).
+        """
+        from collections import defaultdict
+
+        pkgs = self.client.select(
+            "pacotes", columns="id,status",
+            filters=[("enquete_id", "eq", enquete_id), ("status", "in", ["closed", "approved"])],
+        )
+        pkg_ids = [str(p["id"]) for p in (pkgs if isinstance(pkgs, list) else [])]
+        consumed_by_client: Dict[str, int] = defaultdict(int)
+        if pkg_ids:
+            rows = self.client.select(
+                "pacote_clientes", columns="cliente_id,qty",
+                filters=[("pacote_id", "in", pkg_ids)],
+            )
+            for r in (rows if isinstance(rows, list) else []):
+                consumed_by_client[str(r["cliente_id"])] += int(r.get("qty") or 0)
+
+        pending: List[Dict[str, Any]] = []
+        for v in active_votes:
+            cid = str(v["cliente_id"])
+            remaining = max(int(v.get("qty") or 0) - consumed_by_client.get(cid, 0), 0)
+            if remaining > 0:
+                pending.append({**v, "qty": remaining})
+        return pending
+
+    def _rebuild_accumulate(
+        self,
+        enquete_id: str,
+        active_votes: List[Dict[str, Any]],
+        produto_id: Optional[str],
+        unit_price: float,
+        enquete_fornecedor: Optional[str],
+    ) -> Dict[str, Any]:
+        """Mantém UM pacote open (seq 0) com os votos pendentes. Nunca fecha
+        sozinho, nunca toca closed/approved/cancelled."""
+        pending = self._accumulate_pending(enquete_id, active_votes)
+        open_qty = sum(int(v.get("qty") or 0) for v in pending)
+
+        if open_qty > 0:
+            payload: Dict[str, Any] = {
+                "enquete_id": enquete_id,
+                "sequence_no": 0,
+                "capacidade_total": open_qty,
+                "total_qty": open_qty,
+                "participants_count": len(pending),
+                "status": "open",
+                "opened_at": _safe_datetime(pending[0].get("voted_at")).isoformat(),
+            }
+            if enquete_fornecedor:
+                payload["fornecedor"] = enquete_fornecedor
+            self.client.insert(
+                "pacotes", payload, upsert=True,
+                on_conflict="enquete_id,sequence_no", returning="minimal",
+            )
+        else:
+            self.client.delete(
+                "pacotes",
+                filters=[("enquete_id", "eq", enquete_id), ("sequence_no", "eq", 0),
+                         ("status", "eq", "open")],
+            )
+        return {"mode": "accumulate", "open_qty": open_qty,
+                "participants": len(pending), "closed_count": 0}
+
+    def close_accumulated(self, enquete_id: str) -> Dict[str, Any]:
+        """Congela todos os votos pendentes da enquete num pacote closed,
+        reusando a RPC transacional close_package com total = soma real."""
+        poll = self.client.select(
+            "enquetes",
+            columns="id,titulo,produto_id,fornecedor,produtos(id,valor_unitario)",
+            filters=[("id", "eq", enquete_id)], single=True,
+        )
+        if not isinstance(poll, dict):
+            return {"status": "not_found"}
+        if not accumulate_session_for_title(poll.get("titulo")):
+            return {"status": "not_session"}
+
+        produto_id = poll.get("produto_id")
+        unit_price = 0.0
+        produto = poll.get("produtos")
+        if isinstance(produto, dict):
+            unit_price = float(produto.get("valor_unitario") or 0.0)
+            if not produto_id:
+                produto_id = produto.get("id")
+        enquete_fornecedor = (poll.get("fornecedor") or "").strip() or None
+
+        votes = self.client.select(
+            "votos", columns="id,cliente_id,alternativa_id,qty,voted_at,status",
+            filters=[("enquete_id", "eq", enquete_id), ("status", "neq", "out")],
+        )
+        active = [
+            v for v in (votes if isinstance(votes, list) else [])
+            if str(v.get("status") or "").strip().lower() != "out" and int(v.get("qty") or 0) > 0
+        ]
+        active.sort(key=lambda v: (-int(v.get("qty") or 0), _safe_datetime(v.get("voted_at"))))
+
+        pending = self._accumulate_pending(enquete_id, active)
+        if not pending:
+            return {"status": "no_votes"}
+        if not produto_id:
+            return {"status": "no_product"}
+
+        commission_per_piece = float(settings.COMMISSION_PER_PIECE)
+        total_qty = sum(int(v["qty"]) for v in pending)
+        votes_payload: List[Dict[str, Any]] = []
+        for vote in pending:
+            qty = int(vote["qty"])
+            subtotal = round(unit_price * qty, 2)
+            commission_amount = round(qty * commission_per_piece, 2)
+            votes_payload.append({
+                "vote_id": vote["id"], "cliente_id": vote["cliente_id"], "qty": qty,
+                "unit_price": unit_price, "subtotal": subtotal, "commission_percent": 0,
+                "commission_amount": commission_amount,
+                "total_amount": round(subtotal + commission_amount, 2),
+            })
+        opened_at = min(_safe_datetime(v.get("voted_at")) for v in pending).isoformat()
+        closed_at = max(_safe_datetime(v.get("voted_at")) for v in pending).isoformat()
+
+        rpc_result = self.client.rpc("close_package", {
+            "p_enquete_id": enquete_id, "p_produto_id": produto_id,
+            "p_votes": votes_payload, "p_opened_at": opened_at, "p_closed_at": closed_at,
+            "p_capacidade_total": total_qty, "p_total_qty": total_qty,
+        })
+        new_pkg_id = rpc_result.get("pacote_id") if isinstance(rpc_result, dict) else None
+        if not new_pkg_id:
+            status = rpc_result.get("status") if isinstance(rpc_result, dict) else None
+            if status == "no_votes":
+                return {"status": "no_votes"}
+            logger.warning("close_package não retornou pacote_id: %s enquete=%s", rpc_result, enquete_id)
+            return {"status": "rpc_error"}
+
+        if enquete_fornecedor:
+            try:
+                self.client.update("pacotes", {"fornecedor": enquete_fornecedor},
+                                   filters=[("id", "eq", str(new_pkg_id))])
+            except Exception:
+                logger.warning("falha propagando fornecedor pro pacote %s", new_pkg_id)
+        try:
+            from app.services.friendly_id_service import assign_friendly_id
+            assign_friendly_id(self.client, str(new_pkg_id))
+        except Exception:
+            logger.exception("falha ao atribuir friendly_id pacote=%s", new_pkg_id)
+
+        # Votos consumidos -> remove o open summary (próximo voto reabre o acúmulo).
+        self.client.delete(
+            "pacotes",
+            filters=[("enquete_id", "eq", enquete_id), ("sequence_no", "eq", 0), ("status", "eq", "open")],
+        )
+        return {"status": "ok", "pacote_id": new_pkg_id,
+                "total_qty": total_qty, "participants": len(pending)}
+
     def rebuild_for_poll(self, enquete_id: str) -> Dict[str, Any]:
         # Fetch current votes (source of truth = last user action)
         votes = self.client.select(
@@ -470,7 +626,7 @@ class PackageService:
 
         poll = self.client.select(
             "enquetes",
-            columns="id,produto_id,fornecedor,produtos(id,valor_unitario)",
+            columns="id,titulo,produto_id,fornecedor,produtos(id,valor_unitario)",
             filters=[("id", "eq", enquete_id)],
             single=True,
         )
@@ -485,6 +641,12 @@ class PackageService:
             unit_price = float(produto.get("valor_unitario") or 0.0)
             if not produto_id:
                 produto_id = produto.get("id")
+        # Ramo de acúmulo (sessão tipo Bernardo): nunca usa subset-sum 24.
+        if accumulate_session_for_title(poll.get("titulo")):
+            return self._rebuild_accumulate(
+                enquete_id, active_votes, produto_id, unit_price, enquete_fornecedor
+            )
+
         if not produto_id:
             return {"closed_count": 0, "open_qty": sum(int(v.get("qty") or 0) for v in active_votes)}
 
