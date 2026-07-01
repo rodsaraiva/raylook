@@ -36,7 +36,7 @@ def test_cancel_delegates_to_service_and_returns_credit(monkeypatch):
     _silence_snapshots(monkeypatch)
     called = {}
 
-    def fake_cancel(package_id, force=False, cancelled_by=None):
+    def fake_cancel(package_id, force=False, cancelled_by=None, reason=None):
         called["args"] = (package_id, force, cancelled_by)
         return {"cancelled_sales": 2, "credited_clients": 1, "credited_total": 300.0}
 
@@ -59,7 +59,7 @@ def test_cancel_blocked_when_paid_clients(monkeypatch):
     _silence_snapshots(monkeypatch)
     from app.services.package_cancellation_service import PackageCancelBlocked
 
-    def fake_cancel(package_id, force=False, cancelled_by=None):
+    def fake_cancel(package_id, force=False, cancelled_by=None, reason=None):
         raise PackageCancelBlocked([
             {"cliente_nome": "Ana", "total_amount": 150.0, "pagamento_id": "PG1"},
         ])
@@ -82,7 +82,7 @@ def test_cancel_returns_404_when_package_not_found(monkeypatch):
     _silence_snapshots(monkeypatch)
     from app.services.package_cancellation_service import PackageNotFound
 
-    def fake_cancel(package_id, force=False, cancelled_by=None):
+    def fake_cancel(package_id, force=False, cancelled_by=None, reason=None):
         raise PackageNotFound(package_id)
 
     monkeypatch.setattr(
@@ -161,3 +161,27 @@ def test_mark_client_paid_confirms_credit_debit(monkeypatch):
     dashboard_module.mark_client_paid("PKG-1", "CLI-1")
 
     assert confirmed == ["PG9"]
+
+
+def test_cancel_forwards_reason(monkeypatch):
+    _silence_snapshots(monkeypatch)
+    called = {}
+
+    def fake_cancel(package_id, force=False, cancelled_by=None, reason=None):
+        called["reason"] = reason
+        called["force"] = force
+        return {"cancelled_sales": 1, "credited_clients": 1, "credited_total": 120.0}
+
+    monkeypatch.setattr(
+        "app.services.package_cancellation_service.cancel_package", fake_cancel
+    )
+
+    client = TestClient(_make_app())
+    resp = client.post(
+        "/api/dashboard/packages/PKG-9/cancel",
+        json={"force": True, "cancel_reason": "  Fornecedor sem estoque  "},
+    )
+
+    assert resp.status_code == 200
+    assert called["force"] is True
+    assert called["reason"] == "Fornecedor sem estoque"  # trim aplicado

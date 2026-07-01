@@ -1054,17 +1054,19 @@ async def cancel_package(pacote_id: str, request: Request) -> Dict[str, Any]:
         raise HTTPException(403, "Apenas o administrador pode cancelar pacotes.")
 
     force = False
+    reason = None
     try:
         body = await request.json()
         if isinstance(body, dict):
             force = bool(body.get("force") or False)
+            reason = (str(body.get("cancel_reason") or "")).strip() or None
     except Exception:
         pass
 
     from app.services import package_cancellation_service as pcs
     try:
         result = await asyncio.to_thread(
-            pcs.cancel_package, pacote_id, force=force, cancelled_by=role
+            pcs.cancel_package, pacote_id, force=force, cancelled_by=role, reason=reason
         )
     except pcs.PackageNotFound:
         raise HTTPException(404, "Pacote não encontrado")
