@@ -895,6 +895,7 @@
         display: flex; gap: 0.6rem; justify-content: flex-end;
     }
     .admin-pwd-actions .btn-primary,
+    .admin-pwd-actions .btn-danger,
     .admin-pwd-actions .btn-ghost {
         padding: 0.55rem 1rem; border-radius: 10px;
         font-size: 0.85rem; font-weight: 600; cursor: pointer;
@@ -905,6 +906,12 @@
         background: var(--accent); color: #0c0a09; border-color: var(--accent);
     }
     .admin-pwd-actions .btn-primary:hover { filter: brightness(1.08); }
+    /* Confirmar ação destrutiva (ex.: cancelar pacote) — vermelho, igual à
+       convenção do RaylookModal.confirm({danger}) e do rl-btn-danger. */
+    .admin-pwd-actions .btn-danger {
+        background: var(--danger); color: #fff; border-color: var(--danger);
+    }
+    .admin-pwd-actions .btn-danger:hover { filter: brightness(1.08); }
 
     /* Pending reasons modal — variações sobre admin-pwd-modal */
     .pending-modal { max-width: 440px; }
@@ -1364,7 +1371,7 @@
     <div id="cancel-reason-error" class="admin-pwd-error"></div>
     <div class="admin-pwd-actions">
         <button type="button" class="btn-ghost" id="cancel-reason-cancel">Voltar</button>
-        <button type="button" class="btn-primary" id="cancel-reason-ok">Cancelar pacote</button>
+        <button type="button" class="btn-danger" id="cancel-reason-ok">Cancelar pacote</button>
     </div>
 </div>
 
