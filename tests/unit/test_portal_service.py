@@ -693,7 +693,7 @@ class TestGetClientOrders:
         assert ids == ["v-appr"]
 
     def test_pagamento_cancelado_e_omitido(self, monkeypatch):
-        """Pagamento explicitamente cancelado também é omitido."""
+        """Pagamento cancelado que NUNCA foi pago (paid_at nulo) é omitido."""
         venda = {
             "id": "vc", "cliente_id": "cli-1", "pacote_id": "pk",
             "produto_id": "pr", "qty": 1, "unit_price": 10.0, "subtotal": 10.0,
@@ -713,6 +713,61 @@ class TestGetClientOrders:
         _install_fake(monkeypatch, fake)
         result = ps.get_client_orders("cli-1")
         assert result == []
+
+    def test_peca_paga_e_cancelada_aparece_com_motivo(self, monkeypatch):
+        """Peça já paga que foi cancelada (virou crédito) DEVE aparecer no
+        portal com status 'cancelled', badge de entrega 'cancelled' e o motivo
+        do cancelamento (pacotes.cancel_reason)."""
+        venda = {
+            "id": "vpaga", "cliente_id": "cli-1", "pacote_id": "pk",
+            "produto_id": "pr", "qty": 1, "unit_price": 100.0, "subtotal": 100.0,
+            "commission_percent": 0, "commission_amount": 0, "total_amount": 100.0,
+            "status": "cancelled", "created_at": "2026-01-01T00:00:00Z",
+            "produto": {"nome": "Vestido", "descricao": None, "tamanho": "M", "drive_file_id": None},
+            "pacote": {"id": "pk", "status": "cancelled",
+                       "cancel_reason": "Fornecedor sem estoque",
+                       "enquete": {"titulo": "E", "created_at_provider": None, "drive_file_id": None}},
+        }
+        pagamento = {
+            "id": "pgp", "venda_id": "vpaga", "provider": "asaas",
+            "provider_payment_id": "pay1", "payment_link": "", "pix_payload": "",
+            "status": "cancelled", "due_date": None,
+            "paid_at": "2026-01-05T12:00:00Z",
+            "created_at": "2026-01-01T00:00:00Z",
+        }
+        fake = FakeSupabaseClient({"vendas": [venda], "pagamentos": [pagamento]})
+        _install_fake(monkeypatch, fake)
+        result = ps.get_client_orders("cli-1")
+        assert len(result) == 1
+        o = result[0]
+        assert o["status"] == "cancelled"
+        assert o["delivery_status"] == "cancelled"
+        assert o["cancel_reason"] == "Fornecedor sem estoque"
+
+    def test_peca_paga_cancelada_sem_motivo_ainda_aparece(self, monkeypatch):
+        """Sem motivo preenchido, a peça paga cancelada ainda aparece (motivo vazio)."""
+        venda = {
+            "id": "vp2", "cliente_id": "cli-1", "pacote_id": "pk",
+            "produto_id": "pr", "qty": 1, "unit_price": 100.0, "subtotal": 100.0,
+            "commission_percent": 0, "commission_amount": 0, "total_amount": 100.0,
+            "status": "cancelled", "created_at": "2026-01-01T00:00:00Z",
+            "produto": {"nome": "Vestido", "descricao": None, "tamanho": None, "drive_file_id": None},
+            "pacote": {"id": "pk", "status": "cancelled", "cancel_reason": None,
+                       "enquete": {"titulo": "E", "created_at_provider": None, "drive_file_id": None}},
+        }
+        pagamento = {
+            "id": "pgp2", "venda_id": "vp2", "provider": "asaas",
+            "provider_payment_id": "pay2", "payment_link": "", "pix_payload": "",
+            "status": "cancelled", "due_date": None,
+            "paid_at": "2026-01-05T12:00:00Z",
+            "created_at": "2026-01-01T00:00:00Z",
+        }
+        fake = FakeSupabaseClient({"vendas": [venda], "pagamentos": [pagamento]})
+        _install_fake(monkeypatch, fake)
+        result = ps.get_client_orders("cli-1")
+        assert len(result) == 1
+        assert result[0]["status"] == "cancelled"
+        assert result[0]["cancel_reason"] == ""
 
 
 # ---------------------------------------------------------------------------
