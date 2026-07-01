@@ -149,6 +149,9 @@ def cancel_package(
 ) -> Dict[str, Any]:
     """Cancela o pacote em cascata.
 
+    `reason` (opcional): motivo do cancelamento, gravado em
+    `pacotes.cancel_reason` e exibido pra cliente no portal.
+
     Raises:
       PackageNotFound: pacote não existe
       PackageCancelBlocked: há pagamentos pagos e force=False

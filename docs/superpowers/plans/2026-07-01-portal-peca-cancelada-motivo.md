@@ -729,6 +729,6 @@ Run: `pkill -f "python3 main.py"`
 
 ## Notas de deploy (pós-aprovação)
 
-1. **Migration em prod** (só com OK do usuário): rodar `F067_pacotes_cancel_reason.sql` no Postgres do raylook (`raylook_postgres`), dentro de `BEGIN;...COMMIT;` (a migration já traz). `ADD COLUMN IF NOT EXISTS` é idempotente e não bloqueia.
-2. Deploy do código via GitHub Actions (push em `main`) — **só após aprovação do push**.
-3. Ordem segura: migration antes do deploy do código (a coluna nova é opcional na leitura; PostgREST precisa dela no schema cache — recarregar se necessário).
+1. **Migration em prod ANTES do código** (só com OK do usuário): rodar `F067_pacotes_cancel_reason.sql` no Postgres do raylook (`raylook_postgres`). `ADD COLUMN IF NOT EXISTS` é idempotente e não bloqueia. A migration já inclui `NOTIFY pgrst, 'reload schema';` — recarrega o schema-cache do PostgREST no COMMIT.
+2. **Ordem obrigatória (não opcional):** migration + reload do PostgREST **antes** do deploy do código. O portal (`get_client_orders`) passa a pedir `cancel_reason` no embed; se o código subir antes do PostgREST enxergar a coluna, `select_all` recebe 4xx e a página de pedidos do cliente quebra pra todos. Como merge em `main` dispara o deploy via CI, rodar a migration primeiro (ou reiniciar `raylook_postgrest` se o NOTIFY não pegar).
+3. Deploy do código via GitHub Actions (push em `main`) — **só após aprovação do push** e depois da migration.
