@@ -182,6 +182,7 @@ CREATE TABLE IF NOT EXISTS pacotes (
     confirmed_by text,
     cancelled_at timestamptz,
     cancelled_by text,
+    cancel_reason text,
     created_via text NOT NULL DEFAULT 'poll',
     shipped_at timestamptz,
     shipped_by text,
