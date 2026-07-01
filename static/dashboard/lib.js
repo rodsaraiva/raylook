@@ -189,7 +189,7 @@ const RaylookDashboard = (() => {
                     method: "POST",
                     credentials: "include",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ force: true }),
+                    body: JSON.stringify({ ...(body || {}), force: true }),
                 });
                 if (!resp2.ok) {
                     const e2 = await resp2.json().catch(() => ({ detail: `HTTP ${resp2.status}` }));

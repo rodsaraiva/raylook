@@ -1350,6 +1350,24 @@
     </div>
 </div>
 
+<!-- Modal de motivo pra cancelar pacote (obrigatório, aparece pra cliente) -->
+<div id="cancel-reason-overlay" class="admin-pwd-overlay"></div>
+<div id="cancel-reason-modal" class="admin-pwd-modal pending-modal" role="dialog" aria-labelledby="cancel-reason-title">
+    <h3 id="cancel-reason-title">Cancelar pacote</h3>
+    <p class="admin-pwd-help">Explique o motivo do cancelamento. Esse texto aparece pra cliente no portal.</p>
+
+    <div class="pending-obs-wrap">
+        <label for="cancel-reason-text" class="pending-label">Motivo <span class="pending-required">*</span></label>
+        <textarea id="cancel-reason-text" class="pending-textarea" placeholder="Ex.: Fornecedor cancelou o pedido, sem estoque." rows="3"></textarea>
+    </div>
+
+    <div id="cancel-reason-error" class="admin-pwd-error"></div>
+    <div class="admin-pwd-actions">
+        <button type="button" class="btn-ghost" id="cancel-reason-cancel">Voltar</button>
+        <button type="button" class="btn-primary" id="cancel-reason-ok">Cancelar pacote</button>
+    </div>
+</div>
+
 <!-- Modal pra escolher fornecedor antes de confirmar pacote -->
 <div id="fornecedor-overlay" class="admin-pwd-overlay"></div>
 <div id="fornecedor-modal" class="admin-pwd-modal pending-modal" role="dialog" aria-labelledby="fornecedor-title">
@@ -1393,9 +1411,9 @@
     </div>
 </div>
 
-<script src="/static/dashboard/lib.js?v=3"></script>
-<script src="/static/dashboard/modal.js?v=3"></script>
-<script src="/static/js/dashboard_v2.js?v=20260625c"></script>
+<script src="/static/dashboard/lib.js?v=4"></script>
+<script src="/static/dashboard/modal.js?v=4"></script>
+<script src="/static/js/dashboard_v2.js?v=20260701"></script>
 <script src="/static/js/finance-toggle.js"></script>
 <script src="/static/js/finance.js"></script>
 <script src="/static/js/clientes.js"></script>
