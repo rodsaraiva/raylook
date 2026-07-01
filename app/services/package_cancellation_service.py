@@ -145,8 +145,12 @@ def cancel_package(
     package_id: str,
     force: bool = False,
     cancelled_by: Optional[str] = None,
+    reason: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Cancela o pacote em cascata.
+
+    `reason` (opcional): motivo do cancelamento, gravado em
+    `pacotes.cancel_reason` e exibido pra cliente no portal.
 
     Raises:
       PackageNotFound: pacote não existe
@@ -252,6 +256,7 @@ def cancel_package(
             "status": "cancelled",
             "cancelled_at": now,
             "cancelled_by": cancelled_by or "admin",
+            "cancel_reason": reason,
             "updated_at": now,
         },
         prefer="return=minimal",

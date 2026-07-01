@@ -110,6 +110,45 @@
         });
     }
 
+    // Modal de motivo pra cancelar pacote (texto livre obrigatório). Retorna
+    // { cancel_reason } ou null se cancelado. O texto aparece pra cliente.
+    function promptCancelReason() {
+        return new Promise((resolve) => {
+            const ov = document.getElementById("cancel-reason-overlay");
+            const md = document.getElementById("cancel-reason-modal");
+            const ta = document.getElementById("cancel-reason-text");
+            const ok = document.getElementById("cancel-reason-ok");
+            const cancel = document.getElementById("cancel-reason-cancel");
+            const err = document.getElementById("cancel-reason-error");
+            if (!ov || !md || !ta || !ok) { resolve(null); return; }
+
+            ta.value = "";
+            err.textContent = "";
+            ov.classList.add("open");
+            md.classList.add("open");
+            setTimeout(() => ta.focus(), 30);
+
+            function cleanup() {
+                ov.classList.remove("open");
+                md.classList.remove("open");
+                ok.removeEventListener("click", onOk);
+                cancel.removeEventListener("click", onCancel);
+                ov.removeEventListener("click", onCancel);
+            }
+            function onOk() {
+                const reason = ta.value.trim();
+                if (!reason) { err.textContent = "Preencha o motivo do cancelamento."; return; }
+                cleanup();
+                resolve({ cancel_reason: reason });
+            }
+            function onCancel() { cleanup(); resolve(null); }
+            ok.addEventListener("click", onOk);
+            cancel.addEventListener("click", onCancel);
+            ov.addEventListener("click", onCancel);
+        });
+    }
+    window.RaylookCancelReason = promptCancelReason;
+
     // Modal pra escolher fornecedor na confirmação de pacote. Carrega
     // distinct das enquetes (cache 30s) + opção de digitar novo. Resolve
     // com { fornecedor: "X" } ou null se cancelado.
@@ -873,7 +912,9 @@
         });
         detail.querySelector("[data-drill]")?.addEventListener("click", () => window.RaylookModal?.open(p.id));
         detail.querySelector("[data-cancel]")?.addEventListener("click", async () => {
-            await L.doAction(p.id, "cancel", { confirmText: "Cancelar esse pacote?", okLabel: "Cancelar pacote", danger: true });
+            const r = await promptCancelReason();
+            if (!r) return;
+            await L.doAction(p.id, "cancel", { body: { cancel_reason: r.cancel_reason }, okLabel: "Cancelar pacote", danger: true });
         });
         detail.querySelector("[data-fechar-bernardo]")?.addEventListener("click", async () => {
             if (!confirm("Fechar o pacote acumulado desta enquete agora?")) return;

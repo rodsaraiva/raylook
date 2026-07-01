@@ -177,6 +177,7 @@ CREATE TABLE IF NOT EXISTS pacotes (
     confirmed_by TEXT,
     cancelled_at TEXT,
     cancelled_by TEXT,
+    cancel_reason TEXT,
     created_via TEXT NOT NULL DEFAULT 'poll',
     -- shipped_at: quando o pacote foi despachado pro cliente (6º estado do fluxo
     -- "enviado"). Preenchido pela UI quando o operador marca como enviado.

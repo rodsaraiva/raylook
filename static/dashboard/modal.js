@@ -254,13 +254,23 @@ const RaylookModal = (() => {
         body.querySelectorAll("[data-action]").forEach(btn => {
             btn.addEventListener("click", async () => {
                 const action = btn.dataset.action;
-                if (action === "cancel" && !await confirmModal("Cancelar esse pacote?", { okLabel: "Cancelar pacote", danger: true })) return;
+                let cancelReason = null;
+                if (action === "cancel") {
+                    const r = window.RaylookCancelReason ? await window.RaylookCancelReason() : null;
+                    if (!r) return;
+                    cancelReason = r.cancel_reason;
+                }
                 btn.disabled = true;
                 const old = btn.textContent;
                 btn.textContent = "…";
                 try {
                     const url = `/api/dashboard/packages/${pacoteId}/${action}`;
-                    let resp = await fetch(url, { method: "POST", credentials: "include" });
+                    const initBody = cancelReason ? { cancel_reason: cancelReason } : undefined;
+                    let resp = await fetch(url, {
+                        method: "POST",
+                        credentials: "include",
+                        ...(initBody ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(initBody) } : {}),
+                    });
                     if (resp.status === 409 && action === "cancel") {
                         const info = await resp.json().catch(() => ({}));
                         const lista = (info.paid_clients || [])
@@ -276,7 +286,7 @@ const RaylookModal = (() => {
                             method: "POST",
                             credentials: "include",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ force: true }),
+                            body: JSON.stringify({ cancel_reason: cancelReason, force: true }),
                         });
                     }
                     if (!resp.ok) {

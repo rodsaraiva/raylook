@@ -396,7 +396,7 @@ def get_client_orders(cliente_id: str) -> List[Dict[str, Any]]:
             "id,pacote_id,pacote_cliente_id,produto_id,qty,unit_price,subtotal,"
             "commission_percent,commission_amount,total_amount,status,created_at,"
             "produto:produto_id(nome,descricao,tamanho,drive_file_id),"
-            "pacote:pacote_id(id,friendly_id,status,shipped_at,pdf_sent_at,pending_reasons,pending_observations,"
+            "pacote:pacote_id(id,friendly_id,status,shipped_at,pdf_sent_at,pending_reasons,pending_observations,cancel_reason,"
             "enquete:enquete_id(titulo,created_at_provider,drive_file_id))"
         ),
         filters=[("cliente_id", "eq", cliente_id)],
@@ -431,8 +431,6 @@ def get_client_orders(cliente_id: str) -> List[Dict[str, Any]]:
     # 3) Montar lista unificada
     orders: List[Dict[str, Any]] = []
     for venda in vendas:
-        if venda.get("status") == "cancelled":
-            continue
         produto = venda.get("produto") or {}
         pacote = venda.get("pacote") or {}
         enquete = pacote.get("enquete") or {}
@@ -440,15 +438,27 @@ def get_client_orders(cliente_id: str) -> List[Dict[str, Any]]:
         # Se a cobrança foi excluída (venda existe mas pagamento não), não mostrar
         if not pagamento:
             continue
-        # Pacote ainda formando (aberto/fechado) ou já cancelado não aparece
-        # no portal — só faz sentido após approve.
+
         pkg_status = (pacote.get("status") or "").lower()
-        if pkg_status in ("open", "closed", "cancelled"):
+        pag_status = str(pagamento.get("status") or venda.get("status") or "pending").lower()
+        venda_status = str(venda.get("status") or "").lower()
+        was_paid = bool(pagamento.get("paid_at"))
+        is_cancelled = (
+            pag_status in CANCELLED_STATUSES
+            or venda_status == "cancelled"
+            or pkg_status == "cancelled"
+        )
+
+        if is_cancelled:
+            # Só peça que foi paga (virou crédito) reaparece com tag "Cancelado"
+            # + motivo. Cancelada que a cliente nunca pagou continua oculta.
+            if not was_paid:
+                continue
+            pag_status = "cancelled"
+        elif pkg_status in ("open", "closed"):
+            # Pacote ainda formando não aparece — só após approve.
             continue
 
-        pag_status = str(pagamento.get("status") or venda.get("status") or "pending").lower()
-        if pag_status in CANCELLED_STATUSES:
-            continue
         pc_row = pc_by_id.get(str(venda.get("pacote_cliente_id") or ""))
         delivery = _delivery_status(pag_status, pacote, pc_row)
 
@@ -483,6 +493,7 @@ def get_client_orders(cliente_id: str) -> List[Dict[str, Any]]:
             "delivery_status": delivery["code"],
             "pending_reasons": delivery["reasons"],
             "pending_observations": delivery["observations"],
+            "cancel_reason": pacote.get("cancel_reason") or "",
             "payment_link": pagamento.get("payment_link") or "",
             "pix_payload": pagamento.get("pix_payload") or "",
             "provider_payment_id": pagamento.get("provider_payment_id") or "",

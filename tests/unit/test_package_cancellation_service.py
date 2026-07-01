@@ -258,3 +258,26 @@ def test_embedded_payment_as_list_is_normalized(monkeypatch):
 
     result = pcs.cancel_package("PKG-1", force=False)
     assert result["cancelled_payments"] == 1
+
+
+def test_cancel_grava_motivo_no_pacote(monkeypatch):
+    sales = [
+        {
+            "id": "V1", "status": "approved", "qty": 6,
+            "total_amount": 120, "cliente_id": "C1",
+            "cliente": {"nome": "Ana", "celular": "5511999"},
+            "pagamento": {"id": "P1", "status": "paid", "paid_at": "2026-05-01T00:00:00Z"},
+        },
+    ]
+    fake = _make_fake_client(sales=sales)
+    pcs = _install(monkeypatch, fake)
+
+    from app.services import credit_service
+    monkeypatch.setattr(credit_service, "add_credit", lambda *a, **k: None)
+
+    pcs.cancel_package("PKG-1", force=True, cancelled_by="admin",
+                       reason="Fornecedor sem estoque")
+
+    pkg_patch = [c for c in fake.patch_calls if "/pacotes?" in c["path"]]
+    assert len(pkg_patch) == 1
+    assert pkg_patch[0]["payload"]["cancel_reason"] == "Fornecedor sem estoque"
